@@ -308,7 +308,7 @@ export async function recordAndStartPush(params: RecordParams & { watermark: str
     before_clicks: before.clicks,
     created_at: (params.now ?? new Date()).toISOString(),
   };
-  const insert = main.ok
+  const insert: Record<string, unknown> = main.ok
     ? { ...base, status: "selected", main_query: main.query, query_impressions: main.impressions, query_clicks: main.clicks, query_position: main.position }
     : { ...base, status: "skipped", skip_reason: `No clear query: ${main.reason}.` };
   const { data, error } = await admin.from("article_pushes").insert(insert).select(PUSH_COLUMNS).single();
