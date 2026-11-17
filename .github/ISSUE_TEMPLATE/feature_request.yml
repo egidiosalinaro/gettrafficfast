@@ -1,0 +1,38 @@
+name: Feature request
+description: A capability GetTrafficFast is missing.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A request is most useful as the problem, not the solution: what you
+        were trying to get done and where the product stopped you. A
+        customer request is usually evidence of a missing generic
+        capability, and that is what gets built.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you were trying to do, and what got in the way.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would solve it
+      description: Optional. How you imagine it working, on the screens, the API or over MCP.
+  - type: textarea
+    id: cost
+    attributes:
+      label: Paid calls involved
+      description: |
+        Does it need a model, a SERP or an answer engine call? Every such call
+        costs money, so a feature that spends is opt-in and capped. Say what
+        you would expect it to call, and how often.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues and the docs (/docs, docs/).
+          required: true

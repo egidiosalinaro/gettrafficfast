@@ -1,0 +1,97 @@
+# The checks every change passes before it reaches main: lint, type-check and
+# the Vitest suite, with no secrets (the suite mocks every provider and the
+# database). On pull requests, a secret scan of the PR's commits too.
+#
+# Third-party actions are pinned by commit SHA; the tag is in the comment.
+# Dependabot (.github/dependabot.yml) proposes the updates.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, types, tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Tests
+        run: npx vitest run
+        env:
+          # Nothing here: the suite must pass with an empty environment.
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  dco:
+    name: DCO sign-off
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Every commit is signed off
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          missing=0
+          for sha in $(git rev-list --no-merges "$BASE..$HEAD"); do
+            if ! git show -s --format=%B "$sha" | grep -qE '^Signed-off-by: .+ <.+>$'; then
+              echo "::error::Commit $sha has no Signed-off-by line. Sign it off with: git commit --amend -s (or git rebase --signoff)."
+              missing=1
+            fi
+          done
+          exit $missing
+
+  secret-scan:
+    name: Secret scan
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # The action lists the PR's commits through the API to scan only those.
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The token is read-only here; findings go to the job summary and
+          # the failed check, not to PR comments.
+          GITLEAKS_ENABLE_COMMENTS: "false"

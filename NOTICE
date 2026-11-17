@@ -1,0 +1,36 @@
+GetTrafficFast
+Copyright (C) 2026 Egidio Salinaro and the GetTrafficFast contributors
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU Affero General Public License as published by the
+Free Software Foundation, version 3 (SPDX: AGPL-3.0-only). See LICENSE.
+
+If you run a modified version of this program as a network service, the
+AGPL requires you to offer its users the corresponding source code of your
+version (section 13).
+
+Exceptions to the license above
+-------------------------------
+
+- distribution/skills/ is licensed under the MIT License
+  (distribution/skills/LICENSE), so the agent skills and the Claude plugin
+  can be copied into any project.
+
+- The GetTrafficFast name, the GTF name and the GetTrafficFast logo are
+  trademarks and are not licensed by the AGPL. See TRADEMARKS.md.
+
+- Third-party logos in public/ (among them ChatGPT-Logo.png,
+  anthropic-logo.svg, gemini-logo.png, grok-logo.png, perplexity-log.png)
+  are trademarks of their respective owners, are used only to name the
+  services the product works with, and are not covered by this license.
+
+- public/style-previews/ holds sample images generated with an image model
+  by scripts/generate-style-previews.ts; they are illustrations of the
+  product's image styles, provided as is.
+
+Third-party software
+--------------------
+
+Dependencies are installed from npm under their own licenses, listed in
+package-lock.json and in each package. Notably, sharp loads libvips
+(@img/sharp-libvips-*), which is LGPL-3.0-or-later and dynamically linked.

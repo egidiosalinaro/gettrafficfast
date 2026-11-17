@@ -1,0 +1,15 @@
+{
+  "name": "gettrafficfast",
+  "description": "The GetTrafficFast plugin: skills and the hosted MCP server for getting a business found on Google and in AI answers.",
+  "owner": {
+    "name": "GetTrafficFast",
+    "url": "https://gettrafficfa.st"
+  },
+  "plugins": [
+    {
+      "name": "gettrafficfast",
+      "source": "./",
+      "description": "Run GetTrafficFast from your agent through its hosted MCP server: the daily reply routine, the weekly review, articles and results."
+    }
+  ]
+}

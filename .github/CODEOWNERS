@@ -1,0 +1,4 @@
+# Every path is owned by the maintainer. With "Require review from Code
+# Owners" on the main branch rule, each pull request needs their approval.
+# See docs/MAINTAINERS.md.
+* @egidiosalinaro

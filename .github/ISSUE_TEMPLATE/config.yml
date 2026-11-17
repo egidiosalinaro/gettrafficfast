@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability
+    about: Privately, through this repository's Security tab, never in a public issue. See SECURITY.md.
+  - name: Product documentation
+    url: https://gettrafficfa.st/docs
+    about: How the hosted service works, what its numbers mean, and how to use it from Claude.

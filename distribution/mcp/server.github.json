@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.egidiosalinaro/gettrafficfast",
+  "title": "GetTrafficFast",
+  "description": "Get found on Google and in AI answers: plan, write and publish articles; draft replies you post.",
+  "version": "1.0.0",
+  "websiteUrl": "https://gettrafficfa.st/docs/mcp",
+  "icons": [
+    { "src": "https://gettrafficfa.st/brand/gettrafficfast-icon-512.png", "mimeType": "image/png", "sizes": ["512x512"] },
+    { "src": "https://gettrafficfa.st/brand/gettrafficfast-icon.svg", "mimeType": "image/svg+xml", "sizes": ["any"] }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://gettrafficfa.st/api/mcp"
+    }
+  ]
+}

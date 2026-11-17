@@ -1,0 +1,56 @@
+name: Bug report
+description: Something in GetTrafficFast does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. A security problem does not belong here:
+        report it privately as SECURITY.md describes.
+
+        Leave out API keys, tokens, customer data and anything personal. A
+        screenshot is welcome once those are covered.
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where does it happen?
+      options:
+        - The hosted service
+        - A self-hosted deployment
+        - Local development
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to …
+        2. Click …
+        3. See …
+    validations:
+      required: true
+  - type: input
+    id: surface
+    attributes:
+      label: Surface
+      description: The screen, API route, MCP tool or cron involved, if you know it.
+      placeholder: "/content, POST /api/v1/…, get_today, /api/cron/…"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or error output
+      description: Redact secrets before pasting.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Commit
+      description: For self-hosted or local runs, the commit you are on (`git rev-parse --short HEAD`).

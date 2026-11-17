@@ -1,0 +1,21 @@
+{
+  "name": "gettrafficfast",
+  "version": "1.0.0",
+  "description": "Run GetTrafficFast from your agent: the daily reply routine, the weekly review, articles and results, through its hosted MCP server. GTF never posts; you do.",
+  "author": {
+    "name": "GetTrafficFast",
+    "url": "https://gettrafficfa.st"
+  },
+  "homepage": "https://gettrafficfa.st/docs/mcp",
+  "privacyPolicyUrl": "https://gettrafficfa.st/privacy-policy",
+  "keywords": [
+    "seo",
+    "aeo",
+    "content-marketing",
+    "google-search-console",
+    "ai-search",
+    "mcp"
+  ],
+  "icon": ".claude-plugin/icon.png",
+  "license": "MIT"
+}

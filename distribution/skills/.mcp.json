@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "gettrafficfast": {
+      "type": "http",
+      "url": "https://gettrafficfa.st/api/mcp"
+    }
+  }
+}
