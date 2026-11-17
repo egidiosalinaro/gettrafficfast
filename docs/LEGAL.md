@@ -44,11 +44,23 @@ not set are `OPENAI_API_KEY`, `PERPLEXITY_API_KEY`, `REDDIT_CLIENT_ID`,
 - Database region: Supabase project `gettrafficfast`, eu-west-3 (Paris).
   Sentry DSN: `ingest.de.sentry.io` (EU).
 - DataFast loads the default script, which sets first-party cookies
-  (docs/DATAFAST.md); there is no consent banner.
+  (docs/DATAFAST.md). Since 2026-11-17 it loads only after the visitor
+  accepts in the cookie banner (`components/cookie-consent.tsx`,
+  `lib/cookie-consent.ts`), so the policy gives consent (Art. 6(1)(a)) as
+  the only legal basis for analytics. The banner follows the Garante's
+  cookie guidelines (10 June 2021): no script and no analytics cookie before
+  Accept, Reject as prominent as Accept, nothing pre-selected, the choice
+  kept six months (`CONSENT_MAX_AGE_MONTHS`) and asked again earlier only
+  when `CONSENT_VERSION` is raised, "Cookie settings" to change it (footer,
+  and the policy's `#cookies` section). The Supabase session and the other
+  necessary cookies need no consent; the banner and the policy say so.
+  **Adding an analytics or marketing tool means putting it behind the same
+  consent, raising `CONSENT_VERSION`, and updating `#cookies`.**
 
 ## Tests
 
 `tests/legal.test.ts` (fixed date, VAT omitted when empty, every provider
 file classified, every listed provider still in the code) and
 `tests/legal-pages.test.tsx` (rendered pages: anchors, providers, Limited
-Use, no em dash, no prices in the terms).
+Use, no em dash, no prices in the terms). The consent itself:
+`tests/site/cookie-consent.test.tsx`.

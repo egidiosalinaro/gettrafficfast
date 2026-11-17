@@ -18,9 +18,9 @@
  * line says when the text changed, not when the page was rendered. Change it
  * with the text, in the same commit.
  */
-export const LEGAL_LAST_UPDATED = "2026-11-16";
+export const LEGAL_LAST_UPDATED = "2026-11-17";
 
-/** "16 November 2026", the way the pages print LEGAL_LAST_UPDATED. */
+/** "17 November 2026", the way the pages print LEGAL_LAST_UPDATED. */
 export function formatLegalDate(iso: string = LEGAL_LAST_UPDATED): string {
   const [year, month, day] = iso.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
@@ -129,10 +129,10 @@ export const SERVICE_PROVIDERS: readonly ServiceProvider[] = [
   {
     id: "datafast",
     name: "DataFast",
-    purpose: "Visitor analytics for the gettrafficfa.st website (pages viewed, referrer, country).",
+    purpose: "Visitor analytics for the gettrafficfa.st website (pages viewed, referrer, country), only after you accept analytics cookies.",
     data: "Pages visited, referrer, browser and device type, approximate location derived from the IP address, and a visitor identifier stored in a cookie.",
     privacyUrl: "https://datafa.st/privacy",
-    evidence: { file: "app/layout.tsx", contains: "datafa.st" },
+    evidence: { file: "components/cookie-consent.tsx", contains: "datafa.st" },
   },
   {
     id: "google-gemini",

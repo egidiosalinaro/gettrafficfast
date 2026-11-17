@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { CONTACT_EMAIL, SITE_HOST } from "@/lib/site";
 import { LEGAL_OPERATOR, vatNumberLine } from "@/lib/legal";
+import { analyticsWebsiteId } from "@/lib/cookie-consent";
+import { CookieSettingsButton } from "@/components/cookie-consent";
 
 export function LandingFooter() {
   return (
@@ -70,6 +72,12 @@ export function LandingFooter() {
                   Terms and conditions
                 </Link>
               </li>
+              {/* Reopens the cookie banner; only where there is one. */}
+              {analyticsWebsiteId() ? (
+                <li>
+                  <CookieSettingsButton className="text-left text-muted-foreground hover:text-foreground" />
+                </li>
+              ) : null}
             </ul>
           </div>
         </div>

@@ -10,6 +10,8 @@ import {
 } from "@/lib/legal";
 import { ACCESS_TOKEN_TTL_MS, REFRESH_TOKEN_TTL_MS } from "@/lib/oauth/config";
 import { CONTACT_EMAIL, SITE_URL } from "@/lib/site";
+import { CookieSettingsButton } from "@/components/cookie-consent";
+import { analyticsWebsiteId, CONSENT_MAX_AGE_MONTHS } from "@/lib/cookie-consent";
 import { TOOL_CALLS_RETENTION_DAYS } from "@/lib/tools/retention";
 
 /**
@@ -159,8 +161,7 @@ const sections: LegalSection[] = [
         </li>
         <li>
           <strong>Website analytics</strong> on {SITE_URL}, to understand which pages people use. Legal basis:
-          legitimate interest (Art. 6(1)(f)); where the law requires consent for the analytics cookie, consent
-          (Art. 6(1)(a)).
+          your consent (Art. 6(1)(a)), given in the cookie banner. Without it, the analytics script is not loaded.
         </li>
         <li>
           <strong>Connecting Google Search Console or signing in with Google.</strong> These happen only when you
@@ -436,16 +437,32 @@ const sections: LegalSection[] = [
             These are needed for the service and need no consent.
           </li>
           <li>
-            <strong>Preferences</strong>: your light or dark theme, stored in your browser.
+            <strong>Preferences</strong>: your light or dark theme, and your cookie choice, both stored in your
+            browser (localStorage), not on our servers.
           </li>
           <li>
-            <strong>Analytics</strong>: DataFast sets first-party cookies (a visitor identifier and a session
-            identifier) to count visits to {SITE_URL}. GTF does not use advertising cookies.
+            <strong>Analytics, only with your consent</strong>: DataFast sets first-party cookies (a visitor
+            identifier and a session identifier) to count visits to {SITE_URL}. GTF does not use advertising
+            cookies.
           </li>
         </List>
         <p>
-          You can block or delete cookies in your browser settings; the app needs the necessary ones to keep you
-          signed in. In the reply inbox, your browser may load authors&apos; profile pictures from unavatar.io or
+          The first time you visit, a banner asks whether you accept the analytics cookies. Accept and Reject are
+          equal choices and nothing is pre-selected. Until you accept, the DataFast script is not loaded and sets no
+          cookie; if you reject, it stays off. Your choice is kept in your browser for {CONSENT_MAX_AGE_MONTHS}{" "}
+          months, and we do not ask again before then unless something the choice covers changes. You can change it
+          at any time with &quot;Cookie settings&quot; at the bottom of the site
+          {analyticsWebsiteId() ? (
+            <>
+              {" "}
+              or here: <CookieSettingsButton className="text-primary underline underline-offset-4" />
+            </>
+          ) : null}
+          . If you withdraw consent, the analytics cookies are deleted from your browser and the script stops.
+        </p>
+        <p>
+          You can also block or delete cookies in your browser settings; the app needs the necessary ones to keep
+          you signed in. In the reply inbox, your browser may load authors&apos; profile pictures from unavatar.io or
           GitHub, which then receive your IP address.
         </p>
       </>

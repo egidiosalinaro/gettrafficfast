@@ -58,7 +58,7 @@ describe("both pages", () => {
     ["privacy", privacy],
     ["terms", terms],
   ])("%s: fixed date, operator, contact, no VAT line while empty, no em dash", (_, html) => {
-    expect(html).toContain(`Last updated: <time dateTime="2026-11-16">${formatLegalDate()}</time>`);
+    expect(html).toContain(`Last updated: <time dateTime="2026-11-17">${formatLegalDate()}</time>`);
     expect(html).toContain("Egidio Salinaro");
     expect(html).toContain("Via Baccina 87, 00184 Roma, Italy");
     expect(html).toContain(`mailto:${CONTACT_EMAIL}`);

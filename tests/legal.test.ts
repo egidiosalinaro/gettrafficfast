@@ -36,7 +36,7 @@ function read(relative: string): string {
 describe("last updated", () => {
   it("is a fixed ISO date, not computed", () => {
     expect(LEGAL_LAST_UPDATED).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(formatLegalDate("2026-11-16")).toBe("16 November 2026");
+    expect(formatLegalDate("2026-11-17")).toBe("17 November 2026");
     const source = read("lib/legal.ts");
     expect(source).toMatch(/export const LEGAL_LAST_UPDATED = "\d{4}-\d{2}-\d{2}";/);
   });

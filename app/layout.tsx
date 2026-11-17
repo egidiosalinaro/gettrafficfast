@@ -1,8 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
-import Script from "next/script";
 import { ThemeProvider } from "next-themes";
 import { ThemeColorSync } from "@/components/theme-color-sync";
+import { CookieConsent } from "@/components/cookie-consent";
+import { analyticsWebsiteId } from "@/lib/cookie-consent";
 import { SITE_HOST, SITE_NAME, SITE_URL } from "@/lib/site";
 import { THEME_COLOR, THEME_PROVIDER_PROPS } from "@/lib/theme";
 import "./globals.css";
@@ -13,7 +14,7 @@ import "./globals.css";
 // a login page and no crawler (WhatsApp's included) could ever fetch it.
 const defaultUrl = SITE_URL;
 
-const DATAFAST_WEBSITE_ID = process.env.NEXT_PUBLIC_DATAFAST_WEBSITE_ID;
+const ANALYTICS_WEBSITE_ID = analyticsWebsiteId();
 
 /**
  * A browser that reads neither the manifest nor appleWebApp offers the page
@@ -106,26 +107,18 @@ export default function RootLayout({
     // suppressHydrationWarning: next-themes sets the theme class on <html>
     // from a blocking script before React hydrates (lib/theme.ts).
     <html lang="en" suppressHydrationWarning>
-      <head>
-        {/* Visitor analytics for this site. Distinct from Search Console
-            (docs/ANALYTICS.md). Root layout so every route loads it. The
-            property is per deployment: no NEXT_PUBLIC_DATAFAST_WEBSITE_ID,
-            no script. See docs/DATAFAST.md. */}
-        {DATAFAST_WEBSITE_ID ? (
-          <Script
-            src="https://datafa.st/js/script.js"
-            data-website-id={DATAFAST_WEBSITE_ID}
-            data-domain={SITE_HOST}
-            strategy="afterInteractive"
-          />
-        ) : null}
-      </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         {/* Follows the device's colour scheme; Settings → Account can pin
             Light or Dark. The config and its reasons are in lib/theme.ts. */}
         <ThemeProvider {...THEME_PROVIDER_PROPS}>
           <ThemeColorSync />
           {children}
+          {/* Visitor analytics for this site, distinct from Search Console
+              (docs/ANALYTICS.md). Root layout, so every route has it, the
+              signed-in app included. The DataFast script loads only after
+              the visitor accepts in this banner (docs/DATAFAST.md). No
+              NEXT_PUBLIC_DATAFAST_WEBSITE_ID: no banner, no script. */}
+          {ANALYTICS_WEBSITE_ID ? <CookieConsent websiteId={ANALYTICS_WEBSITE_ID} domain={SITE_HOST} /> : null}
         </ThemeProvider>
       </body>
     </html>
