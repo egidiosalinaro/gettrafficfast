@@ -146,13 +146,16 @@ describe("Also today", () => {
   });
 
   it("renders one card per item, with one primary action each, and no paid action", () => {
-    const html = renderToStaticMarkup(<AlsoToday items={items} now={NOW} busyIds={new Set()} onConfirmFact={noop} onSaveLink={noop} />);
+    const html = renderToStaticMarkup(<AlsoToday items={items} now={NOW} busyIds={new Set()} onConfirmFact={noop} onSaveLink={noop} onDismissFailed={noop} />);
     expect(html).toContain(">Also today</h2>");
     expect(html.match(/<article/g)).toHaveLength(4);
     expect(html).toContain("Today&#x27;s article is waiting for you");
     expect(html).toContain("One number has no source.");
     expect(html).toContain("The article for Nov 12 failed");
     expect(html.match(/>Open the article</g)).toHaveLength(2);
+    // Only the failed article can be ignored, and one failure gets no "Ignore all".
+    expect(html.match(/>Ignore</g)).toHaveLength(1);
+    expect(html).not.toContain("Ignore all");
     expect(html).toContain('href="/content"');
     expect(html).toContain('href="/content/articles"');
     expect(html).toContain("Paste link");
@@ -175,13 +178,29 @@ describe("Also today", () => {
     expect(staleFacts(sentence, new Date("2026-12-14T10:00:00Z"), { confirmations })).toEqual([]);
     const [again] = factItems(staleFacts(sentence, new Date("2026-12-16T10:00:00Z"), { confirmations }));
     expect(again).toMatchObject({ sentence, confirmedOn: "2026-11-14", dateLabel: "October 2026", age: "32 days ago" });
-    const html = renderToStaticMarkup(<AlsoToday items={[again]} now={NOW} busyIds={new Set()} onConfirmFact={noop} onSaveLink={noop} />);
+    const html = renderToStaticMarkup(<AlsoToday items={[again]} now={NOW} busyIds={new Set()} onConfirmFact={noop} onSaveLink={noop} onDismissFailed={noop} />);
     expect(html.replace(/<!-- -->/g, "")).toContain(", confirmed 32 days ago");
     expect(html).not.toContain("still true on");
   });
 
+  it("offers Ignore all once two articles or more have failed", () => {
+    const failed = articleItems(
+      [
+        { id: "f1", status: "failed", scheduledDate: "2026-11-08", keyword: "abandoned cart emails" },
+        { id: "f2", status: "failed", scheduledDate: "2026-11-07", keyword: "welcome series ideas" },
+      ],
+      "2026-11-14"
+    );
+    expect(failed.every((i) => i.tools.includes("dismiss_failed_articles"))).toBe(true);
+    const html = renderToStaticMarkup(
+      <AlsoToday items={failed} now={NOW} busyIds={new Set()} onConfirmFact={noop} onSaveLink={noop} onDismissFailed={noop} />
+    );
+    expect(html.replace(/<!-- -->/g, "")).toContain("Ignore all 2 failed");
+    expect(html.match(/>Ignore</g)).toHaveLength(2);
+  });
+
   it("renders nothing at all when there is nothing: no heading, no empty box", () => {
-    expect(renderToStaticMarkup(<AlsoToday items={[]} now={NOW} busyIds={new Set()} onConfirmFact={noop} onSaveLink={noop} />)).toBe("");
+    expect(renderToStaticMarkup(<AlsoToday items={[]} now={NOW} busyIds={new Set()} onConfirmFact={noop} onSaveLink={noop} onDismissFailed={noop} />)).toBe("");
   });
 
   it("names the article's day the way the calendar does", () => {

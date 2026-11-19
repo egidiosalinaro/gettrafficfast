@@ -52,6 +52,7 @@ describe("an id of another site is refused before anything is written", () => {
     ["reschedule_article", { articleId: ART_B, date: "2026-11-20" }],
     ["unschedule_article", { articleId: ART_C }],
     ["retry_article", { articleId: ART_C }],
+    ["dismiss_failed_articles", { articleIds: [ART_A_FAILED, ART_C] }],
   ];
   it.each(cases)("%s %j", async (name, input) => {
     const db = seed();
@@ -170,6 +171,33 @@ describe("retry_article", () => {
       error: { code: "invalid_state" },
     });
     expect(article(db, ART_A)?.status).toBe("queued");
+  });
+});
+
+describe("dismiss_failed_articles", () => {
+  it("takes site A's failed articles off Today and leaves them failed, on the board", async () => {
+    const db = seed();
+    expect(await call(db, "dismiss_failed_articles", { articleIds: [ART_A_FAILED] })).toEqual({
+      ok: true,
+      output: { dismissed: 1, articleIds: [ART_A_FAILED] },
+    });
+    expect(article(db, ART_A_FAILED)).toMatchObject({ status: "failed", dismissed_at: "2026-11-09T10:00:00.000Z" });
+    // Asked again, nothing more to ignore.
+    expect(await call(db, "dismiss_failed_articles", {})).toEqual({ ok: true, output: { dismissed: 0, articleIds: [] } });
+  });
+
+  it("with no ids, ignores every failed article of the site, and never one that is not failed", async () => {
+    const db = seed();
+    expect(await call(db, "dismiss_failed_articles", {})).toMatchObject({ ok: true, output: { dismissed: 1 } });
+    expect(article(db, ART_A)?.dismissed_at ?? null).toBeNull();
+    expect(article(db, ART_C)?.dismissed_at ?? null).toBeNull();
+  });
+
+  it("is undone by a retry, so a new failure shows on Today again", async () => {
+    const db = seed();
+    await call(db, "dismiss_failed_articles", { articleIds: [ART_A_FAILED] });
+    await call(db, "retry_article", { articleId: ART_A_FAILED });
+    expect(article(db, ART_A_FAILED)).toMatchObject({ status: "queued", dismissed_at: null });
   });
 });
 

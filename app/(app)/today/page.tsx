@@ -821,6 +821,33 @@ export default function TodayPage() {
     }
   };
 
+  /**
+   * Ignore on a failed article of Also today, or "Ignore all N failed" (no
+   * ids): the cards leave; the articles stay failed on the Content board,
+   * where they can still be retried.
+   */
+  const dismissFailed = async (articleIds?: string[]): Promise<string | null> => {
+    try {
+      const response = await fetch("/api/calendar/dismiss", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(articleIds ? { articleIds } : {}),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; dismissed?: number };
+      if (!response.ok) return payload.error ?? "It was not saved. Try again.";
+      const gone = articleIds ? new Set(articleIds) : null;
+      setAlsoToday(
+        (current) =>
+          current?.filter((item) => !(item.kind === "article_failed" && (gone === null || gone.has(item.articleId)))) ?? current
+      );
+      const count = payload.dismissed ?? articleIds?.length ?? 0;
+      showToast({ text: `${count === 1 ? "Failed article" : `${count} failed articles`} ignored. ${count === 1 ? "It stays" : "They stay"} in Content.` });
+      return null;
+    } catch {
+      return "Could not reach the server. Check your connection and try again.";
+    }
+  };
+
   /** Paste link on a card of Also today, or in the Today sheet: the one action a link is saved by. */
   const saveLink = async (id: string, publishedUrl: string): Promise<string | null> => {
     const refusal = await act(id, "set_published_url", { publishedUrl });
@@ -1155,7 +1182,7 @@ export default function TodayPage() {
             : "Nothing in the archive.";
 
   const also = tab === "todo" && !data.view.aiCited && alsoToday ? (
-    <AlsoToday items={alsoToday} now={now} busyIds={busyIds} onConfirmFact={confirmFact} onSaveLink={saveLink} />
+    <AlsoToday items={alsoToday} now={now} busyIds={busyIds} onConfirmFact={confirmFact} onSaveLink={saveLink} onDismissFailed={dismissFailed} />
   ) : null;
 
   const listBox = (children: ReactNode) => (

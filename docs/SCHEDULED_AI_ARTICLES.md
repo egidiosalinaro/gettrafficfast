@@ -39,6 +39,10 @@ for the architecture, the Canonical Article and the quality gates.
   calendar can read the failed checks and either regenerate or publish anyway.
 - **failed** — generation dead-letter. Shown in the calendar with a **Re-queue**
   action (`POST /api/calendar/requeue` resets `status='queued'`, `attempt_count=0`).
+  On Today it is an "Also today" card until it is retried or ignored there
+  (since 2026-11-19, `POST /api/calendar/dismiss`, `dismiss_failed_articles`):
+  Ignore sets `dismissed_at` and nothing else, so the article stays `failed`
+  on the board; a re-queue clears the mark, and a new failure shows again.
 - **Regenerate** — generated, published and needs_review cards (and the article
   modal) re-run production via `POST /api/generate-now`, the same route as
   **Generate now** on a queued card. The lifecycle decides which states may

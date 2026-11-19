@@ -107,6 +107,8 @@ function seed() {
       article(uuid("f", 3), "published"),
       article(uuid("f", 4), "needs_review", { business_id: SITE_B }),
       article(uuid("f", 5), "failed", { business_id: SITE_C, user_id: OTHER }),
+      // Ignored on Today: it stays failed on the Content board, not here.
+      article(uuid("f", 6), "failed", { scheduled_date: "2026-11-11", dismissed_at: "2026-11-13T09:00:00Z" }),
     ],
   });
   mocks.db = db;
@@ -148,7 +150,7 @@ describe("loadTodayScreen", () => {
       moreReasons: 1,
       tools: ["resettle_article", "publish_article", "generate_article"],
     });
-    expect(failed).toMatchObject({ articleId: uuid("f", 2), isToday: false, reason: null, tools: ["retry_article"] });
+    expect(failed).toMatchObject({ articleId: uuid("f", 2), isToday: false, reason: null, tools: ["retry_article", "dismiss_failed_articles"] });
     expect(link).toMatchObject({ targetId: uuid("e", 90), outcome: "ambiguous", tools: ["set_reply_link"] });
     expect(link.kind === "reply_link" && link.line).toMatch(/more than one reply of yours/);
     expect(fact).toMatchObject({ sentence: STALE, dateLabel: "October 2026", tools: ["confirm_about_you_fact", "update_voice_settings"] });

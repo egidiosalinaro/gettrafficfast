@@ -14,7 +14,8 @@ import { postedPhrase } from "@/components/placements/reply-logic";
  * replies, one card each, with the action it already had (lib/today/
  * also-today.ts). An article opens where its actions live; a stale fact is
  * "Still true" here or "Update it" in Settings → Voice; a reply whose link
- * GTF stopped looking for has Paste link. No card starts anything paid.
+ * GTF stopped looking for has Paste link; a failed article can be ignored
+ * here (it stays on the Content board). No card starts anything paid.
  * With nothing to show, nothing is rendered: no heading, no empty box.
  */
 
@@ -55,25 +56,69 @@ export interface AlsoTodayProps {
   onConfirmFact: (sentence: string) => Promise<string | null>;
   /** Saves a posted reply's link: null once saved, else the server's sentence. */
   onSaveLink: (targetId: string, url: string) => Promise<string | null>;
+  /** Ignore failed articles on Today (all of them when no ids): null once done, else the sentence to show. */
+  onDismissFailed: (articleIds?: string[]) => Promise<string | null>;
 }
 
-export function AlsoToday({ items, now, busyIds, onConfirmFact, onSaveLink }: AlsoTodayProps) {
+export function AlsoToday({ items, now, busyIds, onConfirmFact, onSaveLink, onDismissFailed }: AlsoTodayProps) {
+  const [busyAll, setBusyAll] = useState(false);
+  const [problemAll, setProblemAll] = useState<string | null>(null);
   if (items.length === 0) return null;
+  const failed = items.filter((item) => item.kind === "article_failed").length;
+  const dismissAll = async () => {
+    setBusyAll(true);
+    setProblemAll(null);
+    try {
+      setProblemAll(await onDismissFailed());
+    } finally {
+      setBusyAll(false);
+    }
+  };
   return (
     <section aria-labelledby="also-today" className="space-y-3">
-      <h2 id="also-today" className="pt-1 text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Also today
-      </h2>
+      <div className="flex items-center justify-between gap-3 pt-1">
+        <h2 id="also-today" className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Also today
+        </h2>
+        {/* One gesture for a pile of old failures, instead of one per card. */}
+        {failed >= 2 && (
+          <button
+            type="button"
+            onClick={() => void dismissAll()}
+            disabled={busyAll}
+            aria-busy={busyAll || undefined}
+            className="min-h-11 rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
+          >
+            <BusyLabel busy={busyAll}>{`Ignore all ${failed} failed`}</BusyLabel>
+          </button>
+        )}
+      </div>
+      {problemAll && <Problem>{problemAll}</Problem>}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {items.map((item) => (
-          <AlsoTodayCard key={item.id} item={item} now={now} busyIds={busyIds} onConfirmFact={onConfirmFact} onSaveLink={onSaveLink} />
+          <AlsoTodayCard
+            key={item.id}
+            item={item}
+            now={now}
+            busyIds={busyIds}
+            onConfirmFact={onConfirmFact}
+            onSaveLink={onSaveLink}
+            onDismissFailed={onDismissFailed}
+          />
         ))}
       </div>
     </section>
   );
 }
 
-function AlsoTodayCard({ item, now, busyIds, onConfirmFact, onSaveLink }: Omit<AlsoTodayProps, "items"> & { item: AlsoTodayItem }) {
+function AlsoTodayCard({
+  item,
+  now,
+  busyIds,
+  onConfirmFact,
+  onSaveLink,
+  onDismissFailed,
+}: Omit<AlsoTodayProps, "items"> & { item: AlsoTodayItem }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -148,6 +193,16 @@ function AlsoTodayCard({ item, now, busyIds, onConfirmFact, onSaveLink }: Omit<A
     );
   }
 
+  const dismiss = async () => {
+    setBusy(true);
+    setProblem(null);
+    try {
+      setProblem(await onDismissFailed([item.articleId]));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <article
       data-also={item.kind}
@@ -165,7 +220,14 @@ function AlsoTodayCard({ item, now, busyIds, onConfirmFact, onSaveLink }: Omit<A
         <Link href={item.href} className={CARD_PRIMARY}>
           Open the article
         </Link>
+        {item.kind === "article_failed" && (
+          // Ignore: off Today only; the article stays failed on the Content board.
+          <button type="button" onClick={() => void dismiss()} disabled={busy} aria-busy={busy || undefined} className={CARD_SECONDARY}>
+            <BusyLabel busy={busy}>Ignore</BusyLabel>
+          </button>
+        )}
       </div>
+      {problem && <Problem>{problem}</Problem>}
     </article>
   );
 }

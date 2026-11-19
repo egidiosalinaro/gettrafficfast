@@ -18,7 +18,8 @@ stand; three tabs, To do, Posted and Archive (`TODAY_VIEWS`,
 `lib/placements/inbox-view.ts`), in place of eleven lists; the open reply;
 "Also today", the other gestures of the day (an article a gate held or that
 failed, a fact of About you to re-confirm, a reply whose link GTF stopped
-looking for), each with the action it already had; then the next replies.
+looking for), each with the action it already had (a failed article can
+also be ignored there, and stays in Content); then the next replies.
 One read, `lib/today/read.ts`, answers `GET /api/today` and `get_today`
 (docs/PLACEMENTS.md, "Today"). The Overview's stages are still
 `lib/domain/operating-loop.ts`, read by `get_home`; its screen is gone, and

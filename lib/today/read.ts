@@ -52,6 +52,8 @@ async function loadHeldArticles(supabase: SupabaseClient, businessId: string): P
     .select("id, status, scheduled_date, last_error, quality_report, keywords!articles_keyword_id_fkey ( keyword )")
     .eq("business_id", businessId)
     .in("status", ["needs_review", "failed"])
+    // A failed article ignored on Today stays on the Content board only.
+    .is("dismissed_at", null)
     .order("scheduled_date", { ascending: false })
     .limit(ARTICLES_MAX);
   if (error) return null;

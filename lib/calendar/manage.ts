@@ -227,6 +227,8 @@ export async function retryArticle(input: {
       attempt_count: 0,
       last_error: null,
       failed_at: null,
+      // A retried article that fails again shows on Today again.
+      dismissed_at: null,
       updated_at: (input.now ?? new Date()).toISOString(),
     })
     .eq("id", input.articleId)
@@ -238,6 +240,38 @@ export async function retryArticle(input: {
   if (error) return { ok: false, status: 500, error: error.message };
   if (!data) return { ok: false, status: 404, error: "Article not found or not in a failed state" };
   return { ok: true };
+}
+
+/** At most this many failed articles are ignored in one call. */
+export const MAX_DISMISS = 100;
+
+/**
+ * Ignore failed articles on Today (2026-11-19): `dismissed_at` is set, the
+ * status stays `failed`, and the article stays on the Content board where it
+ * can still be retried or removed. `articleIds` names which; left out, every
+ * failed article of the site not ignored yet. Articles that are not failed
+ * (or already ignored) are left alone and not counted.
+ */
+export async function dismissFailedArticles(input: {
+  supabase: SupabaseClient;
+  userId: string;
+  businessId: string;
+  articleIds?: readonly string[];
+  now?: Date;
+}): Promise<{ ok: true; dismissed: number; articleIds: string[] } | CalendarFailure> {
+  if (input.articleIds && input.articleIds.length === 0) return { ok: true, dismissed: 0, articleIds: [] };
+  let query = input.supabase
+    .from("articles")
+    .update({ dismissed_at: (input.now ?? new Date()).toISOString() })
+    .eq("business_id", input.businessId)
+    .eq("user_id", input.userId)
+    .eq("status", "failed")
+    .is("dismissed_at", null);
+  if (input.articleIds) query = query.in("id", [...new Set(input.articleIds)].slice(0, MAX_DISMISS));
+  const { data, error } = await query.select("id");
+  if (error) return { ok: false, status: 500, error: error.message };
+  const ids = ((data ?? []) as Array<{ id: unknown }>).map((row) => String(row.id));
+  return { ok: true, dismissed: ids.length, articleIds: ids };
 }
 
 /**

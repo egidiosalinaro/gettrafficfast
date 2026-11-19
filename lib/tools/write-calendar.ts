@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
+  dismissFailedArticles,
   MAX_BULK_SCHEDULE,
+  MAX_DISMISS,
   ownerMove,
   rescheduleArticle,
   rescheduleDateRefusal,
@@ -175,9 +177,41 @@ export const retryArticleTool = defineTool({
   },
 });
 
+export const dismissFailedArticlesTool = defineTool({
+  name: "dismiss_failed_articles",
+  title: "Ignore failed articles on Today",
+  description: `Takes failed articles off Today's "Also today" without retrying or deleting them: they stay failed and stay on the Content board, where retry_article or unschedule_article still work. articleIds names which (up to ${MAX_DISMISS}); left out, every failed article of this site. Retrying an article clears the mark, so a new failure shows again. Articles that are not failed are left alone.`,
+  input: z.object({
+    articleIds: z
+      .array(ArticleId)
+      .min(1)
+      .max(MAX_DISMISS)
+      .optional()
+      .describe(`1 to ${MAX_DISMISS} failed articles of this site; left out, all of them.`),
+  }),
+  output: z.object({
+    dismissed: z.number().describe("Failed articles taken off Today by this call."),
+    articleIds: z.array(z.string()),
+  }),
+  scope: "write",
+  paid: false,
+  owns: { articleIds: "articles" },
+  async handler(ctx, input) {
+    const result = await dismissFailedArticles({
+      supabase: ctx.client,
+      userId: ctx.userId,
+      businessId: ctx.businessId,
+      articleIds: input.articleIds,
+    });
+    if (!result.ok) throw libRefusal(result);
+    return { dismissed: result.dismissed, articleIds: result.articleIds };
+  },
+});
+
 export const WRITE_CALENDAR_TOOLS = [
   scheduleKeywordsTool,
   rescheduleArticleTool,
   unscheduleArticleTool,
   retryArticleTool,
+  dismissFailedArticlesTool,
 ] as const;

@@ -69,6 +69,7 @@ export const ROUTE_PARITY: Readonly<Record<string, ParityEntry>> = {
   "POST /api/calendar/add-bulk": { tools: ["schedule_keywords"] },
   "POST /api/calendar/remove": { tools: ["unschedule_article"] },
   "POST /api/calendar/requeue": { tools: ["retry_article"] },
+  "POST /api/calendar/dismiss": { tools: ["dismiss_failed_articles"] },
   "POST /api/calendar/reschedule": { tools: ["reschedule_article"] },
   "POST /api/generate-now": { tools: ["generate_article"] },
   "POST /api/publish-now": { tools: ["publish_article"] },
