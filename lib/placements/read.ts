@@ -518,15 +518,31 @@ export async function readAllCountRows(
   businessId: string,
   maxPages = 50
 ): Promise<{ data: Row[]; error: unknown }> {
-  const rows: Row[] = [];
-  for (let page = 0; page < maxPages; page++) {
-    const from = page * COUNT_PAGE;
-    const { data, error } = await supabase
+  // The first page brings the total; the others are read side by side, not
+  // one after the other: each page is a round trip to the database.
+  const page = (index: number, withCount: boolean) =>
+    supabase
       .from("placement_targets")
-      .select(COUNT_COLUMNS)
+      .select(COUNT_COLUMNS, withCount ? { count: "exact" } : undefined)
       .eq("business_id", businessId)
       .order("id", { ascending: true })
-      .range(from, from + COUNT_PAGE - 1);
+      .range(index * COUNT_PAGE, index * COUNT_PAGE + COUNT_PAGE - 1);
+  const first = await page(0, true);
+  if (first.error) return { data: [], error: first.error };
+  const rows: Row[] = [...((first.data ?? []) as Row[])];
+  if (rows.length < COUNT_PAGE) return { data: rows, error: null };
+  if (typeof first.count === "number") {
+    const pages = Math.min(maxPages, Math.ceil(first.count / COUNT_PAGE));
+    const rest = await Promise.all(Array.from({ length: Math.max(0, pages - 1) }, (_, i) => page(i + 1, false)));
+    for (const { data, error } of rest) {
+      if (error) return { data: rows, error };
+      rows.push(...((data ?? []) as Row[]));
+    }
+    return { data: rows, error: null };
+  }
+  // No total: page by page until a short one.
+  for (let index = 1; index < maxPages; index++) {
+    const { data, error } = await page(index, false);
     if (error) return { data: rows, error };
     const batch = (data ?? []) as Row[];
     rows.push(...batch);

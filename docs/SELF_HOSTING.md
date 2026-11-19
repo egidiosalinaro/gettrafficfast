@@ -150,6 +150,15 @@ and checkout events.
    previews, with separate non-production keys).
 3. Deploy. Every push to the production branch deploys.
 
+### Function region
+
+`vercel.json` sets `"regions": ["cdg1"]` (Paris), next to the hosted
+database (Supabase `eu-west-3`). Put your functions in the region of your
+own database: a screen like Today makes a dozen database reads one after
+another, and each one pays the distance. With functions in Washington and
+the database in Paris, that alone was a second or more per load
+(2026-11-19).
+
 ### Scheduled jobs
 
 `vercel.json` declares the crons. Vercel calls each path with
