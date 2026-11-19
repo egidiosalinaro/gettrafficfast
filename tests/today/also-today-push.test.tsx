@@ -31,7 +31,7 @@ describe("Today: a push to apply", () => {
       },
     ]);
     const html = renderToStaticMarkup(
-      <AlsoToday items={items} now={0} busyIds={new Set()} onConfirmFact={async () => null} onSaveLink={async () => null} onDismissFailed={async () => null} />
+      <AlsoToday items={items} now={0} busyIds={new Set()} onConfirmFact={async () => null} onSaveLink={async () => null} onDismissArticles={async () => null} />
     );
     expect(html).toContain("Push this article");
     expect(html).toContain("Add 2 links from your best pages and a new search title, for “cart email subject lines”.");

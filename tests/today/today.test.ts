@@ -148,9 +148,9 @@ describe("loadTodayScreen", () => {
       isToday: true,
       reason: "A figure has no source.",
       moreReasons: 1,
-      tools: ["resettle_article", "publish_article", "generate_article"],
+      tools: ["resettle_article", "publish_article", "generate_article", "dismiss_today_articles"],
     });
-    expect(failed).toMatchObject({ articleId: uuid("f", 2), isToday: false, reason: null, tools: ["retry_article", "dismiss_failed_articles"] });
+    expect(failed).toMatchObject({ articleId: uuid("f", 2), isToday: false, reason: null, tools: ["retry_article", "dismiss_today_articles"] });
     expect(link).toMatchObject({ targetId: uuid("e", 90), outcome: "ambiguous", tools: ["set_reply_link"] });
     expect(link.kind === "reply_link" && link.line).toMatch(/more than one reply of yours/);
     expect(fact).toMatchObject({ sentence: STALE, dateLabel: "October 2026", tools: ["confirm_about_you_fact", "update_voice_settings"] });

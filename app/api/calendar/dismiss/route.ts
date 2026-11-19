@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { dismissFailedArticles, MAX_DISMISS } from "@/lib/calendar/manage";
+import { dismissTodayArticles, MAX_DISMISS } from "@/lib/calendar/manage";
 import { NO_BUSINESS_RESPONSE, selectedBusinessId } from "@/lib/tenancy";
 
 /**
- * Ignore on Today's failed-article cards (2026-11-19). `{ articleIds }` for
- * some, `{}` for every failed article of the selected site. The articles stay
- * failed and stay on the Content board; only their Today card goes.
+ * Ignore on Today's article cards, failed or held (2026-11-19). `{ articleIds }`
+ * for some, `{}` for all of them on the selected site. The articles keep their
+ * state and stay on the Content board; only their Today card goes.
  */
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -36,8 +36,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(NO_BUSINESS_RESPONSE, { status: 409 });
   }
 
-  // The same function the dismiss_failed_articles tool calls (lib/calendar/manage.ts).
-  const result = await dismissFailedArticles({ supabase, userId: user.id, businessId, articleIds });
+  // The same function the dismiss_today_articles tool calls (lib/calendar/manage.ts).
+  const result = await dismissTodayArticles({ supabase, userId: user.id, businessId, articleIds });
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }

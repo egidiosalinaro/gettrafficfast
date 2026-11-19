@@ -822,11 +822,11 @@ export default function TodayPage() {
   };
 
   /**
-   * Ignore on a failed article of Also today, or "Ignore all N failed" (no
-   * ids): the cards leave; the articles stay failed on the Content board,
-   * where they can still be retried.
+   * Ignore on an article of Also today, held or failed, or "Ignore all N
+   * articles" (no ids): the cards leave; the articles keep their state on the
+   * Content board, where they can still be retried, re-checked or published.
    */
-  const dismissFailed = async (articleIds?: string[]): Promise<string | null> => {
+  const dismissArticles = async (articleIds?: string[]): Promise<string | null> => {
     try {
       const response = await fetch("/api/calendar/dismiss", {
         method: "POST",
@@ -838,10 +838,13 @@ export default function TodayPage() {
       const gone = articleIds ? new Set(articleIds) : null;
       setAlsoToday(
         (current) =>
-          current?.filter((item) => !(item.kind === "article_failed" && (gone === null || gone.has(item.articleId)))) ?? current
+          current?.filter(
+            (item) =>
+              !((item.kind === "article_failed" || item.kind === "article_held") && (gone === null || gone.has(item.articleId)))
+          ) ?? current
       );
       const count = payload.dismissed ?? articleIds?.length ?? 0;
-      showToast({ text: `${count === 1 ? "Failed article" : `${count} failed articles`} ignored. ${count === 1 ? "It stays" : "They stay"} in Content.` });
+      showToast({ text: `${count === 1 ? "Article" : `${count} articles`} ignored here. ${count === 1 ? "It stays" : "They stay"} in Content.` });
       return null;
     } catch {
       return "Could not reach the server. Check your connection and try again.";
@@ -1182,7 +1185,7 @@ export default function TodayPage() {
             : "Nothing in the archive.";
 
   const also = tab === "todo" && !data.view.aiCited && alsoToday ? (
-    <AlsoToday items={alsoToday} now={now} busyIds={busyIds} onConfirmFact={confirmFact} onSaveLink={saveLink} onDismissFailed={dismissFailed} />
+    <AlsoToday items={alsoToday} now={now} busyIds={busyIds} onConfirmFact={confirmFact} onSaveLink={saveLink} onDismissArticles={dismissArticles} />
   ) : null;
 
   const listBox = (children: ReactNode) => (

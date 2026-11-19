@@ -203,9 +203,10 @@ export function DocsContent({ engines, toolGroups, limits }: DocsContentProps) {
           </li>
           <li>
             <Strong>Also today.</Strong> Things that need you once: an article waiting for a fact, an article that
-            failed, a sentence in About you that may be out of date. They show only when there is one. A failed
-            article you do not want to retry can be ignored there (one at a time, or all at once): it leaves Today
-            and stays in Content, where you can still retry or remove it.
+            failed, a sentence in About you that may be out of date. They show only when there is one. An article
+            you do not want to deal with now can be ignored there (one at a time, or all at once): it leaves Today
+            and stays in Content, where you can still open it. If its state changes later (a new failure, a new
+            hold), it shows on Today again.
           </li>
           <li>
             <Strong>The link of your reply.</Strong> On X, with Find posts on X on, GTF finds it by itself 2 minutes,

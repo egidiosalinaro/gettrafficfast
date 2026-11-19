@@ -1,6 +1,6 @@
 import { z } from "zod";
 import {
-  dismissFailedArticles,
+  dismissTodayArticles,
   MAX_BULK_SCHEDULE,
   MAX_DISMISS,
   ownerMove,
@@ -177,27 +177,27 @@ export const retryArticleTool = defineTool({
   },
 });
 
-export const dismissFailedArticlesTool = defineTool({
-  name: "dismiss_failed_articles",
-  title: "Ignore failed articles on Today",
-  description: `Takes failed articles off Today's "Also today" without retrying or deleting them: they stay failed and stay on the Content board, where retry_article or unschedule_article still work. articleIds names which (up to ${MAX_DISMISS}); left out, every failed article of this site. Retrying an article clears the mark, so a new failure shows again. Articles that are not failed are left alone.`,
+export const dismissTodayArticlesTool = defineTool({
+  name: "dismiss_today_articles",
+  title: "Ignore articles on Today",
+  description: `Takes failed or held (needs_review) articles off Today's "Also today" without retrying, publishing or deleting them: they keep their state and stay on the Content board, where retry_article, resettle_article, publish_article or unschedule_article still work. articleIds names which (up to ${MAX_DISMISS}); left out, every failed or held article of this site. Any later change of the article's state (a retry, a regeneration, a new failure) shows it on Today again. Articles in other states are left alone.`,
   input: z.object({
     articleIds: z
       .array(ArticleId)
       .min(1)
       .max(MAX_DISMISS)
       .optional()
-      .describe(`1 to ${MAX_DISMISS} failed articles of this site; left out, all of them.`),
+      .describe(`1 to ${MAX_DISMISS} failed or held articles of this site; left out, all of them.`),
   }),
   output: z.object({
-    dismissed: z.number().describe("Failed articles taken off Today by this call."),
+    dismissed: z.number().describe("Articles taken off Today by this call."),
     articleIds: z.array(z.string()),
   }),
   scope: "write",
   paid: false,
   owns: { articleIds: "articles" },
   async handler(ctx, input) {
-    const result = await dismissFailedArticles({
+    const result = await dismissTodayArticles({
       supabase: ctx.client,
       userId: ctx.userId,
       businessId: ctx.businessId,
@@ -213,5 +213,5 @@ export const WRITE_CALENDAR_TOOLS = [
   rescheduleArticleTool,
   unscheduleArticleTool,
   retryArticleTool,
-  dismissFailedArticlesTool,
+  dismissTodayArticlesTool,
 ] as const;

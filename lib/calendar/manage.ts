@@ -242,17 +242,22 @@ export async function retryArticle(input: {
   return { ok: true };
 }
 
-/** At most this many failed articles are ignored in one call. */
+/** At most this many articles are ignored on Today in one call. */
 export const MAX_DISMISS = 100;
 
+/** The states Today shows a card for, and so the ones that can be ignored there. */
+export const DISMISSIBLE_STATUSES = ["failed", "needs_review"] as const;
+
 /**
- * Ignore failed articles on Today (2026-11-19): `dismissed_at` is set, the
- * status stays `failed`, and the article stays on the Content board where it
- * can still be retried or removed. `articleIds` names which; left out, every
- * failed article of the site not ignored yet. Articles that are not failed
- * (or already ignored) are left alone and not counted.
+ * Ignore articles on Today (2026-11-19): a failed one, or one a gate held
+ * (`needs_review`). `dismissed_at` is set and nothing else: the status stays,
+ * and the article stays on the Content board where it can still be retried,
+ * re-checked, published or removed. `articleIds` names which; left out,
+ * every such article of the site not ignored yet. Others are left alone and
+ * not counted. Any later change of status clears the mark (a trigger,
+ * migration 20261119110000), so a new failure or a new hold shows again.
  */
-export async function dismissFailedArticles(input: {
+export async function dismissTodayArticles(input: {
   supabase: SupabaseClient;
   userId: string;
   businessId: string;
@@ -265,7 +270,7 @@ export async function dismissFailedArticles(input: {
     .update({ dismissed_at: (input.now ?? new Date()).toISOString() })
     .eq("business_id", input.businessId)
     .eq("user_id", input.userId)
-    .eq("status", "failed")
+    .in("status", [...DISMISSIBLE_STATUSES])
     .is("dismissed_at", null);
   if (input.articleIds) query = query.in("id", [...new Set(input.articleIds)].slice(0, MAX_DISMISS));
   const { data, error } = await query.select("id");

@@ -15,8 +15,8 @@ import { quoteShort, type StaleFact } from "@/lib/voice/staleness";
  *   first reason is said, from `holdReasons`, the calendar's own words) or
  *   `failed`. Resolved where the article lives (Content: today's on its screen, others on the board): re-check
  *   it free (`resettle_article`), publish it anyway, regenerate it, or for a
- *   failed one try again (`retry_article`) or ignore it on Today
- *   (`dismiss_failed_articles`; it stays on the Content board). Nothing here starts a paid run.
+ *   failed one try again (`retry_article`); either can be ignored on Today
+ *   (`dismiss_today_articles`; it stays on the Content board). Nothing here starts a paid run.
  * - **A fact of About you old enough to ask about** (`staleFacts`,
  *   lib/voice/staleness.ts): "Still true" (`confirm_about_you_fact`) or
  *   "Update it" in Settings → Voice.
@@ -182,7 +182,9 @@ export function articleItems(articles: readonly HeldArticle[], today: string | n
         reason: held ? (reasons[0] ?? REASON_NOT_RECORDED) : null,
         moreReasons: Math.max(0, reasons.length - 1),
         href: articleHref(isToday),
-        tools: held ? ["resettle_article", "publish_article", "generate_article"] : ["retry_article", "dismiss_failed_articles"],
+        tools: held
+          ? ["resettle_article", "publish_article", "generate_article", "dismiss_today_articles"]
+          : ["retry_article", "dismiss_today_articles"],
       };
     });
 }
