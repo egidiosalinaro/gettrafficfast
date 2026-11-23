@@ -76,6 +76,15 @@ they sent — is what keeps a forged cookie from being someone else's data, and
   `/api/business/list` returned, which is the flash. The shell's first paint
   already contains the selected site.
 
+An API key, or an app connected over OAuth (claude.ai), does not use the
+cookie: it carries its own site, or covers every site and picks one per
+request with the `x-gtf-business` header, or per tool call with the tools'
+`site` argument (a site's id, name or domain, matched among the sites the
+credential covers: `lib/tools/site.ts`). The same structure holds there:
+`site` selects FROM the credential's sites, and a key or a grant for one site
+never reaches another. docs/API.md "The site" and "Choosing the site in a
+call" have the rules.
+
 Sections that only make sense with a site (dashboard, keywords, results, help,
 AI Visibility, placements) redirect to `/settings/business` when the account
 has none. Settings itself never redirects — it is where a site gets created.

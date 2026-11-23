@@ -41,14 +41,14 @@ export const MCP_SERVER_VERSION = "1.0.0";
 
 export const MCP_INSTRUCTIONS = [
   "GetTrafficFast writes and publishes the articles that make a business findable, and finds conversations worth answering and drafts replies in its owner's voice.",
-  "Every tool acts on one site: the key's or the connection's site, or the one named by the x-gtf-business header; whoami says which.",
+  "Every tool acts on one site. A connection may cover several: whoami lists them (businesses) and the default one (business, the oldest). Every site-scoped tool takes an optional site argument, the site's id, name or domain: when the connection covers several sites, use the site the person names, ask which one when they name none, and pass site on every call of that task. Without site, the default site; a connection limited to one site cannot reach another.",
   "The product never posts on X, Reddit or any social site: get_reply_intent_url gives the link a person opens to post on X, and mark_reply_posted records that they did.",
   "publish_article is the only tool that writes to the owner's own site: it needs the publish scope and confirm: true.",
   `Every tool needs an active plan on the GetTrafficFast account. Without one, every tool call answers with the error code subscription_required: do not retry it, and tell the person plainly that this GetTrafficFast account has no active plan, so its tools are unavailable, and that the account owner can manage the plan at ${BILLING_URL}. Listing tools and prompts works without a plan.`,
   "Tools marked paid also need the spend scope (ticked on the key, or on the consent screen when connecting), and count against daily caps; a key or a connected app may make 60 calls a minute.",
   "draft_reply, run_reply_discovery and generate_article return a jobId; get_job says how it ended.",
   "A call that would start spending (a visibility run or cadence, autopilot, images) is refused with confirmation_required until it is sent again with confirm: true: ask the person first.",
-  "Two prompts run the routine: daily_routine (Today, one reply at a time) and weekly_review (Growth and Content).",
+  "Two prompts run the routine: daily_routine (Today, one reply at a time) and weekly_review (Growth and Content); both take an optional site.",
 ].join(" ");
 
 /** A registry tool as MCP's `tools/list` describes it. */

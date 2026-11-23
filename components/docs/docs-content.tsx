@@ -546,7 +546,8 @@ export function DocsContent({ engines, toolGroups, limits }: DocsContentProps) {
           </li>
           <li>
             A key for one site acts on that site. A key for every site acts on your oldest site, unless{" "}
-            <Code>x-gtf-business: &lt;site id&gt;</Code> names another; <Code>whoami</Code> says which.
+            <Code>x-gtf-business: &lt;site id&gt;</Code> names another, or a call names one with the tools&apos;{" "}
+            <Code>site</Code> argument (its name, domain or id); <Code>whoami</Code> says which.
           </li>
           <li>
             An error is <Code>{`{ "error": { "code", "message", "hint" } }`}</Code>. The code is stable: branch on it.

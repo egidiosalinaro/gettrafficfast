@@ -26,11 +26,11 @@ export const listBusinessesTool = defineTool({
   name: "list_businesses",
   title: "List sites",
   description:
-    "The sites (businesses) this credential may act on, oldest first, and which one the other tools act on now. Name another with the x-gtf-business header; a key limited to one site lists only that one.",
+    "The sites (businesses) this credential may act on, oldest first, and which one the other tools act on when a call names none. Name another with any site-scoped tool's site argument (its id, name or domain), or the x-gtf-business header; a key or a connection limited to one site lists only that one.",
   input: z.object({}),
   output: z.object({
     businesses: z.array(Site),
-    selectedId: z.string().nullable().describe("The site the other tools act on; null when the account has none yet."),
+    selectedId: z.string().nullable().describe("The site the other tools act on when a call names none; null when the account has none yet."),
   }),
   scope: "read",
   paid: false,

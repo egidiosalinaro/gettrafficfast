@@ -10,6 +10,7 @@ export const MCP_DOC_SECTIONS = [
   { id: "plan", title: "Plan required" },
   { id: "connect-oauth", title: "Connect with sign-in" },
   { id: "connect-key", title: "Connect with a key" },
+  { id: "sites", title: "Several sites" },
   { id: "permissions", title: "Permissions" },
   { id: "prompts", title: "Prompts" },
   { id: "tools", title: "Tools" },

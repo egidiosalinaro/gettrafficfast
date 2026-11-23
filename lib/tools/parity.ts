@@ -25,7 +25,7 @@ export const PARITY_EXCEPTION_KINDS = {
   spend_ceiling: "Owner-only: the AI spend ceiling. No key and no connection may raise it.",
   reviewer_account: "Owner-only: the directory reviewers' account creates a user and grants a plan. No key and no connection may do either.",
   credentials: "A WordPress application password or a webhook secret must not pass through an AI chat; a person connects them in Settings → Connections.",
-  device: "About the device in hand, not the account's data: which site the browser shows. A key or a connection carries its site (x-gtf-business, the site picked on the consent screen).",
+  device: "About the device in hand, not the account's data: which site the browser shows. A key or a connection carries its site (the site picked on the consent screen, x-gtf-business, or a tool's site argument).",
   machine: "Called by machines, not by a screen: crons, the job worker, Stripe's webhook, the site's own blog receiver.",
   surface: "The API surfaces themselves: the REST runner and the MCP endpoint.",
 } as const;

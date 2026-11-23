@@ -12,7 +12,7 @@ export const ERROR_CODE_DOCS: Readonly<Record<ApiErrorCode, { status: string; me
   invalid_api_key: { status: "401", meaning: "Not a live GetTrafficFast key." },
   revoked_api_key: { status: "401", meaning: "The key was revoked." },
   invalid_token: { status: "401", meaning: "An access token that is unknown, expired or revoked: refresh it, or connect again." },
-  business_not_found: { status: "404", meaning: "x-gtf-business names a site the account does not have." },
+  business_not_found: { status: "404", meaning: "x-gtf-business names a site the account does not have, or site names none of the connection's sites." },
   forbidden_business: { status: "403", meaning: "The key or connection is limited to another site." },
   forbidden_scope: { status: "403", meaning: "The key or connection lacks a permission the tool needs." },
   no_business: { status: "409", meaning: "The account has no site yet." },

@@ -89,6 +89,16 @@ describe("ConsentScreen", () => {
     expect(html).toContain('role="alert"');
   });
 
+  it("says that with All my sites the app picks the site named in each request, the oldest by default", () => {
+    const html = renderToStaticMarkup(<ConsentScreen {...props} />);
+    expect(html).toContain("Claude can work on any of them, a different one in each request: name the site in your message");
+    expect(html).toContain("run my day for Bravo");
+    expect(html).toContain("When you name none, the tools act on your oldest site, Acme.");
+    expect(html).not.toContain("Claude cannot name one");
+    const single = renderToStaticMarkup(<ConsentScreen {...props} sites={[props.sites[0]]} defaultSite="all" />);
+    expect(single).toContain("The tools act on Acme, and on any site you add later when you name it in your message.");
+  });
+
   it("offers every site when the account has none yet", () => {
     const html = renderToStaticMarkup(<ConsentScreen {...props} sites={[]} defaultSite="all" />);
     expect(inputs(html, "radio")).toEqual([{ name: "site", value: "all", checked: true }]);

@@ -176,6 +176,10 @@ export function defineTool<I extends z.ZodType, O extends z.ZodType>(spec: ToolS
   if (spec.paid && spec.withoutPlan) throw new Error(`Tool ${spec.name}: a paid tool always needs a plan; it cannot be withoutPlan.`);
   if (typeof spec.handler !== "function") throw new Error(`Tool ${spec.name} needs a handler.`);
   const shape = (spec.input as unknown as z.ZodObject).shape;
+  // The runner takes `site` off the input of every site-scoped tool (lib/tools/site.ts).
+  if (spec.needsBusiness !== false && "site" in shape) {
+    throw new Error(`Tool ${spec.name}: site is the runner's argument for choosing the site; name the field otherwise.`);
+  }
   for (const [field, table] of Object.entries(spec.owns ?? {})) {
     if (!(field in shape)) throw new Error(`Tool ${spec.name}: owns names ${field}, which is not an input field.`);
     if (!(OWNABLE_TABLES as readonly string[]).includes(table)) {

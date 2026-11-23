@@ -185,7 +185,11 @@ export function McpDocsContent({ areas, limits }: McpDocsProps) {
             </li>
             <li>
               Choose what Claude may do. Read and Write are ticked; Spend and Publish only if you tick them. Choose one
-              site or all of them (with all, Claude acts on your oldest site). Then <Place>Allow</Place>.
+              site or all of them: with all, name the site in your message and Claude works on that one (see{" "}
+              <a href="#sites" className="text-foreground underline underline-offset-4">
+                Several sites
+              </a>
+              ). Then <Place>Allow</Place>.
             </li>
           </Steps>
           <P>
@@ -246,10 +250,33 @@ export function McpDocsContent({ areas, limits }: McpDocsProps) {
         </Sub>
         <P>
           Replace <Code>{KEY}</Code> with your key. With a key for every site, add the header{" "}
-          <Code>x-gtf-business: &lt;site id&gt;</Code> to choose one; without it the tools act on your oldest site, and{" "}
-          <Code>whoami</Code> says which. The snippets follow each client&apos;s documented format; check your
+          <Code>x-gtf-business: &lt;site id&gt;</Code> to choose one, or let the agent choose per call with{" "}
+          <Code>site</Code>; without either the tools act on your oldest site, and <Code>whoami</Code> says which. The snippets follow each client&apos;s documented format; check your
           client&apos;s own docs if it has changed.
         </P>
+      </Section>
+
+      <Section id="sites" title="Several sites">
+        <P>
+          A connection or a key covers one site, or all of yours. With all of them, you choose the site in the
+          conversation: say &ldquo;run my day for Bravo&rdquo; and the agent works on Bravo. Without a name, the tools
+          act on your oldest site.
+        </P>
+        <Bullets>
+          <li>
+            Every tool that acts on a site takes an optional <Code>site</Code>: the site&apos;s name, its domain or its
+            id, case does not matter. <Code>whoami</Code> and <Code>list_businesses</Code> list the sites the
+            connection may use.
+          </li>
+          <li>
+            A name that matches two sites, or none, is refused with the list of your sites, so the agent can ask you.
+            A connection or a key for one site can never reach another.
+          </li>
+          <li>
+            The prompts take <Code>site</Code> too. Without it, a connection that covers several sites asks you which
+            one first.
+          </li>
+        </Bullets>
       </Section>
 
       <Section id="permissions" title="Permissions">

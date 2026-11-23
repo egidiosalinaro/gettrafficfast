@@ -56,9 +56,12 @@ describe("prompts/list", () => {
     expect(prompts.map((p) => p.name)).toEqual(["daily_routine", "weekly_review"]);
     expect(prompts[0]).toMatchObject({
       title: "Run my day",
-      arguments: [{ name: "timeZone", required: false }],
+      arguments: [
+        { name: "timeZone", required: false },
+        { name: "site", required: false },
+      ],
     });
-    expect(prompts[1].arguments?.map((a) => a.name)).toEqual(["days", "topics"]);
+    expect(prompts[1].arguments?.map((a) => a.name)).toEqual(["days", "topics", "site"]);
     for (const prompt of prompts) expect(prompt.description?.length).toBeGreaterThan(40);
     await client.close();
   });

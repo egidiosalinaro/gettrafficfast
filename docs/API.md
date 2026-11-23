@@ -147,6 +147,43 @@ Every tool acts on one site, always one of the key owner's own businesses
 `whoami` says which site the tools will act on and which ones the key may
 name.
 
+### Choosing the site in a call: `site`
+
+Since 2026-11-23 every site-scoped tool (every tool but the few with
+`needsBusiness: false`: `whoami`, `list_businesses`, `create_business`,
+`analyze_website`, the billing reads, the owner's tools) takes an optional
+`site` argument: the id, the name or the domain of one of the sites the
+credential covers, case-insensitive (`"Bravo"`, `"bravo.test"`,
+`"https://www.bravo.test/blog"` and its id all name the same site). It is for
+the clients that cannot send `x-gtf-business` per call, above all claude.ai
+and the Claude apps, so a person who connected with "All my sites" can say
+"run my day for Bravo" and Claude passes `site: "Bravo"` on every call.
+
+It is added once, not in each tool (`lib/tools/site.ts`):
+
+- `describeTool` (`inputSchemaOf`, `lib/tools/schema.ts`) adds `site` to the
+  published input schema of every site-scoped tool, so `tools/list` and
+  `GET /api/v1/tools` show it; `defineTool` refuses a tool whose own input
+  has a field named `site`.
+- The runner takes `site` off the input after the plan and scope checks and
+  before anything reads the site (`callerForSite`): the ownership checks
+  (`owns`), the caps, the handler and the audit row all use the named site,
+  and for a key or a connected app the owner-scoped client is rebuilt
+  narrowed to that site, so a write can only land there. A handler never
+  sees `site`.
+- The match is among the sites the credential covers (`chooseSite`): an id
+  first, else a name or a domain, and only when exactly one site matches.
+  Several matches are **400 `invalid_input`** (name it by its id or domain);
+  a site of the account outside a one-site key or grant is **403
+  `forbidden_business`**; anything else is **404 `business_not_found`**.
+  Every refusal lists the sites the credential may use, by name, domain and
+  id, so the agent can ask the person. A key or a grant limited to one site
+  can never reach another through `site`, by any name.
+- Without `site`, nothing changes: the header's site, else the key's or the
+  grant's, else the oldest. `site` and `x-gtf-business` together: the header
+  picks the starting site, `site` the one the call acts on, within the same
+  credential's sites.
+
 ### Tenancy: why the service role, narrowed
 
 A session carries the user's JWT, and RLS adds `auth.uid() = user_id` to
@@ -617,8 +654,8 @@ One shape for the REST runner, `/api/api-keys` and MCP:
 | `invalid_api_key` | 401 | not a live GetTrafficFast key |
 | `revoked_api_key` | 401 | the key was revoked |
 | `invalid_token` | 401 | an OAuth access token that is unknown, expired, revoked, issued for another resource, or sent to the REST runner |
-| `business_not_found` | 404 | `x-gtf-business` names a site the account does not have |
-| `forbidden_business` | 403 | the key is limited to another site |
+| `business_not_found` | 404 | `x-gtf-business` names a site the account does not have, or `site` names none of the credential's sites |
+| `forbidden_business` | 403 | the key, or the connection, is limited to another site |
 | `forbidden_scope` | 403 | the key, or the connected app, lacks a scope the tool needs |
 | `no_business` | 409 | the account has no site yet |
 | `unknown_tool` | 404 | no tool by that name |
@@ -721,7 +758,10 @@ object as the body. That header is what starts Claude's sign-in, and where it
 learns which authorization server to use ("Connect from claude.ai").
 
 The server's `instructions` (`MCP_INSTRUCTIONS`, `lib/tools/mcp.ts`) say
-that every tool needs an active plan, that without one every call answers
+that a connection may cover several sites, that `whoami` lists them and the
+default one, and that Claude uses the site the person names, asks which one
+when they name none, and passes it as `site` on every call of the task
+("Choosing the site in a call"); and that every tool needs an active plan, that without one every call answers
 `subscription_required`, and that the agent should not retry and should tell
 the person the account has no active plan and that its owner manages it at
 Settings → Billing.
@@ -754,8 +794,8 @@ through the runner, when Claude calls them.
 
 | Prompt | Arguments (strings, all optional) | What it makes Claude do |
 | --- | --- | --- |
-| `daily_routine` ("Run my day") | `timeZone` (IANA, UTC when empty) | `get_today`, then a few lines on posted of goal, links and To do; `list_reply_inbox` `status: "open"`, one target at a time: the post and the draft, then approve, fix or skip. Approve: `get_reply_intent_url` (the link that opens X with the reply typed in; `body` and `threadUrl` when it is null), the person posts it, then `mark_reply_posted`. Fix: the person's reason to `correct_reply_draft` (or their words to `edit_reply_draft`). Skip: `dismiss_reply_target`, not now: `snooze_reply_target`. Then each `alsoToday` item with its tools (`resettle_article`, `publish_article` only on an explicit yes, `generate_article`, `retry_article`, `set_reply_link` / `paste_reply_links`, `confirm_about_you_fact` / `update_voice_settings`) |
-| `weekly_review` ("Review my week") | `days` (`7` or `28`, default 7), `topics` (1 to 20, default 5) | `get_growth`: X, Google and AI answers against the period before, AI per engine as "cited of readable", null as "not measured", sampled, never averaged; `list_ai_answers`: at most three answers worth seeing; `get_content`: the week's articles, then the next topics, keep or remove (`delete_keywords` after a yes) |
+| `daily_routine` ("Run my day") | `timeZone` (IANA, UTC when empty), `site` | `get_today`, then a few lines on posted of goal, links and To do; `list_reply_inbox` `status: "open"`, one target at a time: the post and the draft, then approve, fix or skip. Approve: `get_reply_intent_url` (the link that opens X with the reply typed in; `body` and `threadUrl` when it is null), the person posts it, then `mark_reply_posted`. Fix: the person's reason to `correct_reply_draft` (or their words to `edit_reply_draft`). Skip: `dismiss_reply_target`, not now: `snooze_reply_target`. Then each `alsoToday` item with its tools (`resettle_article`, `publish_article` only on an explicit yes, `generate_article`, `retry_article`, `set_reply_link` / `paste_reply_links`, `confirm_about_you_fact` / `update_voice_settings`) |
+| `weekly_review` ("Review my week") | `days` (`7` or `28`, default 7), `topics` (1 to 20, default 5), `site` | `get_growth`: X, Google and AI answers against the period before, AI per engine as "cited of readable", null as "not measured", sampled, never averaged; `list_ai_answers`: at most three answers worth seeing; `get_content`: the week's articles, then the next topics, keep or remove (`delete_keywords` after a yes) |
 
 Both say, in the text Claude reads: GTF and Claude never post on X or
 anywhere else (Claude hands over the link, the person posts); a reply names
@@ -764,7 +804,12 @@ measured", no dollar amounts; nothing that spends without the person's yes.
 The text follows the grant: a read-only connection is told that approving,
 skipping and marking need Write, one without Spend that Fix and new drafts
 are refused and `edit_reply_draft` is the way, so Claude says so rather than
-calling and failing.
+calling and failing. The text follows the site too: with `site` (a name,
+domain or id), Claude is told to pass it on every tool call; without it, a
+connection that covers several sites is told to call `whoami` and ask which
+site first (a caller whose sites are not known gets the same, as an "if").
+The prompt does not check the name itself (it reads no row): the first tool
+call refuses one that matches no site, with the list.
 
 An unknown prompt, a time zone the runtime does not know, `days` other than
 7 or 28, or `topics` out of range is JSON-RPC error `-32602` (Invalid params)
@@ -790,7 +835,8 @@ claude mcp add --transport http gettrafficfast https://gettrafficfa.st/api/mcp \
 ```
 
 For a key for every site, add `--header "x-gtf-business: <site id>"` to
-pick one; without it the tools act on the oldest site. Other clients: the
+pick one, or let Claude pass `site` per call; without either the tools act
+on the oldest site. Other clients: the
 same URL, transport Streamable HTTP, the same headers. A client that cannot
 send a header signs in with OAuth instead ("Connect from claude.ai"); Claude
 Code can too (add the URL without a header, then `/mcp` to sign in, on a
@@ -828,9 +874,11 @@ session cookie says who the person is.
    address your answer is sent to (`claude.ai`), what it may do, and which
    site. **Read** and **Write** are ticked; **Spend** and **Publish** are not,
    and are granted only if you tick them, as on a new API key. Choose one site
-   or all of them: Claude cannot pick a site per call (it sends no
-   `x-gtf-business`), so with "All my sites" the tools act on your oldest
-   site; with several sites, pick the one you mean.
+   or all of them. With "All my sites", Claude picks the site in each request:
+   name it in your message ("run my day for Bravo") and Claude passes it as
+   the tools' `site` argument ("Choosing the site in a call"); when you name
+   none, the tools act on your oldest site. The screen says so, naming your
+   second site as the example and the oldest as the default.
 5. **Allow**. Claude lists the tools that grant allows (no Spend: no paid
    tools in the list).
 
@@ -926,7 +974,7 @@ caller's user and site, or the call is 404 `not_found` and nothing runs.
 
 | Tool | Scopes | What it does (the screen's action) |
 | --- | --- | --- |
-| `whoami` | read | who the key acts for, its scopes, the site, the sites it may name |
+| `whoami` | read | who the key acts for, its scopes, the default site, the sites it may name (with `site` or `x-gtf-business`) |
 | `get_today` | read | Today (`/today`, 2026-11-14), the first screen of the day, read by the function `GET /api/today` reads (`loadTodayScreen`, `lib/today/read.ts`). `{ timeZone? }`. `progress`: `posted` (replies marked as posted today in `timeZone`, removed ones left out), `goal` (null when none), `timeZone`, and `links` (null with no reply today): `total`, `linked`, `foundOnX` (of the linked, found by GTF), `looking` (GTF still searching X), `toPaste`, `line` as the screen says it, `tone` (`done`, `waiting`, `todo`). `counts`: rows in each tab, `todo` (open to reply now), `posted` (posted and still up), `archive` (skipped, filtered out, expired, removed); null when they could not be counted; list them with `list_reply_inbox` `status` `open`, `published_manually` or `archive`. `alsoToday`: what else needs a gesture today, in the screen's order, each with `id`, `kind`, `href` (where the screen does it) and `tools` (the tools that resolve it, the free one first): `article_held` (a gate held it: `articleId`, `title`, `scheduledDate`, `isToday`, `reason`, `moreReasons`; `resettle_article`, `publish_article`, `generate_article`, `dismiss_today_articles`), `article_failed` (`retry_article`, `dismiss_today_articles`; an article ignored there, held or failed, is not listed again until its status changes), `reply_link` (a reply on X of the last 7 days whose link GTF stopped looking for: `targetId`, `text`, `outcome`, `line`; `set_reply_link`), `fact_stale` (a dated About you sentence over 30 days old, counted from its last "Still true" when there is one: `sentence`, `dateLabel`, `confirmedOn`, `age`; `confirm_about_you_fact` or `update_voice_settings`). Empty when there is nothing. Reads only; no model, no paid API |
 | `list_reply_inbox` | read | the inbox: `status` (open by default, all, `archive` since 2026-11-14: skipped, filtered out, expired and removed, as Today's Archive tab lists them; or one), `platform`, `topic`, `aiCited` (only pages a sampled AI answer cited), `limit`/`offset`; each target with its drafts and, when a visibility run pointed at it, `aiCitation` (per prompt, the engines whose sampled answer cited the page). A posted target the site removed carries `removedAt` and `removedReason` (`mark_reply_removed`); `removalBySurface` gives, per platform, `posted`, `removed` and `removalRate` (null where nothing was posted, never 0), as people recorded it. A target of `kind` `listicle` takes no draft: `draft_reply` and `write_own_reply` answer 409 `invalid_state`. A posted reply on X carries `metrics`, its newest daily snapshot of X's public numbers (`get_reply_metrics`; null when never read). A target `foundVia` `x_search` was found by the daily X search (fresh for 24 hours). Since 2026-11-12 a target carries `media` (the post's images and videos: `type`, `url` or `previewUrl`, `altText`, size; null when never asked, [] when none) and `mediaUnread` (true when the post has media its drafts were written without), and each draft's `audit.images` says what the drafter saw (`inPost`, `seen`, `note`); `get_reply_target` returns the same. Since 2026-11-14 a target on X carries `quotedPost` and `repliedToPost` (the post it quotes and the post it replies to: `id`, `url`, `text`, `authorName`, `handle`, `postedAt`, `postedAtPrecision`, `media`, `mediaUnread`, `note`; `text` null when the post exists and could not be read; null when it quotes or answers none, or when not known) with `quoteUnread` and `repliedToUnread` (true when its drafts were written without it, false when read or there is none, null when not known: posts stored before 2026-11-14 until the daily X run reads them, a hand-added post read without the X API for `repliedToUnread`); drafts read both beside the post (docs/PLACEMENTS.md, "What the post quotes"); `get_reply_target` returns the same. Since 2026-11-12 it also takes `timeZone` (IANA) and returns `today`, whatever the filter: what `get_today_replies` answers. Since 2026-11-12 too, each target carries `foundAt` (when the product first found it, the same instant as `createdAt`; `lastSeenAt` is when a search last saw it again), and the answer carries `lastDiscovery`: `web` and `x`, each `{ running, lastCompletedAt, progress, nextAt }` (progress while running, e.g. "Judging 23 of 60…"; `nextAt` the next scheduled run, web Monday, Wednesday and Friday 10:00 UTC, X daily 13:20 UTC); `x` is null where the site does not take part in the X search. Found targets are listed newest post first. Since 2026-11-13 each target carries `linkSource` (`found_on_x` when `publishedUrl` is the link GTF found on X by itself, `person` otherwise, null with no link) and `linkSearch` (GTF's search for the link: `attempts`, `lastAttemptAt`, `outcome`, `postsSeen`, `foundUrl`, `foundAt`; null when never searched), and a posted reply with no link carries `linkFinding`: `looking` with `stopsBy` (GTF searches X again by itself: 2 min, 15 min, 2 h and 12 h after I posted it), `stopped` with `outcome`, or `off` (docs/PLACEMENTS.md, "The link of your reply, found on X"); `get_reply_target` returns the same. Reads at most 200 per filter (the newest found, and the person's own posts apart) |
 | `get_today_replies` | read | "N of G today" (2026-11-12): `posted` (replies marked as posted today in `timeZone`, removed ones left out), `goal` (the daily goal, null when none; change it with `update_voice_settings` `dailyReplyGoal`), `timeZone` (the one given, or UTC when missing or unknown) and `replies`, newest first: `id`, `surface`, `author`, `community`, `url` (the post answered), `text` (the first line of the reply as posted, null when none on record), `publishedAt`, `publishedUrl` (null until saved), `metrics` (null when not read), and since 2026-11-14 `linkSource` (`found_on_x`, `person`, null with no link; absent when the searches could not be read). `replies` is absent when it could not be read: unknown, not none. A count of what was recorded, never of what is on the other site. Reads only the last 27 hours of rows; no model |
@@ -1130,7 +1178,7 @@ are listed by whitelisted fields, and the Search Console token never leaves
 | `get_results` | read | free | none | per article: rank (Search Console else SERP), 28-day traffic, citations per engine; the totals, the per-day traffic, the Search Console state |
 | `get_growth` | read | free | `days` (7 or 28, default 7) | Growth, as `/growth` shows it: the period against the same length before, in three blocks. `replies`: `get_reply_stats` for the period (null when the posted replies could not be read). `google`: Search Console `impressions`, `clicks` and the impression-weighted `averagePosition` over the period ending on the newest day ingested (`settledThrough`), `previous` null when the data does not cover it (no comparison, never growth from 0), `change` (position: previous minus current, positive up the page), and `pages` on Google from URL Inspection (latest answer per URL, no history, so no change). `ai`: per engine, `current` and `previous` asks with a readable answer and how many cited the site (`rate` null with no ask, never 0), split by family (`byKind`: the questions you chose, your articles' keywords), `unreadable` apart; never averaged across engines; `sampled: true`; the open places in Today a sampled answer cited. Stored rows only |
 | `list_ai_answers` | read | free | `days` (7 or 28), `engine?`, `offset` (0), `limit` (20, max 100) | Growth → AI answers: the period's answers, newest first, each with its question, engine, day, `status` (`counted` false for an answer that could not be read: not "not cited"), the site's place among the sources, the cited page, the stored start of the answer (`excerpt`, not the whole answer) and every source verbatim and numbered, `ours` and `inToday` marked. `kind` `article` (the weekly check of an article's keyword) keeps only the verdict and the cited page (`sourcesKept: false`). `engines` lists the engines with an answer in the period; `nextOffset` pages. Sampled |
-| `list_businesses` | read | free | none | the sites the key may name, and the one the tools act on (no site needed) |
+| `list_businesses` | read | free | none | the sites the key may name (with `site` or `x-gtf-business`), and the one the tools act on by default (no site needed) |
 | `get_business` | read | free | none | the site's settings, with Autopilot and its Images and video |
 | `get_home` | read | free | none | the Overview's loop (its screen became Today on 2026-11-14; `get_today` reads Today): the operating loop stage by stage, the replies row, the next action, the next articles, the unused keywords |
 | `get_today` | read | free | `timeZone?` | Today, as `/today` shows it: the day's progress and links, the tabs' counts, Also today (above, with the Replies tools) |
@@ -1198,7 +1246,7 @@ exceptions, each a decision:
 | `spend_ceiling` | `POST /api/owner/spend-limit` | Owner-only; nothing on the API raises a ceiling |
 | `billing` | `POST /api/create-checkout-session`, `POST /api/create-billing-portal-session` | A payment or cancellation link must not pass through an AI chat (`get_subscription` reads the plan) |
 | `credentials` | `POST /api/integrations/wordpress/connect`, `…/webhook/connect` | A password or a webhook secret must not pass through an AI chat |
-| `device` | `POST /api/business/select` | Which site the browser shows; a key or a connection carries its own site (`list_businesses`, `whoami`) |
+| `device` | `POST /api/business/select` | Which site the browser shows; a key or a connection carries its own site, or names one per call with `site` (`list_businesses`, `whoami`) |
 | `sign_in` | `POST /oauth/register`, `/oauth/authorize/decision`, `/oauth/token`, `/oauth/revoke` | What gives an agent its credential |
 | `machine` | the 14 `/api/cron/*`, `POST /api/jobs/tick`, `POST /api/stripe-webhook`, `POST /api/gettrafficfast` | Called by machines, not a screen |
 | `surface` | `POST /api/v1/tools/[name]`, `POST` and `DELETE /api/mcp` | The API surfaces themselves |
@@ -1282,7 +1330,8 @@ machine. Public through the middleware's `/.well-known/` prefix.
   the site, the live-grant cap, the code stored as a hash, the decision
   route's same-origin check.
 - `tests/oauth/consent-screen.test.tsx`: the screen's boxes, site, hidden
-  fields, Deny first, the loopback warning.
+  fields, Deny first, the loopback warning, the "All my sites" wording (the
+  site named in each request, the oldest by default).
 - `tests/oauth/tokens.test.ts`: the exchange with a right and a wrong
   verifier, single use and the revocation of a replayed code's tokens,
   expiry, redirect URI, client and resource checks, refresh rotation and
@@ -1307,6 +1356,12 @@ machine. Public through the middleware's `/.well-known/` prefix.
   scope, every id is owned.
 - `tests/tools/runner.test.ts`: every error code, the paywall for API
   callers, a key for site A against site B.
+- `tests/tools/site.test.ts`: the `site` argument by id, name and domain,
+  case-insensitive; writes and ownership on the named site; an ambiguous
+  name, an unknown site and another account's site refused with the list; a
+  one-site grant or key never reaching another site; the default unchanged
+  without it; `site` published on every site-scoped tool only; `tools/call`
+  over MCP; the prompts passing it or asking first.
 - `tests/tools/surfaces.test.ts`: the REST runner's shapes, the catalogue,
   MCP `tools/list` and `tools/call` over the SDK client and over the route.
 - `tests/tools/replies.test.ts`: each Replies tool's happy path, its

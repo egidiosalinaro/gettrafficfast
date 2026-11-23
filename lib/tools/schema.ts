@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ApiKeyScope } from "@/lib/api-keys";
 import { needsSubscription, requiredScopes, type Tool } from "./tool";
+import { SITE_ARGUMENT_NAME, SiteArgument, takesSite } from "./site";
 
 /**
  * A tool as an external agent sees it: the same JSON Schemas for
@@ -35,6 +36,18 @@ export interface ToolDescription {
   outputSchema: JsonSchema;
 }
 
+/**
+ * A tool's input schema as published: its own, plus the optional `site`
+ * argument every site-scoped tool takes (lib/tools/site.ts), which the
+ * runner resolves before the tool's own schema reads the input.
+ */
+export function inputSchemaOf(tool: Tool): JsonSchema {
+  const json = jsonSchemaOf(tool.input, "input");
+  if (!takesSite(tool)) return json;
+  const properties = (json.properties ?? {}) as Record<string, unknown>;
+  return { ...json, properties: { ...properties, [SITE_ARGUMENT_NAME]: jsonSchemaOf(SiteArgument, "input") } };
+}
+
 export function describeTool(tool: Tool): ToolDescription {
   return {
     name: tool.name,
@@ -43,7 +56,7 @@ export function describeTool(tool: Tool): ToolDescription {
     scopes: requiredScopes(tool),
     paid: tool.paid,
     subscription: needsSubscription(tool),
-    inputSchema: jsonSchemaOf(tool.input, "input"),
+    inputSchema: inputSchemaOf(tool),
     outputSchema: jsonSchemaOf(tool.output, "output"),
   };
 }

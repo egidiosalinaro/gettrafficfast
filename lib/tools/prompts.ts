@@ -18,6 +18,11 @@ import type { ApiKeyScope } from "@/lib/api-keys";
  * Arguments arrive as strings (MCP's `prompts/get`); each prompt validates
  * them with its own schema, and an empty string reads as absent, since some
  * clients send every argument they show.
+ *
+ * Both take an optional `site`: the routine then passes it on every tool
+ * call (lib/tools/site.ts). Without it, a connection that covers several
+ * sites is told to ask which one first; the prompt itself still reads no
+ * row, so a name that matches no site is refused by the first tool call.
  */
 
 export interface PromptArgument {
@@ -28,6 +33,8 @@ export interface PromptArgument {
 
 export interface PromptCaller {
   scopes: readonly ApiKeyScope[];
+  /** The sites the connection covers; with more than one, the routine starts by settling which. */
+  businessIds?: readonly string[];
 }
 
 export interface PromptDefinition<A extends z.ZodObject = z.ZodObject> {
@@ -59,6 +66,36 @@ const TimeZone = z
       return false;
     }
   }, "not an IANA time zone, e.g. Europe/Berlin");
+
+/** The site the routine is about, as the tools' `site` argument takes it (lib/tools/site.ts). */
+const Site = z.string().trim().max(200);
+
+const SITE_ARGUMENT: PromptArgument = {
+  name: "site",
+  description: "Which site, by name, domain or id, when the connection covers several. The default site when left empty.",
+  required: false,
+};
+
+/**
+ * Which site the routine works on: the one the person named, passed as
+ * `site` on every call; else, with several sites (or a caller whose sites
+ * are not known), ask first. Nothing with one site and no name: the tools'
+ * default is the only site.
+ */
+function siteLines(site: string | undefined, caller: PromptCaller): string[] {
+  if (site) {
+    return [
+      `- Work on my site "${site}" only: pass site "${site}" on every tool call. If a tool answers that it matches no site or several, call whoami, show me its businesses by name and ask which one.`,
+    ];
+  }
+  const sites = caller.businessIds?.length;
+  if (sites === 1 || sites === 0) return [];
+  return [
+    sites === undefined
+      ? "- If this connection covers several sites (whoami lists them in businesses), ask me which site before step 1, unless I already named one, then pass it as site on every tool call."
+      : "- This connection covers several sites. Before step 1, unless I already named one, call whoami, list its businesses by name and ask me which site; then pass that site as site on every tool call.",
+  ];
+}
 
 const Days = z.enum(["7", "28"], { message: "7 or 28" });
 
@@ -92,7 +129,7 @@ function grantLines(caller: PromptCaller): string[] {
   return lines;
 }
 
-const dailyArgs = z.object({ timeZone: optionalString(TimeZone) });
+const dailyArgs = z.object({ timeZone: optionalString(TimeZone), site: optionalString(Site) });
 
 export const DAILY_ROUTINE: PromptDefinition<typeof dailyArgs> = {
   name: "daily_routine",
@@ -105,9 +142,11 @@ export const DAILY_ROUTINE: PromptDefinition<typeof dailyArgs> = {
       description: "Your IANA time zone, e.g. Europe/Berlin, so \"today\" is your day. UTC when left empty.",
       required: false,
     },
+    SITE_ARGUMENT,
   ],
   args: dailyArgs,
   uses: [
+    "whoami",
     "get_today",
     "list_reply_inbox",
     "get_reply_intent_url",
@@ -128,13 +167,14 @@ export const DAILY_ROUTINE: PromptDefinition<typeof dailyArgs> = {
     "confirm_about_you_fact",
     "update_voice_settings",
   ],
-  render({ timeZone }, caller) {
+  render({ timeZone, site }, caller) {
     const zone = timeZone ?? "UTC";
     return [
       `Run my day in GetTrafficFast (GTF) with me, one step at a time. My time zone: ${zone}.`,
       "",
       "Rules for the whole routine:",
       ...RULES,
+      ...siteLines(site, caller),
       ...grantLines(caller),
       "",
       `1. Call get_today with timeZone "${zone}". In two or three lines: replies posted today against the goal (progress.posted of progress.goal; with no goal, just the count), where their links stand (progress.links.line), and how many wait in To do (counts.todo).`,
@@ -161,6 +201,7 @@ export const DAILY_ROUTINE: PromptDefinition<typeof dailyArgs> = {
 const weeklyArgs = z.object({
   days: optionalString(Days).transform((value) => (value === "28" ? 28 : 7)),
   topics: optionalString(Topics),
+  site: optionalString(Site),
 });
 
 export const WEEKLY_REVIEW: PromptDefinition<typeof weeklyArgs> = {
@@ -171,10 +212,11 @@ export const WEEKLY_REVIEW: PromptDefinition<typeof weeklyArgs> = {
   arguments: [
     { name: "days", description: "The period: 7 (default) or 28 days, compared with the same length before.", required: false },
     { name: "topics", description: "How many next topics to go through, 1 to 20 (default 5).", required: false },
+    SITE_ARGUMENT,
   ],
   args: weeklyArgs,
-  uses: ["get_growth", "list_ai_answers", "get_content", "delete_keywords"],
-  render({ days, topics }, caller) {
+  uses: ["whoami", "get_growth", "list_ai_answers", "get_content", "delete_keywords"],
+  render({ days, topics, site }, caller) {
     const topicCount = topics ?? 5;
     return [
       `Review my last ${days} days in GetTrafficFast (GTF) with me, against the ${days} days before.`,
@@ -183,6 +225,7 @@ export const WEEKLY_REVIEW: PromptDefinition<typeof weeklyArgs> = {
       ...RULES,
       "- AI answers are sampled: each question asked once per engine per run, not every answer an engine gives. Say so.",
       "- Per engine, always. Never average engines together and never make one score out of them.",
+      ...siteLines(site, caller),
       ...(caller.scopes.includes("write")
         ? []
         : ["- This connection can only read. Removing a topic needs the Write permission: say so, and point me to Content (/content)."]),

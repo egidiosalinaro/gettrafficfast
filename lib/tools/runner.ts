@@ -8,6 +8,7 @@ import { NO_BUSINESS_RESPONSE } from "@/lib/tenancy";
 import { ToolError, needsSubscription, requiredScopes, type OwnableTable, type Tool } from "./tool";
 import type { ToolRegistry } from "./registry";
 import { registryFor } from "./owner";
+import { SITE_ARGUMENT_NAME, SiteArgument, callerForSite, takesSite } from "./site";
 import { burstDenial, dailyCapDenial, recordToolCall, type LimitDenial, type LimitSubject } from "./usage";
 
 /**
@@ -18,7 +19,9 @@ import { burstDenial, dailyCapDenial, recordToolCall, type LimitDenial, type Lim
  * limit; the tool exists; the account has an active plan (every tool but the
  * owner's, since 2026-11-16: one standard refusal, `planRefusal`); the
  * credential holds every scope it needs (`spend` too, for a paid tool); the
- * caller has a site; the input passes the tool's schema; every id the input
+ * caller has a site, the one the input's optional `site` names when it
+ * names one of the sites the credential covers (lib/tools/site.ts); the
+ * input passes the tool's schema; every id the input
  * names (`owns`) is a row of the caller's user AND site; the key or app is under its daily
  * cap on the tool; for a paid tool, the account is under its daily AI spend
  * ceiling and its own daily cap on the tool, whatever the caller, a session,
@@ -109,13 +112,13 @@ export async function runTool(caller: Caller, name: string, rawInput: unknown, d
   const now = deps.now ?? (() => new Date());
   const startedAt = now();
   const started = Date.now();
-  const meter: Meter = { costUsd: null };
+  const meter: Meter = { costUsd: null, businessId: caller.businessId };
 
   const run = await execute(caller, name, rawInput, { ...deps, admin, now }, meter);
 
   recordToolCall(admin, {
     userId: caller.userId,
-    businessId: caller.businessId,
+    businessId: meter.businessId,
     apiKeyId: caller.keyId,
     oauthClientId: caller.oauth?.clientId ?? null,
     tool: name,
@@ -127,9 +130,22 @@ export async function runTool(caller: Caller, name: string, rawInput: unknown, d
   return run;
 }
 
-/** What the handler reported it cost, for the audit row. */
+/** What the handler reported it cost, and the site the call was about, for the audit row. */
 interface Meter {
   costUsd: number | null;
+  businessId: string | null;
+}
+
+/**
+ * The input without its `site` argument, and that argument: the runner
+ * resolves it, the tool's own schema never sees it.
+ */
+function takeSite(rawInput: unknown): { input: unknown; site: unknown } {
+  if (!rawInput || typeof rawInput !== "object" || Array.isArray(rawInput) || !(SITE_ARGUMENT_NAME in rawInput)) {
+    return { input: rawInput, site: undefined };
+  }
+  const { [SITE_ARGUMENT_NAME]: site, ...rest } = rawInput as Record<string, unknown>;
+  return { input: rest, site };
 }
 
 /**
@@ -203,6 +219,24 @@ async function execute(
           `Remove the connector and connect again, ticking it on the consent screen. ${HINTS.connectedApps}`
         )
       : fail(403, "forbidden_scope", `${tool.name} needs a key with ${scopes}.`, HINTS.keys);
+  }
+
+  // The site the input names, if it names one (lib/tools/site.ts): resolved
+  // before anything reads the site, so ownership, caps and the handler all
+  // see that site, and only one the credential covers.
+  const named = takesSite(tool) ? takeSite(rawInput) : { input: rawInput, site: undefined };
+  rawInput = named.input;
+  if (named.site !== undefined && named.site !== null && named.site !== "") {
+    const site = SiteArgument.safeParse(named.site);
+    if (!site.success) return fail(400, "invalid_input", describeIssues(site.error.issues.map((i) => ({ ...i, path: ["site", ...i.path] }))));
+    try {
+      caller = await callerForSite(caller, site.data, deps.admin);
+    } catch (error) {
+      if (error instanceof ToolError) return fail(error.status, error.code, error.message, error.hint);
+      log("error", { tool: tool.name, via: caller.via, user_id: caller.userId, outcome: "internal", step: "site", error: String(error).slice(0, 300) });
+      return fail(500, "internal", "Could not read this account's sites. Try again; the error was logged.");
+    }
+    meter.businessId = caller.businessId;
   }
 
   const needsBusiness = tool.needsBusiness !== false;
