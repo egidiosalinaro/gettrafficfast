@@ -27,7 +27,7 @@ import { generateSecret, isSecretOf, matchesDigest, sha256Hex, verifyPkce } from
  */
 
 export const TOKEN_COLUMNS =
-  "id, family_id, client_id, user_id, business_id, scopes, resource, access_token_hash, refresh_token_hash, access_expires_at, refresh_expires_at, rotated_at, revoked_at, last_used_at, granted_at";
+  "id, family_id, client_id, user_id, business_id, default_business_id, scopes, resource, access_token_hash, refresh_token_hash, access_expires_at, refresh_expires_at, rotated_at, revoked_at, last_used_at, granted_at";
 
 const CODE_COLUMNS =
   "id, code_hash, client_id, user_id, business_id, scopes, code_challenge, redirect_uri, resource, expires_at, used_at";
@@ -77,6 +77,8 @@ interface Grant {
   clientId: string;
   userId: string;
   businessId: string | null;
+  /** The grant's saved default site: carried over to every row a refresh mints. */
+  defaultBusinessId: string | null;
   scopes: ApiKeyScope[];
   resource: string;
   grantedAt: string;
@@ -92,6 +94,7 @@ async function issueTokens(admin: SupabaseClient, grant: Grant, now: Date): Prom
     client_id: grant.clientId,
     user_id: grant.userId,
     business_id: grant.businessId,
+    default_business_id: grant.defaultBusinessId,
     scopes: grant.scopes,
     resource: grant.resource,
     access_token_hash: sha256Hex(access),
@@ -188,6 +191,7 @@ export async function exchangeAuthorizationCode(
       clientId: client.clientId,
       userId: row.user_id as string,
       businessId: (row.business_id as string | null) ?? null,
+      defaultBusinessId: null,
       scopes: scopesOf(row),
       resource: row.resource as string,
       grantedAt: now.toISOString(),
@@ -257,6 +261,7 @@ export async function refreshAccessToken(
       clientId: client.clientId,
       userId: row.user_id as string,
       businessId: (row.business_id as string | null) ?? null,
+      defaultBusinessId: (row.default_business_id as string | null) ?? null,
       scopes,
       resource: row.resource as string,
       grantedAt: (row.granted_at as string) ?? now.toISOString(),
@@ -287,6 +292,8 @@ export interface VerifiedAccessToken {
   userId: string;
   /** The one site the grant may act on; null for every site of the account. */
   businessId: string | null;
+  /** Its saved default site, if any; resolveCaller uses it while it is still a site of the account. */
+  defaultBusinessId: string | null;
   scopes: ApiKeyScope[];
 }
 
@@ -335,6 +342,7 @@ export async function verifyAccessToken(
       clientId: row.client_id as string,
       userId: row.user_id as string,
       businessId: (row.business_id as string | null) ?? null,
+      defaultBusinessId: (row.default_business_id as string | null) ?? null,
       scopes: scopesOf(row),
     },
   };
@@ -365,6 +373,8 @@ export interface ConnectedApp {
   scopes: ApiKeyScope[];
   /** The one site it may act on; null for every site. */
   businessId: string | null;
+  /** The site it acts on when a call names none (set_default_site); null: the oldest. */
+  defaultBusinessId: string | null;
   grantedAt: string;
   lastUsedAt: string | null;
 }
@@ -383,7 +393,7 @@ export async function listConnectedApps(
 ): Promise<ConnectedApp[]> {
   const { data, error } = await supabase
     .from("oauth_tokens")
-    .select("family_id, client_id, business_id, scopes, granted_at, last_used_at")
+    .select("family_id, client_id, business_id, default_business_id, scopes, granted_at, last_used_at")
     .eq("user_id", userId)
     .is("rotated_at", null)
     .is("revoked_at", null)
@@ -417,6 +427,7 @@ export async function listConnectedApps(
       redirectHost,
       scopes: scopesOf(row),
       businessId: (row.business_id as string | null) ?? null,
+      defaultBusinessId: (row.default_business_id as string | null) ?? null,
       grantedAt: row.granted_at as string,
       lastUsedAt: (row.last_used_at as string | null) ?? null,
     };
@@ -449,5 +460,55 @@ export async function revokeConnectedApp(
     .eq("user_id", userId)
     .is("revoked_at", null);
   if (updateError) return { ok: false, status: 500, error: updateError.message };
+  return { ok: true };
+}
+
+/**
+ * One live grant of `userId` (a family whose head is neither spent nor
+ * revoked), as `set_default_site` needs it: its one site (null for every
+ * site). Null when the grant is not theirs, or no longer live. Through the
+ * service role, naming the person explicitly.
+ */
+export async function findLiveConnectedApp(
+  admin: SupabaseClient,
+  userId: string,
+  familyId: string
+): Promise<{ businessId: string | null } | null> {
+  const { data, error } = await admin
+    .from("oauth_tokens")
+    .select("business_id")
+    .eq("family_id", familyId)
+    .eq("user_id", userId)
+    .is("rotated_at", null)
+    .is("revoked_at", null)
+    .limit(1);
+  if (error) throw new Error(`oauth_tokens: ${error.message}`);
+  const row = ((data ?? []) as Row[])[0];
+  if (!row) return null;
+  return { businessId: (row.business_id as string | null) ?? null };
+}
+
+/**
+ * Saves a grant's default site (null: back to the oldest) on every row of
+ * the family, so the live head has it and a refresh carries it over
+ * (`refreshAccessToken`). The site is resolved and checked by the caller
+ * (lib/tools/site.ts `saveDefaultSite`); the database checks again that it
+ * is one of the owner's sites.
+ */
+export async function setConnectedAppDefaultSite(
+  admin: SupabaseClient,
+  userId: string,
+  familyId: string,
+  businessId: string | null
+): Promise<{ ok: true } | { ok: false; status: 404 | 500; error: string }> {
+  const { data, error } = await admin
+    .from("oauth_tokens")
+    .update({ default_business_id: businessId })
+    .eq("family_id", familyId)
+    .eq("user_id", userId)
+    .is("revoked_at", null)
+    .select("id");
+  if (error) return { ok: false, status: 500, error: error.message };
+  if (!data || data.length === 0) return { ok: false, status: 404, error: "Connected app not found" };
   return { ok: true };
 }

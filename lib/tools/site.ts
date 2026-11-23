@@ -1,6 +1,8 @@
 import { z } from "zod";
-import type { Caller } from "@/lib/api-auth";
+import type { Caller, DefaultSiteSource } from "@/lib/api-auth";
 import { HINTS } from "@/lib/api-errors";
+import { findLiveApiKey, setApiKeyDefaultSite } from "@/lib/api-keys";
+import { findLiveConnectedApp, setConnectedAppDefaultSite } from "@/lib/oauth/tokens";
 import { ownerScopedClient } from "@/lib/supabase/owner-scoped";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { listBusinesses, type BusinessSummary } from "@/lib/tenancy";
@@ -143,4 +145,75 @@ export async function callerForSite(caller: Caller, value: string, admin: () => 
     client:
       caller.via === "session" ? caller.client : ownerScopedClient(admin(), { userId: caller.userId, businessIds: [businessId] }),
   };
+}
+
+/** The credential whose default site is saved: an API key, or a connected app's grant. */
+export type DefaultSiteCredential = { kind: "api_key"; id: string } | { kind: "oauth"; grantId: string };
+
+export type SaveDefaultSiteResult =
+  | { ok: true; site: BusinessSummary | null; source: Exclude<DefaultSiteSource, "selected"> }
+  | { ok: false; error: ToolError };
+
+/**
+ * Saves the site a key or a connected app acts on when a call names none
+ * (docs/API.md "The default site"): what `set_default_site` does for the
+ * credential it is called with, and what Settings → Claude and API does for
+ * any of the person's keys and apps (PATCH /api/api-keys/:id and
+ * /api/connected-apps/:id). One function for both, so the screen and the
+ * tool cannot disagree.
+ *
+ * `value` names the site as the `site` argument does (`chooseSite`: id,
+ * name or domain, among the sites the credential covers); null clears the
+ * default, back to the oldest site. A credential limited to one site keeps
+ * that site whatever is saved: naming it is accepted (and saved), naming
+ * another is refused like the `site` argument refuses it.
+ *
+ * `db` reads the sites and the credential and writes the default, always
+ * naming `userId`: the person's own client or the service role. A grant's
+ * rows have no owner update policy, so the connected-app path needs the
+ * service role.
+ */
+export async function saveDefaultSite(
+  db: SupabaseClient,
+  input: { userId: string; credential: DefaultSiteCredential; value: string | null }
+): Promise<SaveDefaultSiteResult> {
+  const { userId, credential } = input;
+  const via: Caller["via"] = credential.kind;
+  const notFound = new ToolError(
+    "not_found",
+    credential.kind === "api_key" ? "Key not found." : "Connected app not found.",
+    404,
+    credential.kind === "api_key" ? HINTS.keys : HINTS.connectedApps
+  );
+  const found =
+    credential.kind === "api_key"
+      ? await findLiveApiKey(db, userId, credential.id)
+      : await findLiveConnectedApp(db, userId, credential.grantId);
+  if (!found) return { ok: false, error: notFound };
+
+  const owned = await listBusinesses(db, userId);
+  const allowed = found.businessId ? [found.businessId] : owned.map((site) => site.id);
+  const value = input.value?.trim() || null;
+
+  let chosen: BusinessSummary | null = null;
+  if (value) {
+    const choice = chooseSite(owned, allowed, value, via);
+    if (!choice.ok) return { ok: false, error: choice.error };
+    chosen = choice.site;
+  }
+
+  const saved =
+    credential.kind === "api_key"
+      ? await setApiKeyDefaultSite(db, userId, credential.id, chosen?.id ?? null)
+      : await setConnectedAppDefaultSite(db, userId, credential.grantId, chosen?.id ?? null);
+  if (!saved.ok) {
+    if (saved.status === 404) return { ok: false, error: notFound };
+    throw new Error(`default site: ${saved.error}`);
+  }
+
+  if (found.businessId) {
+    return { ok: true, site: owned.find((site) => site.id === found.businessId) ?? null, source: "only_site" };
+  }
+  if (chosen) return { ok: true, site: chosen, source: "saved" };
+  return { ok: true, site: owned[0] ?? null, source: "oldest" };
 }

@@ -53,7 +53,13 @@ import { BUSINESS_COOKIE, listBusinesses, pickBusiness, type BusinessSummary } f
  *    site and got another one would act on the wrong data;
  * 3. no header: the key's site, else (a browser session only) the selected
  *    site from the cookie, which falls back to the oldest site as the
- *    screens do; an API key for every site gets the oldest.
+ *    screens do; a key or a connected app for every site gets its saved
+ *    default (`default_business_id`, set with the `set_default_site` tool or
+ *    in Settings → Claude and API) while that is still a site of the
+ *    account, else the oldest.
+ *
+ * A tool's `site` argument (lib/tools/site.ts) then overrides the default
+ * the same way the header does, among the sites the credential covers.
  */
 
 export const BUSINESS_HEADER = "x-gtf-business";
@@ -68,6 +74,21 @@ export interface OAuthCallerGrant {
   grantId: string;
   /** True when the person granted one site only. */
   siteLimited: boolean;
+}
+
+/**
+ * Where the site a call names none of comes from: `saved`, the credential's
+ * saved default; `oldest`, the fall-back when none is saved (or the saved
+ * one is gone); `only_site`, a key or a grant limited to one site;
+ * `selected`, a browser session's site picker.
+ */
+export const DEFAULT_SITE_SOURCES = ["saved", "oldest", "only_site", "selected"] as const;
+export type DefaultSiteSource = (typeof DEFAULT_SITE_SOURCES)[number];
+
+/** The site a call acts on when it names none, and why that one. */
+export interface DefaultSite {
+  businessId: string | null;
+  source: DefaultSiteSource;
 }
 
 export interface Caller {
@@ -85,6 +106,13 @@ export interface Caller {
   keyId: string | null;
   /** The app and the grant, for an OAuth caller only. */
   oauth?: OAuthCallerGrant;
+  /**
+   * The site a call that names none acts on, and where it comes from
+   * (`whoami` reports it). Set by `resolveCaller`; `businessId` differs from
+   * it only when the header named another site. Optional so a caller built
+   * by hand (a test) needs none.
+   */
+  defaultSite?: DefaultSite;
 }
 
 export interface CallerError {
@@ -125,7 +153,7 @@ const TOKEN_REFUSALS: Record<TokenRefusal, CallerError> = {
 };
 
 export type BusinessChoice =
-  | { ok: true; businessId: string | null; businessIds: string[] }
+  | { ok: true; businessId: string | null; businessIds: string[]; defaultSite: DefaultSite }
   | ({ ok: false } & CallerError);
 
 /**
@@ -133,10 +161,18 @@ export type BusinessChoice =
  * rules above are tested without a request: `owned` is the owner's
  * businesses, oldest first. `preferred` (the cookie) is honoured, with the
  * screens' fall-back, only when `allowFallback` is set: a browser session.
+ * `savedDefault` is a key's or a grant's saved default site: used when the
+ * request names none and it is still one of `owned`; otherwise the oldest.
  */
 export function chooseBusiness(
   owned: readonly Pick<BusinessSummary, "id">[],
-  input: { keyBusinessId?: string | null; requested?: string | null; preferred?: string | null; allowFallback?: boolean }
+  input: {
+    keyBusinessId?: string | null;
+    requested?: string | null;
+    preferred?: string | null;
+    allowFallback?: boolean;
+    savedDefault?: string | null;
+  }
 ): BusinessChoice {
   const ownedIds = owned.map((b) => b.id);
   const requested = input.requested?.trim() || null;
@@ -168,15 +204,21 @@ export function chooseBusiness(
         ),
       };
     }
-    return { ok: true, businessId: input.keyBusinessId, businessIds: [input.keyBusinessId] };
+    return {
+      ok: true,
+      businessId: input.keyBusinessId,
+      businessIds: [input.keyBusinessId],
+      defaultSite: { businessId: input.keyBusinessId, source: "only_site" },
+    };
   }
 
-  if (requested) return { ok: true, businessId: requested, businessIds: ownedIds };
-
-  const businessId = input.allowFallback
-    ? (pickBusiness([...owned], input.preferred ?? null)?.id ?? null)
-    : (ownedIds[0] ?? null);
-  return { ok: true, businessId, businessIds: ownedIds };
+  const saved = input.savedDefault && ownedIds.includes(input.savedDefault) ? input.savedDefault : null;
+  const defaultSite: DefaultSite = input.allowFallback
+    ? { businessId: pickBusiness([...owned], input.preferred ?? null)?.id ?? null, source: "selected" }
+    : saved
+      ? { businessId: saved, source: "saved" }
+      : { businessId: ownedIds[0] ?? null, source: "oldest" };
+  return { ok: true, businessId: requested ?? defaultSite.businessId, businessIds: ownedIds, defaultSite };
 }
 
 /** One cookie's value off a request, without Next's request scope. */
@@ -225,7 +267,7 @@ export async function resolveCaller(
       if (!verified.ok) return { ok: false, ...TOKEN_REFUSALS[verified.reason] };
       const grant = verified.token;
       const owned = await listBusinesses(admin, grant.userId);
-      const choice = chooseBusiness(owned, { keyBusinessId: grant.businessId, requested });
+      const choice = chooseBusiness(owned, { keyBusinessId: grant.businessId, requested, savedDefault: grant.defaultBusinessId });
       if (!choice.ok) return choice;
       return {
         ok: true,
@@ -241,6 +283,7 @@ export async function resolveCaller(
           scopes: grant.scopes,
           keyId: null,
           oauth: { clientId: grant.clientId, grantId: grant.familyId, siteLimited: grant.businessId !== null },
+          defaultSite: choice.defaultSite,
         },
       };
     }
@@ -254,7 +297,11 @@ export async function resolveCaller(
       }
       const admin = createAdminClient();
       const owned = await listBusinesses(admin, verified.key.userId);
-      const choice = chooseBusiness(owned, { keyBusinessId: verified.key.businessId, requested });
+      const choice = chooseBusiness(owned, {
+        keyBusinessId: verified.key.businessId,
+        requested,
+        savedDefault: verified.key.defaultBusinessId,
+      });
       if (!choice.ok) return choice;
       return {
         ok: true,
@@ -269,6 +316,7 @@ export async function resolveCaller(
           }),
           scopes: verified.key.scopes,
           keyId: verified.key.id,
+          defaultSite: choice.defaultSite,
         },
       };
     }
@@ -295,6 +343,7 @@ export async function resolveCaller(
         client: supabase,
         scopes: API_KEY_SCOPES,
         keyId: null,
+        defaultSite: choice.defaultSite,
       },
     };
   } catch (error) {

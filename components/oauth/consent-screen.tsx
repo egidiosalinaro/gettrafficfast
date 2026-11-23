@@ -203,7 +203,7 @@ export function ConsentScreen(props: ConsentScreenProps) {
                   <span className="text-muted-foreground">
                     {oldest
                       ? props.sites.length > 1
-                        ? ` · ${props.clientName} can work on any of them, a different one in each request: name the site in your message, like "run my day for ${siteLabel(props.sites[1])}". When you name none, the tools act on your oldest site, ${siteLabel(oldest)}.`
+                        ? ` · ${props.clientName} can work on any of them, a different one in each request: name the site in your message, like "run my day for ${siteLabel(props.sites[1])}". When you name none, the tools act on your oldest site, ${siteLabel(oldest)}; to change that default later, ask ${props.clientName}.`
                         : ` · The tools act on ${siteLabel(oldest)}, and on any site you add later when you name it in your message.`
                       : " · You have not added a site yet. The app can add one for you."}
                   </span>

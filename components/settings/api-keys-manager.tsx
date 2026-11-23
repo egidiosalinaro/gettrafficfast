@@ -11,11 +11,14 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SCOPE_COPY } from "./scope-copy";
+import { DefaultSitePicker } from "./default-site-picker";
 
 /**
  * Settings → Claude and API (`/settings/api-keys`): how to connect Claude
  * (claude.ai's custom connector, no key; Claude Code, with a key), then
- * create a key (shown once), copy it, revoke one. The list comes
+ * create a key (shown once), copy it, revoke one, and change a key's
+ * default site (the site it acts on when a request names none, which
+ * set_default_site changes too). The list comes
  * from the server page; every change refreshes it (router.refresh).
  */
 
@@ -26,6 +29,7 @@ export interface ApiKeyRow {
   name: string;
   prefix: string;
   businessId: string | null;
+  defaultBusinessId: string | null;
   scopes: Scope[];
   lastUsedAt: string | null;
   revokedAt: string | null;
@@ -355,6 +359,14 @@ export function ApiKeysManager({
                   <p className="text-xs text-muted-foreground">
                     {usage === null ? "Usage is not available right now" : usageLine(usage[key.id])}
                   </p>
+                )}
+                {!key.businessId && sites.length > 1 && (
+                  <DefaultSitePicker
+                    id={`key-default-${key.id}`}
+                    endpoint={`/api/api-keys/${key.id}`}
+                    sites={sites}
+                    value={key.defaultBusinessId}
+                  />
                 )}
               </div>
               <Button variant="outline" size="sm" onClick={() => handleRevoke(key)} disabled={revoking === key.id} className="h-11 md:h-8">

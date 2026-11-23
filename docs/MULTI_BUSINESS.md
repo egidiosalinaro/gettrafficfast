@@ -85,6 +85,15 @@ credential covers: `lib/tools/site.ts`). The same structure holds there:
 never reaches another. docs/API.md "The site" and "Choosing the site in a
 call" have the rules.
 
+Such a credential for every site acts, when a request names no site, on its
+saved default site (since 2026-11-23: `default_business_id` on the key or
+the grant), else on the oldest. The person sets it by telling the agent
+("use Bravo by default": the `set_default_site` tool) or in Settings →
+Claude and API, on the key or the connected app. Like the cookie, it is a
+preference read FROM the account's sites: a saved site that is no longer
+one of them is ignored, and the oldest applies. docs/API.md "The default
+site".
+
 Sections that only make sense with a site (dashboard, keywords, results, help,
 AI Visibility, placements) redirect to `/settings/business` when the account
 has none. Settings itself never redirects — it is where a site gets created.

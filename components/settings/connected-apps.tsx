@@ -5,13 +5,16 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { DefaultSitePicker } from "./default-site-picker";
 
 /**
  * Settings → API keys → Connected apps: the apps a person let in through
  * the OAuth consent screen (claude.ai, the Claude apps, any MCP client that
  * signs in), each with what it may do, on which site, and when it was last
- * used, and a Revoke that ends every token of that connection. The list
- * comes from the server page (lib/oauth/tokens.ts `listConnectedApps`).
+ * used, its default site (the site it acts on when a request names none,
+ * which Claude can also change with set_default_site), and a Revoke that
+ * ends every token of that connection. The list comes from the server page
+ * (lib/oauth/tokens.ts `listConnectedApps`).
  */
 
 type Scope = "read" | "write" | "spend" | "publish";
@@ -22,6 +25,7 @@ export interface ConnectedAppRow {
   redirectHost: string | null;
   scopes: Scope[];
   businessId: string | null;
+  defaultBusinessId: string | null;
   grantedAt: string;
   lastUsedAt: string | null;
 }
@@ -105,6 +109,14 @@ export function ConnectedApps({
                 {app.businessId ? `Only ${siteLabel(sitesById.get(app.businessId))}` : "Every site"} · Last used{" "}
                 {app.lastUsedAt ? when(app.lastUsedAt) : "never"} · Connected {when(app.grantedAt)}
               </p>
+              {!app.businessId && sites.length > 1 && (
+                <DefaultSitePicker
+                  id={`app-default-${app.id}`}
+                  endpoint={`/api/connected-apps/${app.id}`}
+                  sites={sites}
+                  value={app.defaultBusinessId}
+                />
+              )}
             </div>
             <Button variant="outline" size="sm" onClick={() => handleRevoke(app)} disabled={revoking === app.id}>
               {revoking === app.id ? "Revoking…" : "Revoke"}

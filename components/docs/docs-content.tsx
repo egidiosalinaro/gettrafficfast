@@ -413,7 +413,8 @@ export function DocsContent({ engines, toolGroups, limits }: DocsContentProps) {
             </li>
             <li>
               Choose what Claude may do: Read and Write are ticked; Spend and Publish only if you tick them. Choose
-              the site: with all your sites, Claude acts on your oldest one. Then <Place>Allow</Place>.
+              the site: with all your sites, Claude acts on the one you name, else your oldest, until you tell it
+              another default. Then <Place>Allow</Place>.
             </li>
           </Steps>
           <P>
@@ -545,7 +546,8 @@ export function DocsContent({ engines, toolGroups, limits }: DocsContentProps) {
             shown once, and kept only as a fingerprint. A key cannot create, list or revoke keys.
           </li>
           <li>
-            A key for one site acts on that site. A key for every site acts on your oldest site, unless{" "}
+            A key for one site acts on that site. A key for every site acts on its default site (your oldest, until
+            changed with <Code>set_default_site</Code> or in Settings), unless{" "}
             <Code>x-gtf-business: &lt;site id&gt;</Code> names another, or a call names one with the tools&apos;{" "}
             <Code>site</Code> argument (its name, domain or id); <Code>whoami</Code> says which.
           </li>

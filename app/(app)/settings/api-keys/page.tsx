@@ -20,7 +20,9 @@ export const dynamic = "force-dynamic";
  * /api/api-keys, which takes the session cookie only. Below them, the apps
  * connected over OAuth (claude.ai and the Claude apps): their grants are read
  * through the person's own client, the apps' names through the service role
- * for those grants only; Revoke goes through /api/connected-apps/:id.
+ * for those grants only; Revoke goes through /api/connected-apps/:id. A key
+ * or an app for every site shows its default site, changed through PATCH on
+ * the same routes (the set_default_site tool's function).
  */
 export default async function ApiKeysPage() {
   const supabase = await createClient();

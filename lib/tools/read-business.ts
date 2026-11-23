@@ -9,6 +9,8 @@ import { listFeedback } from "@/lib/placements/feedback";
 import { listBusinesses } from "@/lib/tenancy";
 import { loadVoiceSettings } from "@/lib/voice/read";
 import { VOICE_PERSONS, VOICE_PRESETS, VoiceSettings } from "@/lib/voice/settings";
+import { DEFAULT_SITE_SOURCES } from "@/lib/api-auth";
+import { defaultSiteOf } from "./account";
 import { defineTool, ToolError } from "./tool";
 
 /**
@@ -26,11 +28,15 @@ export const listBusinessesTool = defineTool({
   name: "list_businesses",
   title: "List sites",
   description:
-    "The sites (businesses) this credential may act on, oldest first, and which one the other tools act on when a call names none. Name another with any site-scoped tool's site argument (its id, name or domain), or the x-gtf-business header; a key or a connection limited to one site lists only that one.",
+    "The sites (businesses) this credential may act on, oldest first, and which one the other tools act on when a call names none (defaultId: the default saved with set_default_site, else the oldest). Name another with any site-scoped tool's site argument (its id, name or domain), or the x-gtf-business header; a key or a connection limited to one site lists only that one.",
   input: z.object({}),
   output: z.object({
     businesses: z.array(Site),
-    selectedId: z.string().nullable().describe("The site the other tools act on when a call names none; null when the account has none yet."),
+    selectedId: z.string().nullable().describe("The site this call acts on: the default, or the one the x-gtf-business header names; null when the account has none yet."),
+    defaultId: z.string().nullable().describe("The site the other tools act on when a call names none; null when the account has none yet."),
+    defaultSource: z
+      .enum(DEFAULT_SITE_SOURCES)
+      .describe("saved (set_default_site or Settings), oldest (none saved), only_site (limited to one site), selected (a browser session's site picker)."),
   }),
   scope: "read",
   paid: false,
@@ -38,11 +44,14 @@ export const listBusinessesTool = defineTool({
   async handler(ctx) {
     const { caller } = ctx;
     const owned = await listBusinesses(caller.client, caller.userId);
+    const fallback = defaultSiteOf(caller);
     return {
       businesses: owned
         .filter((b) => caller.businessIds.includes(b.id))
         .map((b) => ({ id: b.id, name: b.name, websiteUrl: b.website_url })),
       selectedId: caller.businessId,
+      defaultId: fallback.businessId,
+      defaultSource: fallback.source,
     };
   },
 });

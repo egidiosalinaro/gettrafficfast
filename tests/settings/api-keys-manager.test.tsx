@@ -21,6 +21,7 @@ const key = (over: Partial<ApiKeyRow>): ApiKeyRow => ({
   name: "Claude Code",
   prefix: "gtf_AbCd",
   businessId: null,
+  defaultBusinessId: null,
   scopes: ["read", "write"],
   lastUsedAt: null,
   revokedAt: null,
@@ -29,6 +30,24 @@ const key = (over: Partial<ApiKeyRow>): ApiKeyRow => ({
 });
 
 describe("ApiKeysManager", () => {
+  it("shows a key for every site its default site, with a picker, when the account has several", () => {
+    const BRAVO = { id: "site-2", name: "Bravo", website_url: "https://bravo.test" };
+    const html = renderToStaticMarkup(
+      <ApiKeysManager
+        keys={[key({ defaultBusinessId: "site-2" }), key({ id: "k-3", name: "Site key", businessId: "site-1" })]}
+        sites={[SITE, BRAVO]}
+        mcpUrl={MCP}
+        toolsUrl={TOOLS}
+      />
+    );
+    expect(html.match(/Default site/g)).toHaveLength(1);
+    expect(html).toContain("Oldest site (Acme)");
+    expect(html).toMatch(/<option value="site-2" selected="">Bravo<\/option>/);
+    // One site only: nothing to choose.
+    const single = renderToStaticMarkup(<ApiKeysManager keys={[key({})]} sites={[SITE]} mcpUrl={MCP} toolsUrl={TOOLS} />);
+    expect(single).not.toContain("Default site");
+  });
+
   it("shows the endpoint, the Claude Code line, and each key without its secret", () => {
     const html = renderToStaticMarkup(
       <ApiKeysManager

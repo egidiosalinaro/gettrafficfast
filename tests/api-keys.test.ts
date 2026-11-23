@@ -135,7 +135,7 @@ describe("verifyApiKey", () => {
     const verified = await verifyApiKey(`Bearer ${key}`, { admin: asClient(db), now: NOW });
     expect(verified).toEqual({
       ok: true,
-      key: { id: db.tables.api_keys[0].id, userId: USER, businessId: SITE, scopes: ["read", "write", "spend"] },
+      key: { id: db.tables.api_keys[0].id, userId: USER, businessId: SITE, defaultBusinessId: null, scopes: ["read", "write", "spend"] },
     });
     expect(db.tables.api_keys[0].last_used_at).toBe(NOW.toISOString());
   });

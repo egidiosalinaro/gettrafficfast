@@ -79,8 +79,9 @@ const SITE_ARGUMENT: PromptArgument = {
 /**
  * Which site the routine works on: the one the person named, passed as
  * `site` on every call; else, with several sites (or a caller whose sites
- * are not known), ask first. Nothing with one site and no name: the tools'
- * default is the only site.
+ * are not known), the default the person saved with `set_default_site`, or
+ * ask first when none is saved. Nothing with one site and no name: the
+ * tools' default is the only site.
  */
 function siteLines(site: string | undefined, caller: PromptCaller): string[] {
   if (site) {
@@ -92,8 +93,11 @@ function siteLines(site: string | undefined, caller: PromptCaller): string[] {
   if (sites === 1 || sites === 0) return [];
   return [
     sites === undefined
-      ? "- If this connection covers several sites (whoami lists them in businesses), ask me which site before step 1, unless I already named one, then pass it as site on every tool call."
-      : "- This connection covers several sites. Before step 1, unless I already named one, call whoami, list its businesses by name and ask me which site; then pass that site as site on every tool call.",
+      ? "- If this connection covers several sites (whoami lists them in businesses), settle which one before step 1, unless I already named one: when whoami's defaultSource is saved, use its defaultSite and tell me which; otherwise ask me. Then pass that site as site on every tool call."
+      : "- This connection covers several sites. Before step 1, unless I already named one, call whoami: when its defaultSource is saved, use its defaultSite and tell me which; otherwise list its businesses by name and ask me which site. Then pass that site as site on every tool call.",
+    ...(caller.scopes.includes("write")
+      ? ["- If I say to make a site my default, call set_default_site with it: calls that name no site then act on it, in this chat and the next."]
+      : []),
   ];
 }
 
@@ -147,6 +151,7 @@ export const DAILY_ROUTINE: PromptDefinition<typeof dailyArgs> = {
   args: dailyArgs,
   uses: [
     "whoami",
+    "set_default_site",
     "get_today",
     "list_reply_inbox",
     "get_reply_intent_url",
@@ -215,7 +220,7 @@ export const WEEKLY_REVIEW: PromptDefinition<typeof weeklyArgs> = {
     SITE_ARGUMENT,
   ],
   args: weeklyArgs,
-  uses: ["whoami", "get_growth", "list_ai_answers", "get_content", "delete_keywords"],
+  uses: ["whoami", "set_default_site", "get_growth", "list_ai_answers", "get_content", "delete_keywords"],
   render({ days, topics, site }, caller) {
     const topicCount = topics ?? 5;
     return [

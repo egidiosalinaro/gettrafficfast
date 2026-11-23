@@ -251,7 +251,8 @@ export function McpDocsContent({ areas, limits }: McpDocsProps) {
         <P>
           Replace <Code>{KEY}</Code> with your key. With a key for every site, add the header{" "}
           <Code>x-gtf-business: &lt;site id&gt;</Code> to choose one, or let the agent choose per call with{" "}
-          <Code>site</Code>; without either the tools act on your oldest site, and <Code>whoami</Code> says which. The snippets follow each client&apos;s documented format; check your
+          <Code>site</Code>; without either the tools act on the key&apos;s default site (your oldest, until you change
+          it), and <Code>whoami</Code> says which. The snippets follow each client&apos;s documented format; check your
           client&apos;s own docs if it has changed.
         </P>
       </Section>
@@ -260,7 +261,7 @@ export function McpDocsContent({ areas, limits }: McpDocsProps) {
         <P>
           A connection or a key covers one site, or all of yours. With all of them, you choose the site in the
           conversation: say &ldquo;run my day for Bravo&rdquo; and the agent works on Bravo. Without a name, the tools
-          act on your oldest site.
+          act on the connection&apos;s default site: your oldest, until you say &ldquo;use Bravo by default&rdquo;.
         </P>
         <Bullets>
           <li>
@@ -273,8 +274,14 @@ export function McpDocsContent({ areas, limits }: McpDocsProps) {
             A connection or a key for one site can never reach another.
           </li>
           <li>
-            The prompts take <Code>site</Code> too. Without it, a connection that covers several sites asks you which
-            one first.
+            To change the default, tell the agent: it calls <Code>set_default_site</Code> (a name, domain or id, or{" "}
+            <Code>null</Code> for the oldest again), saved on that connection or key for the next chats too. Or
+            change it in <Place>Settings → Claude and API</Place>, next to the connection or the key. A site you name
+            in a request still wins for that request.
+          </li>
+          <li>
+            The prompts take <Code>site</Code> too. Without it, a connection that covers several sites uses its saved
+            default, or asks you which one first when none is saved.
           </li>
         </Bullets>
       </Section>

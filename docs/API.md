@@ -140,12 +140,50 @@ Every tool acts on one site, always one of the key owner's own businesses
 2. `x-gtf-business: <site id>` naming a site the account does not have is
    **404 `business_not_found`**, never a quiet fall-back: a caller who named
    a site and got another would act on the wrong data.
-3. No header: the key's site; for a key for every site, the oldest site. A
-   browser session uses the selected site from the cookie, with the
-   screens' fall-back to the oldest (`pickBusiness`, `lib/tenancy.ts`).
+3. No header: the key's site; for a key or a connected app for every site,
+   its saved default site ("The default site" below) while that is still a
+   site of the account, else the oldest site. A browser session uses the
+   selected site from the cookie, with the screens' fall-back to the oldest
+   (`pickBusiness`, `lib/tenancy.ts`).
 
-`whoami` says which site the tools will act on and which ones the key may
-name.
+`whoami` says which site the tools will act on (`business`), the default
+(`defaultSite`, and `defaultSource`: `saved`, `oldest`, `only_site` or
+`selected`) and which sites the key may name.
+
+### The default site: `set_default_site`
+
+Since 2026-11-23 a key or a connected app for every site can keep a default
+site: the site its calls act on when they name none. It is saved on the
+credential, `api_keys.default_business_id` or, for an app, on every row of
+the grant's family in `oauth_tokens.default_business_id` (a refresh carries
+it over to the rows it mints); migration
+`20261123120000_credential_default_site.sql`. Null is "none saved": the
+oldest site, as before. Deleting the site sets it null; a trigger keeps it
+one of the owner's sites, and a one-site credential's own site.
+
+Two ways to change it, one function (`saveDefaultSite`, `lib/tools/site.ts`):
+
+- **`set_default_site`** (`write`, free) `{ site: string | null }`: the
+  credential the call comes with. `site` is matched as the `site` argument
+  is (`chooseSite`: id, name or domain, among the sites the credential
+  covers, the same refusals); `null` goes back to the oldest. Answers
+  `defaultSite` and `defaultSource`. A key or a grant limited to one site
+  accepts its own site (it acts on it anyway, `only_site`) and refuses
+  another with **403 `forbidden_business`**. A browser session has nothing
+  to save it on (its default is the site picker) and is refused with **409
+  `invalid_state`**. It is what an agent calls when the person says "use
+  Bravo by default"; the MCP instructions and both prompts say so.
+- **Settings → Claude and API**: each key and connected app for every site
+  of an account with several shows its default site ("Oldest site" when
+  none is saved) and a picker to change it: `PATCH /api/api-keys/:id` and
+  `PATCH /api/connected-apps/:id` with `{ defaultSite: <site id> | null }`,
+  session cookie only, both mapped to `set_default_site` in
+  `lib/tools/parity.ts`.
+
+Resolution, in order: the `site` argument, then `x-gtf-business`, then the
+key's or grant's one site, then the saved default while it is still a site
+of the account, then the oldest. The header and `site` never change what is
+saved. Resolved per request, so a change applies to the very next call.
 
 ### Choosing the site in a call: `site`
 
@@ -180,7 +218,7 @@ It is added once, not in each tool (`lib/tools/site.ts`):
   id, so the agent can ask the person. A key or a grant limited to one site
   can never reach another through `site`, by any name.
 - Without `site`, nothing changes: the header's site, else the key's or the
-  grant's, else the oldest. `site` and `x-gtf-business` together: the header
+  grant's, else its saved default, else the oldest. `site` and `x-gtf-business` together: the header
   picks the starting site, `site` the one the call acts on, within the same
   credential's sites.
 
@@ -878,13 +916,16 @@ session cookie says who the person is.
    name it in your message ("run my day for Bravo") and Claude passes it as
    the tools' `site` argument ("Choosing the site in a call"); when you name
    none, the tools act on your oldest site. The screen says so, naming your
-   second site as the example and the oldest as the default.
+   second site as the example and the oldest as the default, and that the
+   default can be changed later by asking Claude (`set_default_site`, "The
+   default site").
 5. **Allow**. Claude lists the tools that grant allows (no Spend: no paid
    tools in the list).
 
 **Revoking:** Settings → Claude and API → **Connected apps** lists each grant (the
 app, where it receives its codes, the scopes, the site, when it connected and
-was last used) with **Revoke**, which ends every token of that connection on
+was last used, and for an app on every site its default site, which can be
+changed there) with **Revoke**, which ends every token of that connection on
 its next use (`DELETE /api/connected-apps/:id`, session cookie only).
 Removing the connector in Claude does not revoke it here by itself; a client
 that calls the revocation endpoint does. To change the scopes or the site,
@@ -974,7 +1015,8 @@ caller's user and site, or the call is 404 `not_found` and nothing runs.
 
 | Tool | Scopes | What it does (the screen's action) |
 | --- | --- | --- |
-| `whoami` | read | who the key acts for, its scopes, the default site, the sites it may name (with `site` or `x-gtf-business`) |
+| `whoami` | read | who the key acts for, its scopes, the site this call acts on (`business`), the default site (`defaultSite`, `defaultSource`), the sites it may name (with `site` or `x-gtf-business`) |
+| `set_default_site` | write | `{ site: id, name or domain, or null }`: saves the default site of the key or the connected app it is called with (Settings → Claude and API, the default site picker); null: the oldest. A browser session is refused (409 `invalid_state`). "The default site" |
 | `get_today` | read | Today (`/today`, 2026-11-14), the first screen of the day, read by the function `GET /api/today` reads (`loadTodayScreen`, `lib/today/read.ts`). `{ timeZone? }`. `progress`: `posted` (replies marked as posted today in `timeZone`, removed ones left out), `goal` (null when none), `timeZone`, and `links` (null with no reply today): `total`, `linked`, `foundOnX` (of the linked, found by GTF), `looking` (GTF still searching X), `toPaste`, `line` as the screen says it, `tone` (`done`, `waiting`, `todo`). `counts`: rows in each tab, `todo` (open to reply now), `posted` (posted and still up), `archive` (skipped, filtered out, expired, removed); null when they could not be counted; list them with `list_reply_inbox` `status` `open`, `published_manually` or `archive`. `alsoToday`: what else needs a gesture today, in the screen's order, each with `id`, `kind`, `href` (where the screen does it) and `tools` (the tools that resolve it, the free one first): `article_held` (a gate held it: `articleId`, `title`, `scheduledDate`, `isToday`, `reason`, `moreReasons`; `resettle_article`, `publish_article`, `generate_article`, `dismiss_today_articles`), `article_failed` (`retry_article`, `dismiss_today_articles`; an article ignored there, held or failed, is not listed again until its status changes), `reply_link` (a reply on X of the last 7 days whose link GTF stopped looking for: `targetId`, `text`, `outcome`, `line`; `set_reply_link`), `fact_stale` (a dated About you sentence over 30 days old, counted from its last "Still true" when there is one: `sentence`, `dateLabel`, `confirmedOn`, `age`; `confirm_about_you_fact` or `update_voice_settings`). Empty when there is nothing. Reads only; no model, no paid API |
 | `list_reply_inbox` | read | the inbox: `status` (open by default, all, `archive` since 2026-11-14: skipped, filtered out, expired and removed, as Today's Archive tab lists them; or one), `platform`, `topic`, `aiCited` (only pages a sampled AI answer cited), `limit`/`offset`; each target with its drafts and, when a visibility run pointed at it, `aiCitation` (per prompt, the engines whose sampled answer cited the page). A posted target the site removed carries `removedAt` and `removedReason` (`mark_reply_removed`); `removalBySurface` gives, per platform, `posted`, `removed` and `removalRate` (null where nothing was posted, never 0), as people recorded it. A target of `kind` `listicle` takes no draft: `draft_reply` and `write_own_reply` answer 409 `invalid_state`. A posted reply on X carries `metrics`, its newest daily snapshot of X's public numbers (`get_reply_metrics`; null when never read). A target `foundVia` `x_search` was found by the daily X search (fresh for 24 hours). Since 2026-11-12 a target carries `media` (the post's images and videos: `type`, `url` or `previewUrl`, `altText`, size; null when never asked, [] when none) and `mediaUnread` (true when the post has media its drafts were written without), and each draft's `audit.images` says what the drafter saw (`inPost`, `seen`, `note`); `get_reply_target` returns the same. Since 2026-11-14 a target on X carries `quotedPost` and `repliedToPost` (the post it quotes and the post it replies to: `id`, `url`, `text`, `authorName`, `handle`, `postedAt`, `postedAtPrecision`, `media`, `mediaUnread`, `note`; `text` null when the post exists and could not be read; null when it quotes or answers none, or when not known) with `quoteUnread` and `repliedToUnread` (true when its drafts were written without it, false when read or there is none, null when not known: posts stored before 2026-11-14 until the daily X run reads them, a hand-added post read without the X API for `repliedToUnread`); drafts read both beside the post (docs/PLACEMENTS.md, "What the post quotes"); `get_reply_target` returns the same. Since 2026-11-12 it also takes `timeZone` (IANA) and returns `today`, whatever the filter: what `get_today_replies` answers. Since 2026-11-12 too, each target carries `foundAt` (when the product first found it, the same instant as `createdAt`; `lastSeenAt` is when a search last saw it again), and the answer carries `lastDiscovery`: `web` and `x`, each `{ running, lastCompletedAt, progress, nextAt }` (progress while running, e.g. "Judging 23 of 60…"; `nextAt` the next scheduled run, web Monday, Wednesday and Friday 10:00 UTC, X daily 13:20 UTC); `x` is null where the site does not take part in the X search. Found targets are listed newest post first. Since 2026-11-13 each target carries `linkSource` (`found_on_x` when `publishedUrl` is the link GTF found on X by itself, `person` otherwise, null with no link) and `linkSearch` (GTF's search for the link: `attempts`, `lastAttemptAt`, `outcome`, `postsSeen`, `foundUrl`, `foundAt`; null when never searched), and a posted reply with no link carries `linkFinding`: `looking` with `stopsBy` (GTF searches X again by itself: 2 min, 15 min, 2 h and 12 h after I posted it), `stopped` with `outcome`, or `off` (docs/PLACEMENTS.md, "The link of your reply, found on X"); `get_reply_target` returns the same. Reads at most 200 per filter (the newest found, and the person's own posts apart) |
 | `get_today_replies` | read | "N of G today" (2026-11-12): `posted` (replies marked as posted today in `timeZone`, removed ones left out), `goal` (the daily goal, null when none; change it with `update_voice_settings` `dailyReplyGoal`), `timeZone` (the one given, or UTC when missing or unknown) and `replies`, newest first: `id`, `surface`, `author`, `community`, `url` (the post answered), `text` (the first line of the reply as posted, null when none on record), `publishedAt`, `publishedUrl` (null until saved), `metrics` (null when not read), and since 2026-11-14 `linkSource` (`found_on_x`, `person`, null with no link; absent when the searches could not be read). `replies` is absent when it could not be read: unknown, not none. A count of what was recorded, never of what is on the other site. Reads only the last 27 hours of rows; no model |
@@ -1178,7 +1220,7 @@ are listed by whitelisted fields, and the Search Console token never leaves
 | `get_results` | read | free | none | per article: rank (Search Console else SERP), 28-day traffic, citations per engine; the totals, the per-day traffic, the Search Console state |
 | `get_growth` | read | free | `days` (7 or 28, default 7) | Growth, as `/growth` shows it: the period against the same length before, in three blocks. `replies`: `get_reply_stats` for the period (null when the posted replies could not be read). `google`: Search Console `impressions`, `clicks` and the impression-weighted `averagePosition` over the period ending on the newest day ingested (`settledThrough`), `previous` null when the data does not cover it (no comparison, never growth from 0), `change` (position: previous minus current, positive up the page), and `pages` on Google from URL Inspection (latest answer per URL, no history, so no change). `ai`: per engine, `current` and `previous` asks with a readable answer and how many cited the site (`rate` null with no ask, never 0), split by family (`byKind`: the questions you chose, your articles' keywords), `unreadable` apart; never averaged across engines; `sampled: true`; the open places in Today a sampled answer cited. Stored rows only |
 | `list_ai_answers` | read | free | `days` (7 or 28), `engine?`, `offset` (0), `limit` (20, max 100) | Growth → AI answers: the period's answers, newest first, each with its question, engine, day, `status` (`counted` false for an answer that could not be read: not "not cited"), the site's place among the sources, the cited page, the stored start of the answer (`excerpt`, not the whole answer) and every source verbatim and numbered, `ours` and `inToday` marked. `kind` `article` (the weekly check of an article's keyword) keeps only the verdict and the cited page (`sourcesKept: false`). `engines` lists the engines with an answer in the period; `nextOffset` pages. Sampled |
-| `list_businesses` | read | free | none | the sites the key may name (with `site` or `x-gtf-business`), and the one the tools act on by default (no site needed) |
+| `list_businesses` | read | free | none | the sites the key may name (with `site` or `x-gtf-business`), the one this call acts on (`selectedId`) and the one the tools act on by default (`defaultId`, `defaultSource`; no site needed) |
 | `get_business` | read | free | none | the site's settings, with Autopilot and its Images and video |
 | `get_home` | read | free | none | the Overview's loop (its screen became Today on 2026-11-14; `get_today` reads Today): the operating loop stage by stage, the replies row, the next action, the next articles, the unused keywords |
 | `get_today` | read | free | `timeZone?` | Today, as `/today` shows it: the day's progress and links, the tabs' counts, Also today (above, with the Replies tools) |
@@ -1331,7 +1373,7 @@ machine. Public through the middleware's `/.well-known/` prefix.
   route's same-origin check.
 - `tests/oauth/consent-screen.test.tsx`: the screen's boxes, site, hidden
   fields, Deny first, the loopback warning, the "All my sites" wording (the
-  site named in each request, the oldest by default).
+  site named in each request, the oldest by default, changed by asking).
 - `tests/oauth/tokens.test.ts`: the exchange with a right and a wrong
   verifier, single use and the revocation of a replayed code's tokens,
   expiry, redirect URI, client and resource checks, refresh rotation and
@@ -1348,6 +1390,14 @@ machine. Public through the middleware's `/.well-known/` prefix.
 - `tests/oauth-migration.test.ts`: the tables, hashes only, the redirect
   rule, RLS, the guard, the additive `tool_calls` column, no `drop`.
 - `tests/settings/connected-apps.test.tsx`: Settings → Connected apps.
+- `tests/tools/default-site.test.ts`: `set_default_site` by name, domain and
+  id, refused outside the grant or for another account's site, a one-site
+  grant or key, null back to the oldest, the write scope, a session refused;
+  the saved default used when no site is named, kept by a refresh, the
+  oldest when the saved site is gone, the header and `site` still winning;
+  `whoami` and `list_businesses` reporting it; the Settings routes.
+- `tests/credential-default-site-migration.test.ts`: the additive columns,
+  set null on delete, the ownership trigger, no `drop`, no policy.
 - `tests/api-auth.test.ts`: cookie vs key vs a bad key; 404 and 403 for
   sites; no fall-back from a bad key to the cookie.
 - `tests/supabase/owner-scoped.test.ts`: the narrowed service role.

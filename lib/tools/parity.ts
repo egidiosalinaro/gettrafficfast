@@ -111,6 +111,14 @@ export const ROUTE_PARITY: Readonly<Record<string, ParityEntry>> = {
   "POST /api/api-keys": { except: "api_keys" },
   "DELETE /api/api-keys/[id]": { except: "api_keys" },
   "DELETE /api/connected-apps/[id]": { except: "api_keys" },
+  "PATCH /api/api-keys/[id]": {
+    tools: ["set_default_site"],
+    note: "A key's default site. The screen changes it for any of the person's keys; the tool for the key it is called with. Both call saveDefaultSite (lib/tools/site.ts).",
+  },
+  "PATCH /api/connected-apps/[id]": {
+    tools: ["set_default_site"],
+    note: "A connected app's default site. The screen changes it for any of the person's apps; the tool for the connection it is called with. Both call saveDefaultSite.",
+  },
   "POST /api/create-checkout-session": { except: "billing", note: "get_subscription reads the plan." },
   "POST /api/create-billing-portal-session": { except: "billing" },
   "POST /api/owner/spend-limit": { except: "spend_ceiling", note: "get_platform_costs reads it, for an owner only." },

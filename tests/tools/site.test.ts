@@ -233,7 +233,10 @@ describe("published schemas and the MCP surface", () => {
   it("adds an optional site to every site-scoped tool, and to no other", () => {
     for (const tool of TOOLS.list()) {
       const schema = describeTool(tool).inputSchema as { properties?: Record<string, unknown>; required?: string[] };
-      if (tool.needsBusiness === false) {
+      if (tool.name === "set_default_site") {
+        // Its own site field is the new default, required (null clears it), not the runner's argument.
+        expect(schema.required ?? [], tool.name).toContain("site");
+      } else if (tool.needsBusiness === false) {
         expect(schema.properties ?? {}, tool.name).not.toHaveProperty("site");
       } else {
         expect(schema.properties, tool.name).toHaveProperty("site", expect.objectContaining({ type: "string" }));

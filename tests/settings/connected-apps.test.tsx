@@ -20,12 +20,22 @@ const app = (over: Partial<ConnectedAppRow>): ConnectedAppRow => ({
   redirectHost: "claude.ai",
   scopes: ["read", "write"],
   businessId: null,
+  defaultBusinessId: null,
   grantedAt: "2026-11-10T09:00:00.000Z",
   lastUsedAt: null,
   ...over,
 });
 
 describe("ConnectedApps", () => {
+  it("shows an app for every site its default site, the oldest when none is saved", () => {
+    const BRAVO = { id: "site-2", name: "Bravo", website_url: "https://bravo.test" };
+    const html = renderToStaticMarkup(<ConnectedApps apps={[app({})]} sites={[SITE, BRAVO]} />);
+    expect(html).toContain("Default site");
+    expect(html).toMatch(/<option value="" selected="">Oldest site \(Acme\)<\/option>/);
+    const limited = renderToStaticMarkup(<ConnectedApps apps={[app({ businessId: "site-1" })]} sites={[SITE, BRAVO]} />);
+    expect(limited).not.toContain("Default site");
+  });
+
   it("lists each grant with its app, scopes, site and last use", () => {
     const html = renderToStaticMarkup(
       <ConnectedApps

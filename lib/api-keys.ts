@@ -54,7 +54,7 @@ export const API_KEY_NAME_MAX = 100;
  */
 export const LAST_USED_RESOLUTION_MS = 60_000;
 
-export const API_KEY_COLUMNS = "id, name, prefix, business_id, scopes, last_used_at, revoked_at, created_at";
+export const API_KEY_COLUMNS = "id, name, prefix, business_id, default_business_id, scopes, last_used_at, revoked_at, created_at";
 
 export interface ApiKeyRecord {
   id: string;
@@ -63,6 +63,8 @@ export interface ApiKeyRecord {
   prefix: string;
   /** The one site the key may act on; null for every site of the account. */
   businessId: string | null;
+  /** The site it acts on when a call names none (set_default_site); null: the oldest. */
+  defaultBusinessId: string | null;
   scopes: ApiKeyScope[];
   lastUsedAt: string | null;
   revokedAt: string | null;
@@ -81,6 +83,7 @@ export function mapApiKey(row: Row): ApiKeyRecord {
     name: row.name as string,
     prefix: row.prefix as string,
     businessId: (row.business_id as string | null) ?? null,
+    defaultBusinessId: (row.default_business_id as string | null) ?? null,
     scopes: (Array.isArray(row.scopes) ? row.scopes : []).filter(isApiKeyScope),
     lastUsedAt: (row.last_used_at as string | null) ?? null,
     revokedAt: (row.revoked_at as string | null) ?? null,
@@ -242,11 +245,61 @@ export async function revokeApiKey(
   return { ok: false, status: 404, error: "Key not found" };
 }
 
+/**
+ * One live key of `userId`, as `set_default_site` needs it: its one site
+ * (null for every site). Null when the key is not theirs, or is revoked.
+ * Through any client that filters on the owner (the session's, or the
+ * service role: the owner is named explicitly).
+ */
+export async function findLiveApiKey(
+  supabase: SupabaseClient,
+  userId: string,
+  id: string
+): Promise<{ businessId: string | null } | null> {
+  const { data, error } = await supabase
+    .from("api_keys")
+    .select("id, business_id, revoked_at")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error(`api_keys: ${error.message}`);
+  const row = data as Row | null;
+  if (!row || row.revoked_at) return null;
+  return { businessId: (row.business_id as string | null) ?? null };
+}
+
+/**
+ * Saves a live key's default site (null: back to the oldest). The site is
+ * resolved and checked by the caller (lib/tools/site.ts `saveDefaultSite`);
+ * the database checks again that it is one of the owner's sites
+ * (migration 20261123120000_credential_default_site.sql).
+ */
+export async function setApiKeyDefaultSite(
+  supabase: SupabaseClient,
+  userId: string,
+  id: string,
+  businessId: string | null
+): Promise<{ ok: true } | { ok: false; status: 404 | 500; error: string }> {
+  const { data, error } = await supabase
+    .from("api_keys")
+    .update({ default_business_id: businessId })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .is("revoked_at", null)
+    .select("id")
+    .maybeSingle();
+  if (error) return { ok: false, status: 500, error: error.message };
+  if (!data) return { ok: false, status: 404, error: "Key not found" };
+  return { ok: true };
+}
+
 export interface VerifiedApiKey {
   id: string;
   userId: string;
   /** The one site the key may act on; null for every site of the account. */
   businessId: string | null;
+  /** Its saved default site, if any; resolveCaller uses it while it is still a site of the account. */
+  defaultBusinessId: string | null;
   scopes: ApiKeyScope[];
 }
 
@@ -270,7 +323,7 @@ export async function verifyApiKey(
   const admin = deps.admin ?? createAdminClient();
   const { data, error } = await admin
     .from("api_keys")
-    .select("id, user_id, business_id, scopes, key_hash, last_used_at, revoked_at")
+    .select("id, user_id, business_id, default_business_id, scopes, key_hash, last_used_at, revoked_at")
     .eq("prefix", token.slice(0, API_KEY_PREFIX_LENGTH))
     .limit(50);
   if (error) {
@@ -306,6 +359,7 @@ export async function verifyApiKey(
       id: match.id as string,
       userId: match.user_id as string,
       businessId: (match.business_id as string | null) ?? null,
+      defaultBusinessId: (match.default_business_id as string | null) ?? null,
       scopes: (Array.isArray(match.scopes) ? match.scopes : []).filter(isApiKeyScope),
     },
   };

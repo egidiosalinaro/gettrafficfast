@@ -1,5 +1,5 @@
 import type { Tool } from "./tool";
-import { ACCOUNT_TOOLS } from "./account";
+import { ACCOUNT_TOOLS, DEFAULT_SITE_TOOLS } from "./account";
 import { REPLIES_TOOLS } from "./replies";
 import { TODAY_TOOLS } from "./today";
 import { JOB_TOOLS } from "./jobs";
@@ -60,6 +60,7 @@ export const TOOLS: ToolRegistry = createRegistry([
   ...WRITE_CALENDAR_TOOLS,
   ...WRITE_VISIBILITY_TOOLS,
   ...WRITE_BUSINESS_TOOLS,
+  ...DEFAULT_SITE_TOOLS,
   ...WRITE_VOICE_TOOLS,
   ...WRITE_INTEGRATION_TOOLS,
   ...CONTENT_READ_TOOLS,
