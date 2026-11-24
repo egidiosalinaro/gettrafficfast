@@ -31,6 +31,12 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({}) }));
 vi.mock("@/lib/reviewer-account", () => ({ provisionReviewerAccount: mocks.provision }));
+// The owner's routes decide by the selected site (lib/owner.ts); no
+// PLATFORM_OWNER_BUSINESS_IDS here, so any site will do.
+vi.mock("@/lib/tenancy", async (original) => ({
+  ...(await original<typeof import("@/lib/tenancy")>()),
+  selectedBusinessId: async () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+}));
 
 import { POST as setPassword } from "@/app/api/auth/set-password/route";
 import { POST as setUpReviewer } from "@/app/api/owner/reviewer-account/route";

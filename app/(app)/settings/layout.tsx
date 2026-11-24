@@ -1,5 +1,5 @@
 import { requireAppAccess } from "@/lib/app-access";
-import { isPlatformOwner } from "@/lib/owner";
+import { isPlatformOwnerHere } from "@/lib/owner";
 import { billingDisabled } from "@/lib/billing-mode";
 import {
   SettingsBackLink,
@@ -24,7 +24,7 @@ export default async function SettingsLayout({
   return (
     <>
       {/* Desktop: a second fixed column beside the sidebar (192px + 224px). */}
-      <SettingsSubmenu businessName={businessName} isOwner={isPlatformOwner(userId)} billing={!billingDisabled()} />
+      <SettingsSubmenu businessName={businessName} isOwner={isPlatformOwnerHere(userId, selected?.id)} billing={!billingDisabled()} />
       <div className="flex-1 min-w-0 flex flex-col md:ml-[416px] pb-mobile-chrome">
         <div className="flex-1 p-4 md:p-6 overflow-auto">
           {/* Phone: /settings is the grouped list, and each page leads back to it. */}

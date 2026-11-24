@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isPlatformOwner } from "@/lib/owner";
+import { isPlatformOwnerHere } from "@/lib/owner";
+import { selectedBusinessId } from "@/lib/tenancy";
 import { provisionReviewerAccount } from "@/lib/reviewer-account";
 
 /**
@@ -12,7 +13,8 @@ import { provisionReviewerAccount } from "@/lib/reviewer-account";
  * user, the complimentary plan, the $1 ceiling and the demo site are created
  * only when missing; every call asks Supabase for a fresh set-password email.
  *
- * Anyone who is not an owner (lib/owner.ts) gets the same 404 a path that
+ * Anyone who is not an owner on the selected site (lib/owner.ts
+ * `isPlatformOwnerHere`) gets the same 404 a path that
  * does not exist gets. Session only: no API key reaches it. No password is
  * chosen, returned or logged here.
  */
@@ -24,7 +26,10 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user || !isPlatformOwner(user.id)) return notFound();
+  if (!user) return notFound();
+  // The owner's screen answers on the platform's own sites only (lib/owner.ts):
+  // the selected site decides, as it does for the page that posts here.
+  if (!isPlatformOwnerHere(user.id, await selectedBusinessId(supabase, user.id))) return notFound();
 
   const body = await request.json().catch(() => null);
   const provisioned = await provisionReviewerAccount({ admin: createAdminClient(), input: body });

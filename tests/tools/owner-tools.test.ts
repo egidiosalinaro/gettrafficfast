@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { FakeSupabase } from "../support/fake-supabase";
-import { OTHER, SITE_A, USER, apiCaller, businesses } from "./support";
+import { OTHER, SITE_A, SITE_C, USER, activePlan, apiCaller, businesses, uuid } from "./support";
 
 /**
  * The owner's tools and the customer's read of his plan (lib/tools/owner.ts,
@@ -13,12 +13,19 @@ import { OTHER, SITE_A, USER, apiCaller, businesses } from "./support";
  *   call is the 404 `unknown_tool` a made-up name gets, word for word;
  * - with PLATFORM_OWNER_USER_IDS unset, nobody gets it (fail closed);
  * - an owner's key lists it and reads the costs with it, in dollars;
+ * - per site: with PLATFORM_OWNER_BUSINESS_IDS set, an owner's connection
+ *   lists it and its call answers only on a listed site; on the owner's
+ *   other site `tools/list` is a customer's and the call is refused (404
+ *   `unknown_tool`, saying where it answers); the connection's site (the
+ *   header, the saved default) decides both;
  * - no tool can set a ceiling: there is none in either registry;
  * - `get_plan_usage` answers quotas in units, and nothing in it, or in
  *   `get_subscription`, is a dollar amount or the platform's provider spend.
  */
 
 const OWNER = OTHER;
+/** The owner's second site: another product of theirs, not the platform's. */
+const OWNER_SIDE = uuid("d");
 
 const m = vi.hoisted(() => ({ db: null as unknown }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => m.db }));
@@ -41,7 +48,10 @@ beforeEach(() => {
   vi.unstubAllEnvs();
   vi.stubEnv("PLATFORM_OWNER_USER_IDS", OWNER);
   db = new FakeSupabase({
-    businesses: businesses(),
+    businesses: [
+      ...businesses(),
+      { id: OWNER_SIDE, user_id: OWNER, name: "Delta", website_url: "https://delta.test", created_at: "2026-03-01T00:00:00Z" },
+    ],
     subscriptions: [{ user_id: USER, status: "active", updated_at: "2026-11-01T00:00:00Z" }],
     provider_spend: [{ provider: "x-api", month: "2026-11-01", cost_usd: 3.4, calls: 120, posts: 680 }],
     agent_runs: [
@@ -101,7 +111,7 @@ describe("get_platform_costs, for an owner only", () => {
     for (const value of [undefined, "", " , "]) {
       vi.stubEnv("PLATFORM_OWNER_USER_IDS", value);
       const owner = apiCaller(db, { userId: OWNER, businessId: null, scopes: ["read"] });
-      expect(registryFor(OWNER)).toBe(TOOLS);
+      expect(registryFor(OWNER, null)).toBe(TOOLS);
       expect(await listed(owner)).not.toContain("get_platform_costs");
       expect(await runTool(owner, "get_platform_costs", {})).toMatchObject({ ok: false, status: 404 });
     }
@@ -127,10 +137,71 @@ describe("get_platform_costs, for an owner only", () => {
   });
 
   it("is read only: no tool, in either registry, sets a ceiling", () => {
-    for (const tool of registryFor(OWNER).list()) {
+    for (const tool of registryFor(OWNER, null).list()) {
       expect(tool.name).not.toMatch(/ceiling|spend_limit|spend_cap/);
     }
     expect(OWNER_TOOLS.every((tool) => tool.scope === "read" && !tool.paid)).toBe(true);
+  });
+});
+
+describe("get_platform_costs, on the platform's own site only (PLATFORM_OWNER_BUSINESS_IDS)", () => {
+  beforeEach(() => vi.stubEnv("PLATFORM_OWNER_BUSINESS_IDS", SITE_C));
+  const ownerOn = (businessId: string | null) => apiCaller(db, { userId: OWNER, businessId, scopes: ["read"] });
+
+  it("is listed and answers for an owner whose connection is on the platform's site", async () => {
+    expect(registryFor(OWNER, SITE_C).get("get_platform_costs")).toBeDefined();
+    expect(await listed(ownerOn(SITE_C))).toContain("get_platform_costs");
+    expect(await runTool(ownerOn(SITE_C), "get_platform_costs", {})).toMatchObject({ ok: true });
+  });
+
+  it("on the owner's other site, tools/list is a customer's and the call is refused, saying where it answers", async () => {
+    expect(registryFor(OWNER, OWNER_SIDE)).toBe(TOOLS);
+    const side = await listed(ownerOn(OWNER_SIDE));
+    expect(side).not.toContain("get_platform_costs");
+    expect(side).toEqual(await listed(apiCaller(db, { scopes: ["read"] })));
+
+    const refused = await runTool(ownerOn(OWNER_SIDE), "get_platform_costs", {});
+    expect(refused).toMatchObject({
+      ok: false,
+      status: 404,
+      error: { code: "unknown_tool", message: expect.stringMatching(/only on the platform's own site/) },
+    });
+    // No site at all is not the platform's site either.
+    expect(await runTool(ownerOn(null), "get_platform_costs", {})).toMatchObject({ ok: false, status: 404 });
+  });
+
+  it("over MCP too: the call through the server is refused off the platform's site", async () => {
+    const server = createMcpServer(ownerOn(OWNER_SIDE));
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "test", version: "1.0.0" });
+    await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
+    const result = await client.callTool({ name: "get_platform_costs", arguments: {} });
+    await client.close();
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toMatch(/unknown_tool.*only on the platform's own site/);
+  });
+
+  it("a customer's refusal stays the plain 404 a made-up name gets, even with the sites listed", async () => {
+    const refused = await runTool(apiCaller(db, { scopes: ["read"] }), "get_platform_costs", {});
+    expect(refused).toMatchObject({ ok: false, status: 404, error: { message: "There is no tool named get_platform_costs." } });
+  });
+
+  it("the handler checks the site again, if a registry ever handed it over off the site", async () => {
+    const tool = OWNER_TOOLS[0];
+    await expect(tool.handler({ userId: OWNER, businessId: OWNER_SIDE, admin: () => db } as never, {})).rejects.toMatchObject({
+      code: "unknown_tool",
+      status: 404,
+    });
+    await expect(tool.handler({ userId: OWNER, businessId: SITE_C, admin: () => db } as never, {})).resolves.toMatchObject({ month: "2026-11" });
+  });
+
+  it("the owner's plan read is a customer's on either site: no dollars", async () => {
+    db.tables.subscriptions.push(activePlan(OWNER));
+    for (const site of [SITE_C, OWNER_SIDE]) {
+      const run = await runTool(apiCaller(db, { userId: OWNER, businessId: site, scopes: ["read"] }), "get_plan_usage", {});
+      expect(run.ok).toBe(true);
+      expect(JSON.stringify(run)).not.toMatch(/usd|ceiling|costUsd|spentUsd/i);
+    }
   });
 });
 

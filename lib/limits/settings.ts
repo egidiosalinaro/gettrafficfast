@@ -80,7 +80,7 @@ export type SaveSpendLimitResult =
 /**
  * Validates and stores `userId`'s ceiling. `supabase` is the service role:
  * customers have no write policy on `account_limits`, so the caller (the
- * owner's route) must have checked `isPlatformOwner` first. A raise without
+ * owner's route) must have checked `isPlatformOwnerHere` first. A raise without
  * `confirm` changes nothing.
  */
 export async function saveDailySpendLimit(params: {

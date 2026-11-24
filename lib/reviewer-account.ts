@@ -136,7 +136,7 @@ async function requestPasswordEmail(admin: SupabaseClient, email: string): Promi
 
 /**
  * Sets up (or brings back up to date) the reviewer account for `email`.
- * `admin` is the service role: the caller has checked `isPlatformOwner`.
+ * `admin` is the service role: the caller has checked `isPlatformOwnerHere`.
  */
 export async function provisionReviewerAccount(params: {
   admin: SupabaseClient;

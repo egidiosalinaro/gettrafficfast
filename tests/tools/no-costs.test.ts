@@ -57,12 +57,12 @@ function walk(tool: string, node: unknown, path: string, findings: Finding[], fi
 }
 
 describe("a customer's tools carry no cost", () => {
-  const tools = registryFor(CUSTOMER, ENV).list();
+  const tools = registryFor(CUSTOMER, null, ENV).list();
 
   it("is the customer's registry, without the owner's tools", () => {
     expect(tools.length).toBeGreaterThan(50);
     expect(tools.map((t) => t.name)).not.toContain("get_platform_costs");
-    expect(registryFor(OWNER, ENV).get("get_platform_costs")).toBeDefined();
+    expect(registryFor(OWNER, null, ENV).get("get_platform_costs")).toBeDefined();
   });
 
   it("names no cost, price or dollar field in any input or output schema, and no dollar figure in any field's description", () => {

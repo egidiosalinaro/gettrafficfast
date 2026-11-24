@@ -360,9 +360,10 @@ under the screens' rules, calling none themselves (`docs/API.md`, "Prompts").
 One exception to "one registry everyone sees": the platform owner's tools
 (`get_platform_costs`, `lib/tools/owner.ts`) are kept out of `TOOLS`, so the
 public catalogue, the docs and a customer's `tools/list` never name them.
-`registryFor(userId)` adds them for an owner (`PLATFORM_OWNER_USER_IDS`,
-`lib/owner.ts`, fail closed); for anyone else they are the 404 a made-up
-name gets. They read; nothing on the API sets a spend ceiling.
+`registryFor(userId, businessId)` adds them for an owner
+(`PLATFORM_OWNER_USER_IDS`, `lib/owner.ts`, fail closed) on one of the
+platform's own sites when `PLATFORM_OWNER_BUSINESS_IDS` names them; for
+anyone else they are the 404 a made-up name gets. They read; nothing on the API sets a spend ceiling.
 
 Target surface (their names are the product's vocabulary): `research_keywords`,
 `analyze_serp`, `analyze_competitors`, `plan_content`, `generate_outline`,

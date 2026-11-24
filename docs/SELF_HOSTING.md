@@ -105,6 +105,10 @@ Variables used only by the hosted service's own blog and marketing
 variables, `MCP_REGISTRY_AUTH`) can stay unset.
 `PLATFORM_OWNER_USER_IDS` lists the user ids that see the platform's cost
 page (Settings, Platform); set it to your own user id if you want it.
+`PLATFORM_OWNER_BUSINESS_IDS` (optional, comma-separated site ids) limits
+those owner screens and tools to the listed sites, so that on any other
+site of yours you see exactly what a customer sees; unset, the owner sees
+them on every site (docs/API.md, "The owner's costs").
 
 ### Spending ceilings
 

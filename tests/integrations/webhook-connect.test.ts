@@ -56,12 +56,13 @@ function request(body: unknown) {
 
 const previous: Record<string, string | undefined> = {};
 beforeEach(() => {
-  for (const key of ["OWN_BLOG_OWNER_USER_IDS", "BLOG_WEBHOOK_SECRET", "INTEGRATIONS_ENCRYPTION_KEY"]) {
+  for (const key of ["OWN_BLOG_OWNER_USER_IDS", "BLOG_WEBHOOK_SECRET", "INTEGRATIONS_ENCRYPTION_KEY", "PLATFORM_OWNER_BUSINESS_IDS"]) {
     previous[key] = process.env[key];
   }
   process.env.OWN_BLOG_OWNER_USER_IDS = OWNER;
   process.env.BLOG_WEBHOOK_SECRET = "blog-secret";
   process.env.INTEGRATIONS_ENCRYPTION_KEY = "ab".repeat(32);
+  delete process.env.PLATFORM_OWNER_BUSINESS_IDS;
   state.upserts = [];
   state.testError = null;
 });
@@ -94,6 +95,19 @@ describe("webhook connect: the own blog receiver", () => {
     expect(res.status).toBe(200);
     expect(state.upserts).toHaveLength(1);
     expect(state.upserts[0].config).toEqual({ url: OWN });
+  });
+
+  it("with PLATFORM_OWNER_BUSINESS_IDS set, connects it only from a listed site (lib/owner.ts)", async () => {
+    state.userId = OWNER;
+    process.env.PLATFORM_OWNER_BUSINESS_IDS = "biz-other";
+    const refused = await POST(request({ url: OWN }));
+    expect(refused.status).toBe(403);
+    expect(state.upserts).toHaveLength(0);
+
+    process.env.PLATFORM_OWNER_BUSINESS_IDS = "biz-other, BIZ-1";
+    const res = await POST(request({ url: OWN }));
+    expect(res.status).toBe(200);
+    expect(state.upserts).toHaveLength(1);
   });
 
   it("still connects a customer's own URL with their secret", async () => {

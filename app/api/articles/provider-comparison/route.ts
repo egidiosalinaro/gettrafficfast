@@ -6,7 +6,7 @@ import {
   MAX_COMPARISON_DAYS,
   withoutCosts,
 } from "@/lib/articles/provider-comparison";
-import { isPlatformOwner } from "@/lib/owner";
+import { isPlatformOwnerHere } from "@/lib/owner";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { selectedBusinessId } from "@/lib/tenancy";
@@ -22,7 +22,8 @@ import { selectedBusinessId } from "@/lib/tenancy";
  * runs of those jobs, by id. Asks no model.
  *
  * Every agent's `avgCostUsd` (an estimate of what the platform pays per run)
- * is answered to a platform owner only (lib/owner.ts); everyone else, like
+ * is answered to a platform owner on the platform's own site only
+ * (lib/owner.ts `isPlatformOwnerHere`); everyone else, like
  * the tool, gets the comparison without it.
  */
 
@@ -48,8 +49,9 @@ export async function GET(request: NextRequest) {
     }
 
     const comparison = await loadProviderComparison({ client: supabase, admin: createAdminClient(), businessId, days });
-    // The cost per run is what the platform pays: a platform owner's, never a customer's.
-    return NextResponse.json(isPlatformOwner(user.id) ? comparison : withoutCosts(comparison));
+    // The cost per run is what the platform pays: a platform owner's, on the
+    // platform's own site, never a customer's.
+    return NextResponse.json(isPlatformOwnerHere(user.id, businessId) ? comparison : withoutCosts(comparison));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });

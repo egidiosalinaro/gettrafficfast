@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { NO_BUSINESS_RESPONSE } from "@/lib/tenancy";
 import { ToolError, needsSubscription, requiredScopes, type OwnableTable, type Tool } from "./tool";
 import type { ToolRegistry } from "./registry";
-import { registryFor } from "./owner";
+import { offSiteOwnerTool, registryFor } from "./owner";
 import { SITE_ARGUMENT_NAME, SiteArgument, callerForSite, takesSite } from "./site";
 import { burstDenial, dailyCapDenial, recordToolCall, type LimitDenial, type LimitSubject } from "./usage";
 
@@ -196,9 +196,15 @@ async function execute(
     if (burst) return limitRefusal(burst);
   }
 
-  const registry = deps.registry ?? registryFor(caller.userId);
+  // The owner's tools take no `site` argument, so the site in hand here is
+  // the call's site for them (lib/tools/owner.ts).
+  const registry = deps.registry ?? registryFor(caller.userId, caller.businessId);
   const tool: Tool | undefined = registry.get(name);
-  if (!tool) return fail(404, "unknown_tool", `There is no tool named ${name}.`, "GET /api/v1/tools, or MCP tools/list, lists them.");
+  if (!tool) {
+    const offSite = offSiteOwnerTool(caller.userId, name);
+    if (offSite) return fail(offSite.status, offSite.code, offSite.message, offSite.hint);
+    return fail(404, "unknown_tool", `There is no tool named ${name}.`, "GET /api/v1/tools, or MCP tools/list, lists them.");
+  }
 
   // The plan comes before everything the caller could fix with a different
   // call: without one, every tool answers the same sentence, whatever its

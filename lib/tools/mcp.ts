@@ -82,10 +82,11 @@ export function toMcpTool(tool: Tool): McpTool {
  * An MCP server for `caller`. `tools/list` shows what the caller's key may
  * call (a read-only key sees the read tools); `tools/call` refuses the rest
  * all the same. A platform owner's caller also sees the owner's tools
- * (`registryFor`, lib/tools/owner.ts); nobody else ever sees them listed.
+ * (`registryFor`, lib/tools/owner.ts) when the connection's site is one of
+ * the platform's own; nobody else ever sees them listed.
  */
 export function createMcpServer(caller: Caller, deps: RunToolDeps = {}): Server {
-  const registry = deps.registry ?? registryFor(caller.userId);
+  const registry = deps.registry ?? registryFor(caller.userId, caller.businessId);
   const server = new Server(
     { name: MCP_SERVER_NAME, title: "GetTrafficFast", version: MCP_SERVER_VERSION },
     { capabilities: { tools: { listChanged: false }, prompts: { listChanged: false } }, instructions: MCP_INSTRUCTIONS }

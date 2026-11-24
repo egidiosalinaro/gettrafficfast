@@ -29,6 +29,12 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => state.db,
 }));
+// The owner's route decides by the selected site (lib/owner.ts); no
+// PLATFORM_OWNER_BUSINESS_IDS here, so any site will do.
+vi.mock("@/lib/tenancy", async (original) => ({
+  ...(await original<typeof import("@/lib/tenancy")>()),
+  selectedBusinessId: async () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+}));
 
 import { POST } from "@/app/api/owner/spend-limit/route";
 import { parseSpendLimit, raiseQuestion, saveDailySpendLimit } from "@/lib/limits/settings";

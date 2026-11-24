@@ -238,8 +238,8 @@ describe("the owner's Costs row", () => {
     expect(renderToStaticMarkup(<SettingsSubmenu businessName="Acme" isOwner />)).toContain('href="/settings/costs"');
   });
 
-  it("is decided on the server from PLATFORM_OWNER_USER_IDS, by the layout and the list", () => {
-    expect(source("app/(app)/settings/layout.tsx")).toContain("isOwner={isPlatformOwner(userId)}");
-    expect(source("app/(app)/settings/page.tsx")).toContain("isOwner={isPlatformOwner(userId)}");
+  it("is decided on the server from PLATFORM_OWNER_USER_IDS and the selected site, by the layout and the list", () => {
+    expect(source("app/(app)/settings/layout.tsx")).toContain("isOwner={isPlatformOwnerHere(userId, selected?.id)}");
+    expect(source("app/(app)/settings/page.tsx")).toContain("isOwner={isPlatformOwnerHere(userId, selected?.id)}");
   });
 });

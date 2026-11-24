@@ -17,7 +17,7 @@ import { X_SEARCH_CALL_WORST_USD, X_SPEND_PROVIDER, readXApiStatus } from "@/lib
  * pays this month per provider, and what each account spent on models in the
  * last 24 hours against its daily ceiling. Read by /settings/costs and by
  * the owner-only tool `get_platform_costs`, both only after
- * `isPlatformOwner` (lib/owner.ts), and only through the service role: the
+ * `isPlatformOwnerHere` (lib/owner.ts), and only through the service role: the
  * ledger and other accounts' runs are no customer's to read.
  *
  * Honest by the same rules as everything else: a ledger that cannot be read

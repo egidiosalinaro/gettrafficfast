@@ -522,6 +522,31 @@ set on Vercel for production and preview; `isPlatformOwner`,
 owner. Privilege comes from the environment, never from a row a user can
 write.
 
+**The owner's sites.** An owner's account may hold sites that are not the
+platform's (another product of theirs), and on those the owner wants the
+experience any customer has. `PLATFORM_OWNER_BUSINESS_IDS` (optional,
+comma-separated site ids, case-insensitive) names the platform's own sites.
+When it is set, every owner-only behaviour below applies only when the user
+is an owner **and** the site in hand is listed: in the browser the selected
+site, over a key or a connected app the site the call resolves to (the
+`x-gtf-business` header, else the saved default site, else the oldest).
+Unset, empty or blank: no site condition, an owner is an owner on every
+site, as before the variable existed. It only narrows; it makes nobody an
+owner. The one check is `isPlatformOwnerHere(userId, businessId)`
+(`lib/owner.ts`); `isPlatformOwnerSite(businessId)` is its site half.
+
+On a site that is not listed the owner gets the customer's answer: no
+Platform group in Settings (list and column), `/settings/costs` the app's
+404, `POST /api/owner/spend-limit` and `POST /api/owner/reviewer-account`
+404 (they decide by the selected site, as the page does),
+`GET /api/articles/provider-comparison` without `avgCostUsd`, and
+`get_platform_costs` neither listed nor callable (below). The account's
+own rows stay account-wide, because they have no site: the plan (a
+complimentary plan included), the daily AI spend ceiling in
+`account_limits` and the account caps are the account's on every site, as
+for any customer with two sites; only the screens that show or set them
+are per site.
+
 - **`/settings/costs`** (`app/(app)/settings/costs/page.tsx`), listed as
   Settings → Platform → Costs for an owner only (the server passes
   `isOwner` to the list and the column). Anyone else gets the app's 404
@@ -539,11 +564,19 @@ write.
 - **`get_platform_costs`** (`lib/tools/owner.ts`), read scope, free, the
   same reading. It is **not in `TOOLS`**: the public catalogue
   (`GET /api/v1/tools`), the public docs and a customer's MCP `tools/list`
-  never name it. `registryFor(userId)` adds the owner's tools for an
-  owner's session, key or connected app; the runner and the MCP server use
-  it. For anyone else a call is the same 404 `unknown_tool` a made-up name
-  gets ("There is no tool named get_platform_costs."), and the handler
-  checks the owner again. No tool sets a ceiling: that stays a signed-in
+  never name it. `registryFor(userId, businessId)` adds the owner's tools
+  for an owner's session, key or connected app on one of the platform's
+  own sites; the runner and the MCP server use it. The owner's tools take
+  no `site` argument, so the site that decides is the connection's (the
+  header, else the saved default, else the oldest; the selected site for a
+  session): `tools/list`, built once per connection, and every call are
+  decided by that same site, so what is listed is what answers. To use it
+  from a connection whose default is another site, send the header or make
+  the platform's site the default (`set_default_site`). For anyone else a
+  call is the same 404 `unknown_tool` a made-up name gets ("There is no
+  tool named get_platform_costs."); an owner on another site gets the same
+  code and status with a message that says where it answers
+  (`offSiteOwnerTool`), and the handler checks owner and site again. No tool sets a ceiling: that stays a signed-in
   session's act, so no key can ever raise one.
 
 **What a customer never sees** (owner's decision, 2026-11-14: "Customers
@@ -560,7 +593,7 @@ read states what the platform pays or prices a unit of work:
   counts images (`maxImagesPerArticle`); "included in your plan".
 - `compare_article_providers` leaves out each agent's `avgCostUsd`
   (`withoutCosts`); `GET /api/articles/provider-comparison` answers it to a
-  platform owner only.
+  platform owner only, on the platform's own site.
 - Settings → Claude and API gets each key's calls (`loadKeyUsage`, the
   RPC `tool_call_counts`), never a summed cost; the cost stays on
   `tool_calls.cost_usd`.
@@ -1467,7 +1500,16 @@ machine. Public through the middleware's `/.well-known/` prefix.
 - `tests/limits/settings.test.ts`: the ceiling's validation, a raise
   refused without its confirmation, the owner's route a 404 for a customer,
   the signed out, a Bearer key and everyone when no owner is listed.
-- `tests/owner.test.ts`: `isPlatformOwner`, fail closed.
+- `tests/owner.test.ts`: `isPlatformOwner`, fail closed;
+  `isPlatformOwnerHere` on a listed site, another site, no site, and with
+  `PLATFORM_OWNER_BUSINESS_IDS` unset; no owner-only feature asks
+  `isPlatformOwner` alone.
+- `tests/owner/owner-site.test.ts`: with `PLATFORM_OWNER_BUSINESS_IDS` set,
+  the owner on another site gets the customer's Settings list, the costs
+  page's 404, the owner routes' 404 and the comparison without costs; on
+  the platform's site, and on every site with it unset, the owner's.
+  `tests/integrations/webhook-connect.test.ts`: the own blog receiver
+  connected only from a listed site.
 - `tests/limits/quotas.test.ts`, `tests/settings/plan-usage.test.tsx`: the
   quotas are the code's caps and nothing else, counted for the account, null
   when unread; the ceiling still enforced and read only as reached with when
@@ -1478,8 +1520,10 @@ machine. Public through the middleware's `/.well-known/` prefix.
   ceiling control's two taps.
 - `tests/tools/owner-tools.test.ts`: `get_platform_costs` absent from the
   catalogue and a customer's `tools/list`, 404 `unknown_tool` for a
-  customer, fail closed, listed and working for an owner's key; no tool sets
-  a ceiling; `get_plan_usage` and `get_subscription` carry no dollars.
+  customer, fail closed, listed and working for an owner's key; per site
+  with `PLATFORM_OWNER_BUSINESS_IDS` (listed and answering on the
+  platform's site, a customer's `tools/list` and a refusal elsewhere, the
+  header moving it); no tool sets a ceiling; `get_plan_usage` and `get_subscription` carry no dollars.
 - `tests/account-limits-owner-only-migration.test.ts`: the customer's write
   policies closed with `alter policy`, no `drop`.
 - `tests/tools/retention.test.ts`: only rows older than 90 days go, in

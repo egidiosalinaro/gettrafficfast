@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isPlatformOwner } from "@/lib/owner";
+import { isPlatformOwner, isPlatformOwnerHere } from "@/lib/owner";
 import { readPlatformCosts } from "@/lib/limits/platform-costs";
 import { ToolError, defineTool, type Tool } from "./tool";
 import { TOOLS, createRegistry, type ToolRegistry } from "./registry";
@@ -14,6 +14,17 @@ import { TOOLS, createRegistry, type ToolRegistry } from "./registry";
  * app; for anyone else a call is the 404 `unknown_tool` a name that does not
  * exist gets, so nothing says they are there. Each handler checks the owner
  * again, so a registry built by mistake still refuses.
+ *
+ * Per site (lib/owner.ts `isPlatformOwnerHere`): with
+ * PLATFORM_OWNER_BUSINESS_IDS set, they are listed and answer only when the
+ * call's site is one of the platform's own. They take no `site` argument
+ * (they are not about a site), so the call's site is the connection's: the
+ * `x-gtf-business` header, else the key's or the app's saved default site,
+ * else the oldest; in the browser, the selected site. `tools/list` (one per
+ * connection) and the call are decided by that same site, so what is listed
+ * is what answers. On another site an owner's `tools/list` is a customer's,
+ * and a call by name is refused with `offSiteOwnerTool`'s 404, which says
+ * where the tool answers (only an owner ever reads it).
  *
  * Read only, on purpose: setting an account's ceiling stays a signed-in
  * session's act on /settings/costs, so a key, even an owner's, can never
@@ -73,7 +84,7 @@ export const getPlatformCosts = defineTool({
   // The platform's books, not product use: the handler's owner check is the gate.
   withoutPlan: true,
   async handler(ctx) {
-    if (!isPlatformOwner(ctx.userId)) throw new ToolError("unknown_tool", "There is no tool named get_platform_costs.", 404);
+    if (!isPlatformOwnerHere(ctx.userId, ctx.businessId || null)) throw new ToolError("unknown_tool", "There is no tool named get_platform_costs.", 404);
     return readPlatformCosts(ctx.admin());
   },
 });
@@ -83,12 +94,40 @@ export const OWNER_TOOLS: readonly Tool[] = [getPlatformCosts];
 let ownerRegistry: ToolRegistry | null = null;
 
 /**
- * The registry `userId` may use: everyone's tools, plus the owner's tools
- * for a platform owner. Fail closed: with `PLATFORM_OWNER_USER_IDS` unset,
- * nobody gets them.
+ * The registry `userId` may use on `businessId`, the site of the connection
+ * or of the call: everyone's tools, plus the owner's tools for a platform
+ * owner on one of the platform's own sites (any site when
+ * PLATFORM_OWNER_BUSINESS_IDS is unset). Fail closed: with
+ * `PLATFORM_OWNER_USER_IDS` unset, nobody gets them.
  */
-export function registryFor(userId: string, env: Record<string, string | undefined> = process.env): ToolRegistry {
-  if (!isPlatformOwner(userId, env)) return TOOLS;
+export function registryFor(
+  userId: string,
+  businessId: string | null,
+  env: Record<string, string | undefined> = process.env
+): ToolRegistry {
+  if (!isPlatformOwnerHere(userId, businessId, env)) return TOOLS;
   ownerRegistry ??= createRegistry([...TOOLS.list(), ...OWNER_TOOLS]);
   return ownerRegistry;
+}
+
+/**
+ * The refusal for an owner's tool called by a platform owner on a site that
+ * is not one of the platform's (PLATFORM_OWNER_BUSINESS_IDS): the same 404
+ * `unknown_tool` a customer gets, saying where it answers. Null for anyone
+ * else (a customer gets the plain "no tool named" 404, word for word) and
+ * for a name that is not an owner's tool.
+ */
+export function offSiteOwnerTool(
+  userId: string,
+  name: string,
+  env: Record<string, string | undefined> = process.env
+): ToolError | null {
+  if (!OWNER_TOOLS.some((tool) => tool.name === name)) return null;
+  if (!isPlatformOwner(userId, env)) return null;
+  return new ToolError(
+    "unknown_tool",
+    `${name} answers only on the platform's own site, and this call acts on another site.`,
+    404,
+    "Send the x-gtf-business header with the platform's site, or make it this connection's default site (set_default_site): tools/list then lists it."
+  );
 }

@@ -1,5 +1,5 @@
 import { requireAppAccess } from "@/lib/app-access";
-import { isPlatformOwner } from "@/lib/owner";
+import { isPlatformOwnerHere } from "@/lib/owner";
 import { billingDisabled } from "@/lib/billing-mode";
 import { getUserSubscription, summarizeSubscription } from "@/lib/subscription";
 import { formatDay } from "@/lib/format";
@@ -15,6 +15,10 @@ export const dynamic = "force-dynamic";
  * last ones were never seen. A new account still finds Business first.
  *
  * The plan card says only what the subscription row holds, as Billing does.
+ *
+ * The Platform group is the owner's on the platform's own sites only
+ * (`isPlatformOwnerHere`, lib/owner.ts): on another site of theirs the owner
+ * sees the list a customer sees.
  */
 export default async function SettingsPage() {
   const { userId, selected } = await requireAppAccess();
@@ -37,7 +41,7 @@ export default async function SettingsPage() {
     <SettingsOverview
       siteName={selected?.name || selected?.website_url || null}
       plan={plan}
-      isOwner={isPlatformOwner(userId)}
+      isOwner={isPlatformOwnerHere(userId, selected?.id)}
       billing={billing}
     />
   );

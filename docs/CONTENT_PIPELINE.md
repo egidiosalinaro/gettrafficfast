@@ -566,8 +566,8 @@ What the numbers can and cannot say:
   task by task, and the decision is then a change of configuration.
 - Cost per run (`avgCostUsd`) comes from the vendors' published prices
   (`lib/providers/llm/`), an estimate and not billing truth. It is the
-  platform's cost, so only a platform owner reads it, on the route
-  (`isPlatformOwner`); the tool and everyone else get the comparison
+  platform's cost, so only a platform owner reads it, on the route, on
+  the platform's own site (`isPlatformOwnerHere`); the tool and everyone else get the comparison
   without it (`withoutCosts`, owner's decision of 2026-11-14).
 
 Tests: `tests/content/provider-comparison.test.ts` (nulls, the fallback

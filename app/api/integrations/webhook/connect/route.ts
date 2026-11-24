@@ -5,6 +5,7 @@ import { encryptSecret } from "@/lib/integrations/crypto";
 import { NO_BUSINESS_RESPONSE, selectedBusinessId } from "@/lib/tenancy";
 import { isOwnWebhookReceiver, ownWebhookUrl } from "@/lib/site";
 import { isOwnBlogOwner } from "@/lib/publishing/own-blog";
+import { isPlatformOwnerSite } from "@/lib/owner";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -27,8 +28,10 @@ export async function POST(request: NextRequest) {
   // The own receiver is signed with BLOG_WEBHOOK_SECRET, which no customer
   // knows; connecting it would let any account publish into the public blog.
   // Only an operator named in OWN_BLOG_OWNER_USER_IDS may, and the check fails
-  // closed when the variable is unset.
-  if (ownReceiver && !isOwnBlogOwner(user.id)) {
+  // closed when the variable is unset. With PLATFORM_OWNER_BUSINESS_IDS set,
+  // only from one of the platform's own sites (lib/owner.ts): on another site
+  // of theirs the operator gets the customer's answer.
+  if (ownReceiver && !(isOwnBlogOwner(user.id) && isPlatformOwnerSite(businessId))) {
     return NextResponse.json(
       { error: "That address is reserved. Enter the webhook URL of your own site." },
       { status: 403 }

@@ -186,6 +186,12 @@ cannot decide it, because a user can write their own row. Before this rule any
 signed-in account could connect this URL and publish into the public blog.
 Rows written earlier carry `secret_from_env: true`; the flag is now ignored
 and those rows still resolve, through the URL and the owner.
+With `PLATFORM_OWNER_BUSINESS_IDS` set (lib/owner.ts, the platform's own
+sites), connecting the receiver is also refused unless the selected site is
+one of them, so on another site of theirs the operator gets the customer's
+"That address is reserved". Signing a delivery is not narrowed by site: it
+belongs to a row already connected, and refusing it there would stop the
+blog over a typo in the list.
 
 Setup, once:
 
