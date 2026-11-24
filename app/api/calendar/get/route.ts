@@ -7,8 +7,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * The calendar's articles, bodies included. `?articleId=` narrows it to one
- * article of the selected site, in the same shape: the Content screen opens
- * a row in the article modal without reading every body.
+ * article of the selected site, in the same shape, without reading every
+ * body.
  */
 export async function GET(request?: Request) {
   try {

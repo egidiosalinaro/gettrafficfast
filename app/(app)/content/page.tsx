@@ -1,6 +1,6 @@
 import { ContentScreen } from "@/components/content/content-screen";
 
-/** Content: today's article, the week, the next topics (docs/ARCHITECTURE.md). */
+/** Content: the calendar of every article, the Autopilot state above it (docs/ARCHITECTURE.md). */
 export default function ContentPage() {
   return <ContentScreen />;
 }

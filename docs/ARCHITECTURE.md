@@ -25,14 +25,21 @@ One read, `lib/today/read.ts`, answers `GET /api/today` and `get_today`
 `lib/domain/operating-loop.ts`, read by `get_home`; its screen is gone, and
 the one thing on it that asked for a person, a held or failed article, is
 under Also today. **Content** (`/content`, since 2026-11-14) is
-where the articles are: the Autopilot state, today's article in words (why
-it waits, when it does), the week Monday to Sunday and the next topics with
-where each came from, read from `lib/calendar/content.ts` (`get_content`).
-Behind it, All articles (`/content/articles`) is the production board, one
-board in that loop, not the product, and All topics (`/content/topics`) is
-the keyword pool with its estimates, "Overlapping topics" and "Questions
-people ask"; `/dashboard/calendar`, `/keywords` and `/dashboard/keywords`
-redirect there with their query string (`lib/content-paths.ts`). What each
+where the articles are. Its first view is the calendar (since 2026-11-24;
+it was "All articles" at `/content/articles`, behind a first view of today's
+article and the week in words): the production board, every article by day
+with every action, one board in that loop, not the product. Above it, the
+Autopilot state with what its last run did and, in amber, why it did less,
+and the links to the topics ("Next topics", and "Overlapping topics" or
+"Questions people ask" when they have something in them); under it, the
+topics Autopilot picks next with where each came from, read from
+`lib/calendar/content.ts` (`get_content`, which still gives today and the
+week in words). All topics (`/content/topics`) is the keyword pool with its
+estimates, "Overlapping topics" and "Questions people ask". A link about one
+article opens it on the calendar, `/content?article=<id>`
+(`articlePath`); `/content/articles` and `/dashboard/calendar` redirect to
+`/content`, `/keywords` and `/dashboard/keywords` to the topics, with their
+query string (`lib/content-paths.ts`). What each
 stage says, and which next action is offered, lives in
 `lib/domain/operating-loop.ts` so the screen cannot invent a 0% citation
 rate when nothing has been probed. After a failed or held article, which
@@ -65,7 +72,7 @@ name of its page heading:
 |---|---|---|
 | **Today** | `/today` | Overview and Replies (`/dashboard`, `/placements`) |
 | **Growth** | `/growth`, `/growth/ai` | Results and Prompts (`/results`, `/visibility`) |
-| **Content** | `/content`, `/content/articles`, `/content/topics` | Articles and Keywords (`/dashboard/calendar`, `/keywords`) |
+| **Content** | `/content` (the calendar), `/content/topics` | Articles and Keywords (`/dashboard/calendar`, `/keywords`); All articles (`/content/articles`) |
 | **Settings** | `/settings` | it took the account menu (sign out is in Account) and Help |
 
 Help and Contact Us became the public docs at `/docs`. A section is lit on

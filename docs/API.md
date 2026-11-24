@@ -1184,7 +1184,7 @@ moved to `lib/` first, and the route (or page) now calls it too:
 
 | Moved to | Called by |
 | --- | --- |
-| `lib/calendar/read.ts` | `/api/calendar/get` (`?articleId=` for one article: the Content screen's modal), `list_calendar`, `get_article` |
+| `lib/calendar/read.ts` | `/api/calendar/get` (`?articleId=` for one article), `list_calendar`, `get_article` |
 | `lib/calendar/content.ts` (the view), `lib/calendar/content-plan.ts` (the status words, the week, the order Autopilot picks topics in; pure) | `/api/content` (the Content screen, `/content`), `get_content` |
 | `lib/content/export.ts` (Copy HTML, Copy Markdown) | the article view (`components/dashboard/article-modal.tsx`), `get_article` |
 | `lib/integrations/deliveries.ts` (`listDeliveries`) | Settings → Connections → Recent deliveries, `list_deliveries` |
@@ -1237,7 +1237,7 @@ are listed by whitelisted fields, and the Search Console token never leaves
 
 | Tool | Scope | Cost | Input | What it answers |
 | --- | --- | --- | --- | --- |
-| `get_content` | read | free | `topics` (5, max 50) | the Content screen: `autopilot`, `todayArticle` and the `week` Monday to Sunday (UTC days; each article with `status` in the screen's words, `published`, `scheduled`, `writing`, `written`, `waiting` with its `reasons`, `skipped`; null for an empty day), `nextTopics` in the order Autopilot picks them (a week at a time: what the week lacks of the mix first, then by score; docs/AUTOPILOT.md, "A week's mix"), each with `source` (`question`, `autopilot`, `manual`, `unknown`) and `intent`, and the counts behind the links: `topicsTotal`, `topicsHeldBack` (overlapping one already written), `overlapGroups`, `questionsWaiting` (null while Autopilot adds them itself), `articlesTotal` |
+| `get_content` | read | free | `topics` (5, max 50) | Content (`/content`, whose first view is the calendar; today and the week are given in words here): `autopilot`, `todayArticle` and the `week` Monday to Sunday (UTC days; each article with `status` in the screen's words, `published`, `scheduled`, `writing`, `written`, `waiting` with its `reasons`, `skipped`; null for an empty day), `nextTopics` in the order Autopilot picks them (a week at a time: what the week lacks of the mix first, then by score; docs/AUTOPILOT.md, "A week's mix"), each with `source` (`question`, `autopilot`, `manual`, `unknown`) and `intent`, and the counts behind the links: `topicsTotal`, `topicsHeldBack` (overlapping one already written), `overlapGroups`, `questionsWaiting` (null while Autopilot adds them itself), `articlesTotal` |
 | `list_calendar` | read | free | `from?`, `to?` (YYYY-MM-DD, inclusive), `status?` | the site's articles by day, without bodies: keyword, title once written, status, live link, last error |
 | `get_article` | read | free | `articleId`, `format` (`canonical` default, `html`, `markdown`) | one article with its quality report; `canonical`, or `body` as Copy HTML / Copy Markdown give it |
 | `list_deliveries` | read | free | `type?` (wordpress, webflow, shopify, webhook), `limit` (20, max 100) | the latest publish attempts, newest first, failures included; never the payloads |
@@ -1284,8 +1284,9 @@ with `add_keywords` and remove one with `delete_keywords`; open an article
 with `get_article`; rewrite it with `generate_article` (paid), re-check a
 held one with `resettle_article`, publish it with `publish_article`, move it
 with `reschedule_article`, take it off with `unschedule_article`, retry a
-skipped one with `retry_article`. Behind it, All articles is `list_calendar`
-and All topics is `list_keywords`, `schedule_keywords`, `update_keyword`
+skipped one with `retry_article`. The calendar, its first view, is
+`list_calendar` (an article opens there at `/content?article=<id>`), and All
+topics is `list_keywords`, `schedule_keywords`, `update_keyword`
 (star), `suggest_keywords` (paid), `list_question_ideas` and
 `list_duplicate_keywords`; Autopilot on or off is `update_automation_settings`.
 

@@ -290,7 +290,7 @@ A delivery the site refuses leaves the change stored (`not_delivered`,
 `article_links` "suggested"); the next delivery carries it. A push with
 anything proposed is `proposed`: it shows in **Today, Also today**
 ("Push this article", `article_push`, opening the article's modal at
-`/content/articles?article=<id>`) and in **the article modal** (each link:
+`/content?article=<id>`, the calendar) and in **the article modal** (each link:
 the page, the words to link or the sentence to add; the new title and
 description), with **I added it** (status `applied`, `applied_by`
 customer, the measurement starts that day) and **Dismiss**
@@ -371,7 +371,7 @@ none of them computes a number the others compute differently
   sentence (a tie goes to Search Console) and only the other rows carry a
   small "SERP snapshot" (or "Search Console") marker. Never the stored
   identifier.
-- **Articles board** (Content → All articles, `/content/articles`;
+- **Articles board** (Content's first view, the calendar, `/content`;
   `components/dashboard/calendar*.tsx`): from `md` up, a
   month grid starting at the earliest of the oldest unpublished article and
   the oldest published in the last 30 days; months with nothing in them

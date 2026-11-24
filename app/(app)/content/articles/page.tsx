@@ -1,15 +1,14 @@
-import { CalendarView } from "@/components/dashboard/calendar-view";
-import { BackToContent } from "@/components/content/back-to-content";
+import { redirect } from "next/navigation";
+import { LEGACY_CONTENT_REDIRECTS, withQuery } from "@/lib/content-paths";
 
-/** "All articles": the full production board, every article by day. */
-export default function ContentArticlesPage() {
-  return (
-    <div className="flex-1 w-full flex flex-col gap-6">
-      <div>
-        <BackToContent />
-        <h1 className="text-3xl font-bold">Articles</h1>
-      </div>
-      <CalendarView />
-    </div>
-  );
+/**
+ * "All articles" became Content's first view: the calendar is `/content`.
+ * The query string is kept, so `?article=<id>` still opens that article.
+ */
+export default async function ContentArticlesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  redirect(withQuery(LEGACY_CONTENT_REDIRECTS["/content/articles"], await searchParams));
 }

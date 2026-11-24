@@ -46,7 +46,7 @@ describe("pickNextAction", () => {
     const action = pickNextAction(ready, facts({ failedCount: 2 }));
     expect(action?.kind).toBe("attention");
     expect(action?.id).toBe("failed");
-    expect(action?.href).toBe("/content/articles");
+    expect(action?.href).toBe("/content");
   });
 
   it("puts a quality-gate hold ahead of Autopilot", () => {

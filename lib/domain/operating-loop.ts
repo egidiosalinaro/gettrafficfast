@@ -242,7 +242,7 @@ function describePlan(facts: OperatingFacts): LoopStageView {
     return {
       id: "plan",
       status: "todo",
-      href: "/content/articles",
+      href: "/content",
       title: "Plan",
       metric: "calendar empty",
       detail: facts.autopilotEnabled
@@ -254,7 +254,7 @@ function describePlan(facts: OperatingFacts): LoopStageView {
   return {
     id: "plan",
     status: "active",
-    href: "/content/articles",
+    href: "/content",
     title: "Plan",
     metric: onCalendar === 1 ? "1 on the calendar" : `${onCalendar} on the calendar`,
     detail: facts.autopilotEnabled
@@ -268,7 +268,7 @@ function describeProduce(facts: OperatingFacts): LoopStageView {
     return {
       id: "produce",
       status: "blocked",
-      href: "/content/articles",
+      href: "/content",
       title: "Produce",
       metric:
         facts.failedCount === 1
@@ -282,7 +282,7 @@ function describeProduce(facts: OperatingFacts): LoopStageView {
     return {
       id: "produce",
       status: "blocked",
-      href: "/content/articles",
+      href: "/content",
       title: "Produce",
       metric:
         facts.needsReviewCount === 1
@@ -297,7 +297,7 @@ function describeProduce(facts: OperatingFacts): LoopStageView {
     return {
       id: "produce",
       status: "active",
-      href: "/content/articles",
+      href: "/content",
       title: "Produce",
       metric:
         facts.generatingCount === 1
@@ -311,7 +311,7 @@ function describeProduce(facts: OperatingFacts): LoopStageView {
     return {
       id: "produce",
       status: "active",
-      href: "/content/articles",
+      href: "/content",
       title: "Produce",
       metric:
         facts.generatedCount === 1
@@ -327,7 +327,7 @@ function describeProduce(facts: OperatingFacts): LoopStageView {
     return {
       id: "produce",
       status: "pending",
-      href: "/content/articles",
+      href: "/content",
       title: "Produce",
       metric:
         facts.queuedCount === 1
@@ -341,7 +341,7 @@ function describeProduce(facts: OperatingFacts): LoopStageView {
     return {
       id: "produce",
       status: "active",
-      href: "/content/articles",
+      href: "/content",
       title: "Produce",
       metric: "caught up",
       detail: "Nothing is in the writer right now. New days land as keywords are scheduled.",
@@ -351,7 +351,7 @@ function describeProduce(facts: OperatingFacts): LoopStageView {
   return {
     id: "produce",
     status: "todo",
-    href: "/content/articles",
+    href: "/content",
     title: "Produce",
     metric: "not writing yet",
     detail: "Schedule a keyword and the daily job researches, writes and gates the article.",
@@ -592,7 +592,7 @@ export function pickNextAction(
           : `${facts.failedCount} articles failed to generate`,
       description:
         "Open the calendar card and re-queue it. A failed run is never published.",
-      href: "/content/articles",
+      href: "/content",
       cta: "Open articles",
     };
   }
@@ -607,7 +607,7 @@ export function pickNextAction(
           : `${facts.needsReviewCount} articles are waiting for review`,
       description:
         "A quality gate held it back. Read it, then publish it or send it back. Losing a publication beats publishing a broken document.",
-      href: "/content/articles",
+      href: "/content",
       cta: "Open articles",
     };
   }

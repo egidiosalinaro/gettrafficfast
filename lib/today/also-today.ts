@@ -1,5 +1,5 @@
 import { holdReasons, REASON_NOT_RECORDED } from "@/lib/content/hold-reasons";
-import { CONTENT_PATHS } from "@/lib/content-paths";
+import { articlePath } from "@/lib/content-paths";
 import { linkFinding, stoppedLine, type LinkSearchOutcome } from "@/lib/placements/reply-link";
 import type { TodayReply } from "@/lib/placements/today";
 import { quoteShort, type StaleFact } from "@/lib/voice/staleness";
@@ -116,9 +116,12 @@ export interface PushProposal {
   newTitle: boolean;
 }
 
-/** The article board, with this article's modal open. */
+/**
+ * Where an article's actions live: the calendar in Content, with this
+ * article's modal open, today's article or any other.
+ */
 export function articleModalHref(articleId: string): string {
-  return `${CONTENT_PATHS.articles}?article=${encodeURIComponent(articleId)}`;
+  return articlePath(articleId);
 }
 
 export function pushItems(proposals: readonly PushProposal[]): AlsoTodayItem[] {
@@ -136,11 +139,6 @@ export function pushItems(proposals: readonly PushProposal[]): AlsoTodayItem[] {
       href: articleModalHref(p.articleId),
       tools: ["resolve_article_push"],
     }));
-}
-
-/** Where an article's actions live: today's on the Content screen, any other on the board of every article. */
-export function articleHref(isToday: boolean): string {
-  return isToday ? CONTENT_PATHS.home : CONTENT_PATHS.articles;
 }
 /** Where About you is edited. */
 export const VOICE_HREF = "/settings/voice";
@@ -181,7 +179,7 @@ export function articleItems(articles: readonly HeldArticle[], today: string | n
         isToday,
         reason: held ? (reasons[0] ?? REASON_NOT_RECORDED) : null,
         moreReasons: Math.max(0, reasons.length - 1),
-        href: articleHref(isToday),
+        href: articleModalHref(a.id),
         tools: held
           ? ["resettle_article", "publish_article", "generate_article", "dismiss_today_articles"]
           : ["retry_article", "dismiss_today_articles"],

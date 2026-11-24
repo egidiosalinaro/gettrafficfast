@@ -26,7 +26,7 @@ describe("Today: a push to apply", () => {
         mainQuery: "cart email subject lines",
         links: 2,
         newTitle: true,
-        href: "/content/articles?article=a1",
+        href: "/content?article=a1",
         tools: ["resolve_article_push"],
       },
     ]);
@@ -35,7 +35,7 @@ describe("Today: a push to apply", () => {
     );
     expect(html).toContain("Push this article");
     expect(html).toContain("Add 2 links from your best pages and a new search title, for “cart email subject lines”.");
-    expect(html).toContain('href="/content/articles?article=a1"');
+    expect(html).toContain('href="/content?article=a1"');
   });
 
   it("a proposal with nothing left to do is not a card", () => {

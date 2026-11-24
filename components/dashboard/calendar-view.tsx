@@ -25,10 +25,8 @@ import Link from "next/link";
 import { CONTENT_PATHS } from "@/lib/content-paths";
 
 /**
- * The full production board, "All articles" in Content
- * (`/content/articles`): every article by day, with the actions the modal
- * and the cards offer. The Content screen's first view shows today and the
- * week; this is everything else.
+ * The full production board, Content's first view (`/content`): every
+ * article by day, with the actions the modal and the cards offer.
  */
 export function CalendarView() {
   const [articles, setArticles] = useState<Article[]>([]);
@@ -73,7 +71,7 @@ export function CalendarView() {
   }, [loadArticles]);
 
   // `?article=<id>` opens that article's modal once it is on the board
-  // (Today's "Push this article" links here).
+  // (Today's "Open the article" and "Push this article" link here).
   const openedFromLink = useRef(false);
   useEffect(() => {
     if (openedFromLink.current || articles.length === 0) return;
@@ -187,6 +185,16 @@ export function CalendarView() {
     [loadArticles]
   );
 
+  // Closing the modal takes `?article=` off the address, so a reload does
+  // not open it again.
+  const closeArticle = useCallback(() => {
+    setViewedArticleId(null);
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("article")) return;
+    url.searchParams.delete("article");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, []);
+
   const viewedArticle =
     articles.find((a) => a.id === viewedArticleId) ?? null;
 
@@ -225,7 +233,7 @@ export function CalendarView() {
       <ArticleModal
         article={viewedArticle}
         hasIntegration={hasIntegration}
-        onClose={() => setViewedArticleId(null)}
+        onClose={closeArticle}
         onRequeue={handleRequeue}
         onRegenerate={handleGenerateNow}
         onPublish={handlePublishNow}

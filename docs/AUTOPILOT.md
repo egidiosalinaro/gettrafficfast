@@ -268,8 +268,8 @@ and the verdict written (one update per intent, the site's rows only), so the
 Content screen reads what the sweep schedules by. A site with Autopilot off
 keeps null rows; every reader computes the same rules' verdict for them.
 
-**Next topics** on the Content screen (`nextTopics`, `lib/calendar/
-content-plan.ts`) lists the pool in the mix's order from an empty week
+**Next topics** on the Content screen ("Picked next", under the calendar;
+`nextTopics`, `lib/calendar/content-plan.ts`) lists the pool in the mix's order from an empty week
 (`mixOrder`), each with a small tag beside its source: Comparison, How-to,
 Problem, Core topic. The sweep also counts what the calendar already holds,
 so the first topic listed is not always the one tomorrow's run picks.

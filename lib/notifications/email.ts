@@ -120,7 +120,7 @@ export function articleFailedEmail(keyword: string, attempts: number, reason: st
        could not be generated after ${tries} and has been paused.</p>
        <p>${escapeHtml(reason)}</p>
        <p>You can re-queue it from the
-       <a href="${APP_URL}/content/articles">articles</a> — open the article card and
+       <a href="${APP_URL}/content">calendar</a> — open the article card and
        click <strong>Re-queue</strong>.</p>`
     ),
   };
@@ -237,7 +237,7 @@ export function articleNeedsReviewEmail(keyword: string, reasons: string[]) {
        your site.</p>
        ${list}
        <p>The content is safe and nothing was lost. Open the article from your
-       <a href="${APP_URL}/content/articles">articles</a> to review it, then publish it
+       <a href="${APP_URL}/content">calendar</a> to review it, then publish it
        yourself or send it back for regeneration.</p>
        <p style="font-size:13px;color:#555">We would rather miss a publication
        than put broken content on your domain.</p>`

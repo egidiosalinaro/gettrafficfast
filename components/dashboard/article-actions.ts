@@ -47,15 +47,6 @@ export function toArticle(raw: RawCalendarArticle): Article {
   };
 }
 
-/** One article of the selected site, bodies included, or null when it is not one. */
-export async function fetchArticle(articleId: string): Promise<Article | null> {
-  const res = await fetch(`/api/calendar/get?articleId=${encodeURIComponent(articleId)}`);
-  if (!res.ok) throw new Error("Could not open the article.");
-  const { articles } = (await res.json()) as { articles?: RawCalendarArticle[] };
-  const found = (articles ?? []).find((a) => a.id === articleId);
-  return found ? toArticle(found) : null;
-}
-
 /** Puts a failed article back in the queue. */
 export async function requeueArticle(articleId: string): Promise<boolean> {
   const res = await fetch("/api/calendar/requeue", {

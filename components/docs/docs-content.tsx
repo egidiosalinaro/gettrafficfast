@@ -229,6 +229,14 @@ export function DocsContent({ engines, toolGroups, limits }: DocsContentProps) {
         <P>Content is your blog: a calendar with one article a day, and the topics coming next.</P>
         <Bullets>
           <li>
+            <Strong>The calendar first.</Strong> Content opens on the calendar: every article on its day, with its
+            state. Open one to read it, regenerate it or publish it; a failed one can be put back in the queue, and
+            any one can be taken off the calendar. On a computer it is a month grid where you can drag an article that is
+            not written yet to another day; on a phone, a list by day, what is coming first. Above it: whether
+            Autopilot is on, what its last run did, and the way to your topics. Under it: the topics Autopilot picks
+            next.
+          </li>
+          <li>
             <Strong>One article a day.</Strong> Each topic on the calendar becomes an article on its day: researched
             against the pages that rank now, written for your business, checked, then published to your connected
             site. Without a connected site it stays on the calendar, ready to copy.

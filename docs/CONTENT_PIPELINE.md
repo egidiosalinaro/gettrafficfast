@@ -476,10 +476,9 @@ and the card, the modal and `publish_article`'s `issues` all read
 `holdReasons` (`lib/content/hold-reasons.ts`): `blocking`, else `last_error`
 split on " | ", else the review-grade issues. With none of them, the modal
 says "The reason was not recorded." instead of an empty list. Regenerate and
-Publish anyway are where they were. The Content screen (`/content`) and
-`get_content` read the same function: a held article reads "Waiting for
-you:" and its first reason, never an empty one (`contentArticle`,
-`lib/calendar/content-plan.ts`).
+Publish anyway are where they were. `get_content` reads the same function:
+a held article reads "Waiting for you:" and its first reason, never an
+empty one (`contentArticle`, `lib/calendar/content-plan.ts`).
 
 **Re-checking a held article without spending**: `resettle_article` (write
 scope, free, `lib/articles/resettle.ts`) re-runs only the deterministic gates

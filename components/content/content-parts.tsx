@@ -1,69 +1,42 @@
 import Link from "next/link";
-import { ChevronRight, ExternalLink, Loader2, X } from "lucide-react";
+import { ChevronRight, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { InlineConfirm } from "@/components/ui/inline-confirm";
 import { TOPIC_INTENT_LABEL } from "@/lib/keywords/intent";
 import { threadHost } from "@/lib/keywords/questions";
 import { TOPIC_SOURCE_LABEL } from "@/lib/keywords/source";
 import { CONTENT_PATHS } from "@/lib/content-paths";
-import { contentStatusLabel, type ContentArticle, type ContentDay, type ContentStatus, type ContentTopic } from "@/lib/calendar/content-plan";
+import type { ContentTopic } from "@/lib/calendar/content-plan";
 import type { ContentView } from "@/lib/calendar/content";
 import { cn, pluralize } from "@/lib/utils";
 
 /**
- * The pieces of the Content screen (`/content`), stateless: the container
- * (content-screen.tsx) reads GET /api/content and passes the view and the
- * handlers. Rendered on their own in tests.
+ * The pieces of the Content screen (`/content`) around the calendar,
+ * stateless: the container (content-screen.tsx) reads GET /api/content and
+ * passes the view and the handlers. Rendered on their own in tests.
  *
- * Phone first: one column, rows of 56px, every control 44px. From `lg` the
- * day (today, the week) sits beside the plan (next topics, all articles).
+ * Phone first: one column, rows of 56px, every control 44px. The header
+ * (Autopilot, the links to the topics) sits above the calendar; the topics
+ * Autopilot picks next sit under it.
  */
 
-/** Where a held article is dealt with: Today lists it under "Also today". */
-export const TODAY_PATH = "/today";
 export const AUTOPILOT_SETTINGS_PATH = "/settings/automation";
 
-const SECTION_HEADING = "text-xs font-semibold uppercase tracking-wide text-muted-foreground";
+export const SECTION_HEADING = "text-xs font-semibold uppercase tracking-wide text-muted-foreground";
 const CARD = "rounded-xl border bg-card";
+const CHIP = "inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-lg border px-3 text-sm hover:opacity-90 md:min-h-9";
 
-/** The colour a status is said in; muted for everything that needs nobody. */
-export function statusTone(status: ContentStatus): string {
-  switch (status) {
-    case "published":
-      return "text-emerald-700 dark:text-emerald-400";
-    case "waiting":
-      return "text-amber-700 dark:text-amber-400";
-    case "skipped":
-      return "text-red-700 dark:text-red-400";
-    default:
-      return "text-muted-foreground";
-  }
-}
-
-/** Today's status as a sentence: what is happening, and why it waits when it does. */
-export function todayLine(article: ContentArticle): string {
-  switch (article.status) {
-    case "published":
-      return "Published";
-    case "scheduled":
-      return "Scheduled";
-    case "writing":
-      return "Writing now";
-    case "written":
-      return "Written, not on your site yet";
-    case "waiting":
-      return `Waiting for you: ${article.reasons[0]}`;
-    case "skipped":
-      return "Skipped: writing failed";
-    default:
-      return contentStatusLabel(article.status, article.articleStatus);
-  }
-}
-
+/**
+ * The title, and once GET /api/content has answered, the Autopilot state:
+ * what its last run did, and why it did less when it did (amber). `null`
+ * while it loads: the title alone, so the calendar under it never waits.
+ */
 export function ContentHeader({
   view,
 }: {
-  view: Pick<ContentView, "autopilot" | "site"> & Partial<Pick<ContentView, "autopilotRun">>;
+  view: (Pick<ContentView, "autopilot" | "site"> & Partial<Pick<ContentView, "autopilotRun">>) | null;
 }) {
+  if (!view) return <h1 className="text-3xl font-bold">Content</h1>;
   const run = view.autopilotRun ?? null;
   const attention = run?.state === "stalled" || run?.state === "skipped";
   return (
@@ -103,109 +76,36 @@ export function ContentHeader({
   );
 }
 
-export function TodayCard({
-  article,
-  opening,
-  onOpen,
+/**
+ * Everything above the calendar: the title, the Autopilot state and the
+ * links to the topics; while GET /api/content has not answered, the title
+ * alone, and if it failed, a way to read it again.
+ */
+export function ContentTop({
+  view,
+  failed,
+  onRetry,
 }: {
-  article: ContentArticle | null;
-  /** The article being fetched for the modal. */
-  opening: string | null;
-  onOpen: (articleId: string) => void;
+  view: ContentView | null;
+  failed: boolean;
+  onRetry: () => void;
 }) {
   return (
-    <section aria-labelledby="content-today" className={cn(CARD, "flex flex-col gap-1 p-4")}>
-      <h2 id="content-today" className="text-xs font-semibold text-muted-foreground">
-        Today
-      </h2>
-      {article ? (
-        <>
-          <button
-            type="button"
-            onClick={() => onOpen(article.id)}
-            className="flex min-h-11 items-center gap-2 text-left text-base font-semibold leading-snug hover:underline"
-          >
-            <span className="break-words">{article.title ?? "Untitled article"}</span>
-            {opening === article.id && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" aria-label="Opening" />}
-          </button>
-          <p className={cn("text-sm line-clamp-3", statusTone(article.status))}>{todayLine(article)}</p>
-          {article.status === "waiting" && (
-            <Link href={TODAY_PATH} className="inline-flex min-h-11 w-fit items-center gap-1 text-sm font-semibold hover:underline">
-              Fix it in Today
-              <ChevronRight className="h-4 w-4" aria-hidden />
-            </Link>
-          )}
-          {article.status === "published" && article.publishedUrl && (
-            <a
-              href={article.publishedUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-11 w-fit items-center gap-1 text-sm font-semibold hover:underline"
-            >
-              Open on your site
-              <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-            </a>
-          )}
-        </>
+    <div className="flex flex-col gap-3">
+      <ContentHeader view={view} />
+      {view ? (
+        <TopicLinks view={view} />
       ) : (
-        <p className="py-2 text-sm text-muted-foreground">Nothing is scheduled today.</p>
+        failed && (
+          <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <p>The Autopilot state and the topics could not be loaded.</p>
+            <Button variant="outline" className="h-11 md:h-9" onClick={onRetry}>
+              Try again
+            </Button>
+          </div>
+        )
       )}
-    </section>
-  );
-}
-
-function WeekRow({ day, opening, onOpen }: { day: ContentDay; opening: string | null; onOpen: (articleId: string) => void }) {
-  const weekday = (
-    <span className={cn("w-9 shrink-0 text-xs font-semibold", day.isToday ? "text-foreground" : "text-muted-foreground")}>
-      {day.weekday}
-    </span>
-  );
-  const article = day.article;
-  if (!article) {
-    return (
-      <div className="flex min-h-14 items-center gap-3 px-3.5 py-2" aria-current={day.isToday ? "date" : undefined}>
-        {weekday}
-        <span className="flex-1 text-sm text-muted-foreground">No article</span>
-      </div>
-    );
-  }
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(article.id)}
-      aria-current={day.isToday ? "date" : undefined}
-      className={cn(
-        "flex min-h-14 w-full items-center gap-3 px-3.5 py-2 text-left transition-colors hover:bg-muted/40",
-        day.isToday && "bg-muted/30"
-      )}
-    >
-      {weekday}
-      <span className="min-w-0 flex-1 truncate text-sm">{article.title ?? "Untitled article"}</span>
-      {opening === article.id ? (
-        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" aria-label="Opening" />
-      ) : (
-        <span className={cn("shrink-0 text-xs", statusTone(article.status))}>
-          {contentStatusLabel(article.status, article.articleStatus)}
-        </span>
-      )}
-    </button>
-  );
-}
-
-export function WeekList({ week, opening, onOpen }: { week: ContentDay[]; opening: string | null; onOpen: (articleId: string) => void }) {
-  return (
-    <section aria-labelledby="content-week" className="flex flex-col gap-2">
-      <h2 id="content-week" className={SECTION_HEADING}>
-        This week
-      </h2>
-      <ul className={cn(CARD, "overflow-hidden")}>
-        {week.map((day) => (
-          <li key={day.day} className="border-t first:border-t-0">
-            <WeekRow day={day} opening={opening} onOpen={onOpen} />
-          </li>
-        ))}
-      </ul>
-    </section>
+    </div>
   );
 }
 
@@ -286,7 +186,24 @@ export function NextTopicsList({
   );
 }
 
-/** The links under the topics: only what has something in it. */
+/**
+ * The way to the topics, above the calendar: every topic, then the two
+ * sections of the topics view worth a look, only when they have something
+ * in them. Chips that wrap, 44px tall on a phone.
+ */
+export function TopicLinks({ view }: { view: Pick<ContentView, "topicsTotal" | "overlapGroups" | "questionsWaiting"> }) {
+  return (
+    <nav aria-label="Topics" className="flex flex-wrap gap-2">
+      <Link href={CONTENT_PATHS.topics} className={cn(CHIP, "bg-card font-semibold")}>
+        <span>Next topics{view.topicsTotal > 0 ? ` · ${view.topicsTotal} to pick from` : ""}</span>
+        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+      </Link>
+      <TopicNotices view={view} />
+    </nav>
+  );
+}
+
+/** The links beside "Next topics": only what has something in it. */
 export function TopicNotices({ view }: { view: Pick<ContentView, "overlapGroups" | "questionsWaiting"> }) {
   const rows: Array<{ href: string; text: string; tone: string }> = [];
   if (view.overlapGroups > 0) {
@@ -305,29 +222,13 @@ export function TopicNotices({ view }: { view: Pick<ContentView, "overlapGroups"
   }
   if (rows.length === 0) return null;
   return (
-    <div className="flex flex-col gap-2">
+    <>
       {rows.map((row) => (
-        <Link
-          key={row.href}
-          href={row.href}
-          className={cn("flex min-h-11 items-center justify-between gap-3 rounded-lg border px-3.5 text-sm hover:opacity-90", row.tone)}
-        >
-          <span>{row.text}</span>
+        <Link key={row.href} href={row.href} className={cn(CHIP, row.tone)}>
+          <span className="min-w-0 break-words">{row.text}</span>
           <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
         </Link>
       ))}
-    </div>
-  );
-}
-
-export function AllArticlesLink({ total }: { total: number }) {
-  return (
-    <Link
-      href={CONTENT_PATHS.articles}
-      className="flex min-h-[52px] items-center justify-between gap-3 rounded-xl border px-3.5 hover:bg-muted/40"
-    >
-      <span className="text-sm font-semibold">All articles · {total}</span>
-      <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden />
-    </Link>
+    </>
   );
 }

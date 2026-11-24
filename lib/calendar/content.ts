@@ -17,10 +17,13 @@ import {
 } from "./content-plan";
 
 /**
- * The Content screen (`/content`) for one site, as GET /api/content answers
- * it and `get_content` reads it: today's article, the week, the topics
- * Autopilot picks from next, and the counts behind the links to the rest
- * (all articles, overlapping topics, questions people ask).
+ * Content (`/content`) for one site, as GET /api/content answers it and
+ * `get_content` reads it: the Autopilot state, today's article, the week,
+ * the topics Autopilot picks from next, and the counts behind the links to
+ * the rest (topics, overlapping topics, questions people ask). The screen
+ * shows the Autopilot state and the topics around its calendar, which reads
+ * the articles itself (GET /api/calendar/get); today and the week are for
+ * `get_content`, in words.
  *
  * Reads only, through the caller's client (RLS, or the owner-scoped service
  * role), every one filtered by `business_id`: the site, this week's
@@ -61,7 +64,7 @@ export interface ContentView {
    * not counted here.
    */
   questionsWaiting: number | null;
-  /** Every article of the site, any state: "All articles · N". */
+  /** Every article of the site, any state (`get_content`; the screen draws them on its calendar). */
   articlesTotal: number;
 }
 

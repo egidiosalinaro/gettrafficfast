@@ -515,7 +515,7 @@ describe("GET /api/home", () => {
             },
             {
               "detail": "Autopilot keeps empty days ahead filled from the pool.",
-              "href": "/content/articles",
+              "href": "/content",
               "id": "plan",
               "metric": "4 on the calendar",
               "status": "active",
@@ -523,7 +523,7 @@ describe("GET /api/home", () => {
             },
             {
               "detail": "The daily run picks the next queued day at 08:00 UTC.",
-              "href": "/content/articles",
+              "href": "/content",
               "id": "produce",
               "metric": "1 queued",
               "status": "pending",
@@ -611,7 +611,7 @@ describe("GET /api/home", () => {
             },
             {
               "detail": "Keywords become one article a day on the calendar. Autopilot, if you turn it on, keeps that filled.",
-              "href": "/content/articles",
+              "href": "/content",
               "id": "plan",
               "metric": "calendar empty",
               "status": "todo",
@@ -619,7 +619,7 @@ describe("GET /api/home", () => {
             },
             {
               "detail": "Schedule a keyword and the daily job researches, writes and gates the article.",
-              "href": "/content/articles",
+              "href": "/content",
               "id": "produce",
               "metric": "not writing yet",
               "status": "todo",

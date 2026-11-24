@@ -7,8 +7,11 @@ import { AUTOPILOT_REASON_CODES } from "@/lib/automation/run-status";
 import { defineTool } from "./tool";
 
 /**
- * The Content screen (`/content`) as a tool: what it shows, read by the
- * function GET /api/content reads (lib/calendar/content.ts). Free.
+ * Content (`/content`) as a tool, read by the function GET /api/content
+ * reads (lib/calendar/content.ts): the Autopilot state and the topics the
+ * screen shows above and under its calendar, with today and the week in
+ * words (the screen draws those on the calendar; list_calendar lists every
+ * article). Free.
  *
  * Every action of the screen is a tool already: a topic is added with
  * add_keywords and removed with delete_keywords, an article is read with
@@ -39,7 +42,7 @@ export const getContent = defineTool({
   name: "get_content",
   title: "Get Content",
   description:
-    "The Content screen: whether Autopilot is on and what its last run did for this site (and, when it left days empty or skipped the site, why, in words), today's article (title, status in words, why it waits when it does), this week Monday to Sunday (one row a day, null when the day is empty), the next topics Autopilot picks from, in its order (a week at a time, what the week lacks of the mix of comparison, platform how-to and problem pieces first, then by score), with where each came from (autopilot, question asked in a public thread, added by hand, or not recorded for topics older than 2026-11-14) and the kind of search it answers, and the counts behind the screen's links: topics, topics held back for overlapping, groups of overlapping topics, questions people ask not yet added (null while Autopilot adds them on its own), all articles. Days are UTC. Reads the site's own rows: no model is asked.",
+    "Content, the screen whose first view is the calendar of every article (/content; an article opens there at /content?article=<id>), in one read: whether Autopilot is on and what its last run did for this site (and, when it left days empty or skipped the site, why, in words), today's article (title, status in words, why it waits when it does), this week Monday to Sunday (one row a day, null when the day is empty), the next topics Autopilot picks from, in its order (a week at a time, what the week lacks of the mix of comparison, platform how-to and problem pieces first, then by score), with where each came from (autopilot, question asked in a public thread, added by hand, or not recorded for topics older than 2026-11-14) and the kind of search it answers, and the counts behind the screen's links: topics, topics held back for overlapping, groups of overlapping topics, questions people ask not yet added (null while Autopilot adds them on its own), all articles. Days are UTC. Reads the site's own rows: no model is asked.",
   input: z.object({
     topics: z
       .number()

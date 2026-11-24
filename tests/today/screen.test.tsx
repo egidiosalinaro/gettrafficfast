@@ -156,8 +156,9 @@ describe("Also today", () => {
     // The held and the failed article can be ignored, and two of them get "Ignore all".
     expect(html.match(/>Ignore</g)).toHaveLength(2);
     expect(html.replace(/<!-- -->/g, "")).toContain("Ignore all 2 articles");
-    expect(html).toContain('href="/content"');
-    expect(html).toContain('href="/content/articles"');
+    // Each lands on the calendar with that article open, today's or any other.
+    expect(html).toContain('href="/content?article=a1"');
+    expect(html).toContain('href="/content?article=a2"');
     expect(html).toContain("Paste link");
     expect(html).toContain("GTF found more than one reply of yours there");
     expect(html).toContain("Still true?");

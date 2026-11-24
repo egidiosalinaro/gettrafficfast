@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { LEGACY_CONTENT_REDIRECTS, withQuery } from "@/lib/content-paths";
 
-/** Articles became "All articles" in Content (`/content/articles`); the query string is kept. */
+/** Articles became the calendar in Content (`/content`); the query string is kept. */
 export default async function LegacyCalendarPage({
   searchParams,
 }: {

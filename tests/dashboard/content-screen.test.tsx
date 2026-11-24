@@ -3,11 +3,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 /**
  * The Content screen (`/content`) as it renders, and where the old Articles
- * and Keywords addresses go. Pinned: a held article says why and links to
- * Today; every day of the week has a row; a topic says where it came from
- * (an old one says it was not recorded, never a guess) and shows no number;
- * the notices appear only with something in them; every control is 44px on
- * a phone; the old addresses redirect with their query string.
+ * and Keywords addresses go. Pinned: the calendar is the page, under the
+ * Autopilot state and the links to the topics; a topic says where it came
+ * from (an old one says it was not recorded, never a guess) and shows no
+ * number; the notices appear only with something in them; every control is
+ * 44px on a phone; the old addresses, All articles included, redirect with
+ * their query string, so `?article=<id>` still opens that article.
  */
 
 const nav = vi.hoisted(() => ({ to: null as string | null }));
@@ -17,18 +18,16 @@ vi.mock("next/navigation", () => ({
     throw new Error("NEXT_REDIRECT");
   },
 }));
+// The board reads the articles itself: here it only has to be on the page.
+vi.mock("@/components/dashboard/calendar-view", () => ({
+  CalendarView: () => <div data-testid="calendar-view" />,
+}));
 
-import {
-  AllArticlesLink,
-  ContentHeader,
-  NextTopicsList,
-  TodayCard,
-  TopicNotices,
-  WeekList,
-  todayLine,
-} from "@/components/content/content-parts";
-import { contentArticle, describeWeek, type PlanArticle } from "@/lib/calendar/content-plan";
-import { CONTENT_PATHS, withQuery } from "@/lib/content-paths";
+import { ContentHeader, ContentTop, NextTopicsList, TopicLinks, TopicNotices } from "@/components/content/content-parts";
+import ContentPage from "@/app/(app)/content/page";
+import ContentArticlesPage from "@/app/(app)/content/articles/page";
+import type { ContentView } from "@/lib/calendar/content";
+import { articlePath, CONTENT_PATHS, withQuery } from "@/lib/content-paths";
 import LegacyCalendarPage from "@/app/(app)/dashboard/calendar/page";
 import LegacyKeywordsPage from "@/app/(app)/keywords/page";
 import LegacyDashboardKeywordsPage from "@/app/(app)/dashboard/keywords/page";
@@ -36,17 +35,20 @@ import LegacyDashboardKeywordsPage from "@/app/(app)/dashboard/keywords/page";
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 const noop = () => {};
 
-const article = (over: Partial<PlanArticle>): PlanArticle => ({
-  id: "art-1",
-  scheduledDate: "2026-11-14",
-  status: "queued",
-  title: "How answer engines pick their sources",
-  keyword: "answer engine sources",
-  publishedUrl: null,
-  lastError: null,
-  qualityReport: null,
-  ...over,
-});
+const VIEW: ContentView = {
+  today: "2026-11-14",
+  site: { name: "Acme", host: "acme.test" },
+  autopilot: true,
+  autopilotRun: { state: "stalled", message: "5 days of the next 14 have no article: no topic was left to schedule.", lastRun: null },
+  todayArticle: null,
+  week: [],
+  nextTopics: [],
+  topicsTotal: 12,
+  topicsHeldBack: 0,
+  overlapGroups: 2,
+  questionsWaiting: null,
+  articlesTotal: 41,
+};
 
 describe("the old addresses", () => {
   const go = async (page: (p: { searchParams: Promise<Record<string, string | string[] | undefined>> }) => Promise<void>, params: Record<string, string | string[] | undefined>) => {
@@ -55,11 +57,24 @@ describe("the old addresses", () => {
     return nav.to;
   };
 
-  it("send Articles to All articles and Keywords to the topics, query string kept", async () => {
-    expect(await go(LegacyCalendarPage, {})).toBe("/content/articles");
-    expect(await go(LegacyCalendarPage, { view: "list" })).toBe("/content/articles?view=list");
+  it("send Articles to the calendar and Keywords to the topics, query string kept", async () => {
+    expect(await go(LegacyCalendarPage, {})).toBe("/content");
+    expect(await go(LegacyCalendarPage, { view: "list" })).toBe("/content?view=list");
     expect(await go(LegacyKeywordsPage, { search: "seo", tag: ["a", "b"] })).toBe("/content/topics?search=seo&tag=a&tag=b");
     expect(await go(LegacyDashboardKeywordsPage, { search: "ai seo" })).toBe("/content/topics?search=ai+seo");
+  });
+
+  it("send All articles to the calendar, keeping the article to open", async () => {
+    expect(await go(ContentArticlesPage, {})).toBe("/content");
+    expect(await go(ContentArticlesPage, { article: "art-1" })).toBe("/content?article=art-1");
+    expect(await go(ContentArticlesPage, { article: "art-1", view: "list" })).toBe("/content?article=art-1&view=list");
+    expect(await go(LegacyCalendarPage, { article: "art-1" })).toBe("/content?article=art-1");
+  });
+
+  it("link one article to the calendar with its modal open", () => {
+    expect(articlePath("art-1")).toBe("/content?article=art-1");
+    expect(articlePath("a b&c")).toBe("/content?article=a%20b%26c");
+    expect(CONTENT_PATHS.home).toBe("/content");
   });
 
   it("builds the target with every value of the query, and nothing when there is none", () => {
@@ -100,60 +115,33 @@ describe("the top line", () => {
   });
 });
 
-describe("today's article", () => {
-  it("says why it waits, and links to Today, where it is dealt with", () => {
-    const held = contentArticle(
-      article({ status: "needs_review", qualityReport: { blocking: [{ message: "One figure is not in Facts for articles." }] } })
-    );
-    const html = renderToStaticMarkup(<TodayCard article={held} opening={null} onOpen={noop} />);
-    expect(text(html)).toContain("How answer engines pick their sources");
-    expect(text(html)).toContain("Waiting for you: One figure is not in Facts for articles.");
-    expect(html).toContain('href="/today"');
-    expect(text(html)).toContain("Fix it in Today");
+describe("the page", () => {
+  it("is the calendar, under the title", () => {
+    const html = renderToStaticMarkup(<ContentPage />);
+    expect(html).toContain('data-testid="calendar-view"');
+    expect(html.indexOf(">Content</h1>")).toBeGreaterThan(-1);
+    expect(html.indexOf(">Content</h1>")).toBeLessThan(html.indexOf('data-testid="calendar-view"'));
+    // Nothing of the old first view: no week strip, no today card, no board of its own.
+    expect(html).not.toContain("This week");
+    expect(html).not.toContain("All articles");
   });
 
-  it("links a published article to its live page, and says an empty day is empty", () => {
-    const live = contentArticle(article({ status: "published", publishedUrl: "https://acme.test/blog/sources" }));
-    const html = renderToStaticMarkup(<TodayCard article={live} opening={null} onOpen={noop} />);
-    expect(html).toContain('href="https://acme.test/blog/sources"');
-    expect(html).toContain('rel="noopener noreferrer"');
-    expect(text(renderToStaticMarkup(<TodayCard article={null} opening={null} onOpen={noop} />))).toBe(
-      "Today Nothing is scheduled today."
-    );
-  });
-
-  it("words every state", () => {
-    const line = (status: string, over: Partial<PlanArticle> = {}) => todayLine(contentArticle(article({ status, ...over })));
-    expect(line("queued")).toBe("Scheduled");
-    expect(line("generating")).toBe("Writing now");
-    expect(line("generated")).toBe("Written, not on your site yet");
-    expect(line("failed", { lastError: "timed out" })).toBe("Skipped: writing failed");
-    expect(line("needs_review")).toBe("Waiting for you: The reason was not recorded.");
-  });
-});
-
-describe("this week", () => {
-  const week = describeWeek(
-    [
-      article({ id: "mon", scheduledDate: "2026-11-09", status: "published" }),
-      article({ id: "fri", scheduledDate: "2026-11-13", status: "needs_review" }),
-      article({ id: "sat", scheduledDate: "2026-11-14", status: "generating" }),
-      article({ id: "sun", scheduledDate: "2026-11-15", status: "failed" }),
-    ],
-    "2026-11-14"
-  );
-  const html = renderToStaticMarkup(<WeekList week={week} opening={null} onOpen={noop} />);
-
-  it("has a row a day, Monday first, with the status in words and empty days said", () => {
-    expect((html.match(/<li/g) ?? []).length).toBe(7);
+  it("puts the Autopilot state, its last run and the way to the topics above the calendar", () => {
+    const html = renderToStaticMarkup(<ContentTop view={VIEW} failed={false} onRetry={noop} />);
     const shown = text(html);
-    expect(shown).toMatch(/^This week Mon .+ Published Tue No article Wed No article Thu No article Fri .+ Waiting Sat .+ Writing Sun .+ Skipped$/);
+    expect(shown).toContain("Autopilot on");
+    expect(shown).toContain("Autopilot: 5 days of the next 14 have no article: no topic was left to schedule.");
+    expect(html).toContain('role="status"');
+    expect(shown).toContain("Next topics · 12 to pick from");
+    expect(html).toContain(`href="${CONTENT_PATHS.topics}"`);
+    expect(shown).toContain("2 groups of topics overlap");
   });
 
-  it("opens an article from its row, a 56px target, and marks today", () => {
-    expect((html.match(/<button/g) ?? []).length).toBe(4);
-    expect(html).toContain("min-h-14");
-    expect(html).toContain('aria-current="date"');
+  it("shows the title alone while loading, and a way to read again when it failed", () => {
+    expect(text(renderToStaticMarkup(<ContentTop view={null} failed={false} onRetry={noop} />))).toBe("Content");
+    const failed = renderToStaticMarkup(<ContentTop view={null} failed onRetry={noop} />);
+    expect(failed).toContain('role="alert"');
+    expect(text(failed)).toContain("Try again");
   });
 });
 
@@ -200,7 +188,7 @@ describe("next topics", () => {
   });
 });
 
-describe("the notices and the board link", () => {
+describe("the links to the topics", () => {
   it("appear only with something in them", () => {
     expect(renderToStaticMarkup(<TopicNotices view={{ overlapGroups: 0, questionsWaiting: null }} />)).toBe("");
     expect(renderToStaticMarkup(<TopicNotices view={{ overlapGroups: 0, questionsWaiting: 0 }} />)).toBe("");
@@ -213,9 +201,14 @@ describe("the notices and the board link", () => {
     );
   });
 
-  it("counts every article on the way to the board", () => {
-    const html = renderToStaticMarkup(<AllArticlesLink total={41} />);
-    expect(text(html)).toBe("All articles · 41");
-    expect(html).toContain('href="/content/articles"');
+  it("always lead to every topic, with how many are left to pick from, 44px on a phone", () => {
+    const html = renderToStaticMarkup(<TopicLinks view={{ topicsTotal: 0, overlapGroups: 0, questionsWaiting: null }} />);
+    expect(text(html)).toBe("Next topics");
+    expect(html).toContain(`href="${CONTENT_PATHS.topics}"`);
+    expect(html).toContain("min-h-11");
+    expect(text(renderToStaticMarkup(<TopicLinks view={{ topicsTotal: 7, overlapGroups: 0, questionsWaiting: 3 }} />))).toBe(
+      "Next topics · 7 to pick from Questions people ask · 3"
+    );
   });
+
 });

@@ -1,12 +1,16 @@
 /**
- * Where the Content section lives (docs/ARCHITECTURE.md): one screen for
- * today, the week and the next topics, and two views behind it. Every link
- * to Articles or Keywords points here; the old addresses redirect.
+ * Where the Content section lives (docs/ARCHITECTURE.md): the calendar of
+ * every article, with the Autopilot state above it, and the topics behind
+ * it. Every link to Articles or Keywords points here; the old addresses
+ * redirect.
  */
 export const CONTENT_PATHS = {
+  /**
+   * The calendar: every article by day, the production board. "All
+   * articles" (`/content/articles`) was a page of its own until the
+   * calendar became Content's first view; that address redirects here.
+   */
   home: "/content",
-  /** Every article by day: the production board that was "Articles". */
-  articles: "/content/articles",
   /** Every topic, with search, sort, estimates and bulk scheduling: what was "Keywords". */
   topics: "/content/topics",
   /** The sections of the topics view a link on the Content screen opens. */
@@ -14,9 +18,18 @@ export const CONTENT_PATHS = {
   questions: "/content/topics#questions-people-ask",
 } as const;
 
+/**
+ * The calendar with one article's modal open (`?article=<id>`): where a
+ * link about one article lands.
+ */
+export function articlePath(articleId: string): string {
+  return `${CONTENT_PATHS.home}?article=${encodeURIComponent(articleId)}`;
+}
+
 /** The old addresses and where they went. */
 export const LEGACY_CONTENT_REDIRECTS = {
-  "/dashboard/calendar": CONTENT_PATHS.articles,
+  "/dashboard/calendar": CONTENT_PATHS.home,
+  "/content/articles": CONTENT_PATHS.home,
   "/keywords": CONTENT_PATHS.topics,
   "/dashboard/keywords": CONTENT_PATHS.topics,
 } as const;

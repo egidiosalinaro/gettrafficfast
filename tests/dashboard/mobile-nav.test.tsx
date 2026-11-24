@@ -206,8 +206,9 @@ describe("one name per section", () => {
     expect(source("components/settings/settings-overview.tsx")).toContain(">Settings</h1>");
   });
 
-  it("titles the Articles page as Content's tab does", () => {
-    expect(source("app/(app)/content/articles/page.tsx")).toContain(">Articles</h1>");
+  it("keeps no Articles page of its own: the calendar is Content's first view", () => {
+    expect(source("app/(app)/content/articles/page.tsx")).not.toContain("</h1>");
+    expect(source("app/(app)/content/articles/page.tsx")).toContain("redirect(");
   });
 
   // The settings pages' names, groups and back links: tests/settings/settings-nav.test.tsx.
