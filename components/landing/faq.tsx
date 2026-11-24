@@ -39,7 +39,7 @@ export function FAQ({ engines }: { engines: readonly AnswerEngine[] }) {
           <AccordionItem value="item-2">
             <AccordionTrigger>What does it cost?</AccordionTrigger>
             <AccordionContent>
-              $69 a month, one site. The first 3 days are free and the card is
+              $79 a month, one site. The first 3 days are free and the card is
               collected when you start the trial, so the subscription starts by
               itself when the trial ends unless you cancel. You can cancel at
               any time after that too, from Billing. There is no other plan, no discount

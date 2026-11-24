@@ -15,7 +15,7 @@ import { engineName, engineSentence, type AnswerEngine } from "@/components/land
  */
 
 export const PLAN_NAME = "Business";
-export const PLAN_PRICE_USD = 69;
+export const PLAN_PRICE_USD = 79;
 export const TRIAL_DAYS = 3;
 
 const BASE_FEATURES = [

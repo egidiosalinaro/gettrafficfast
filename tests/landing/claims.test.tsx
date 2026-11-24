@@ -32,7 +32,7 @@ describe("answer engines named on the public pages", () => {
 
   it("does not suggest you can only cancel during the trial", () => {
     const html = renderToStaticMarkup(<Hero engines={[]} />);
-    expect(html).toContain("3 days free, card required. Then $69/month,");
+    expect(html).toContain("3 days free, card required. Then $79/month,");
     expect(html).toContain("cancel anytime.");
     expect(html).not.toContain("during the trial");
   });
