@@ -100,9 +100,9 @@ const StageView = z.object({
 
 export const getHome = defineTool({
   name: "get_home",
-  title: "Get the Overview",
+  title: "Get the operating loop",
   description:
-    "The Overview: the content operating loop stage by stage (research, plan, produce, publish, measure, with citation rates per engine, sampled), the replies waiting and posted this week, the one next action, the next articles on the calendar and the unused keywords. Start here to decide what to do next.",
+    "The content operating loop stage by stage (research, plan, produce, publish, measure, with citation rates per engine, sampled), the replies waiting and posted this week, the one next action, the next articles on the calendar and the unused keywords. There is no Overview screen any more: when you point the person somewhere, use the screen the href names (Today, Growth, Content, Settings), never \"Overview\". For the day's work, get_today comes first.",
   input: z.object({}),
   output: z.object({
     business: z.object({ name: z.string().nullable(), websiteUrl: z.string().nullable(), niche: z.string().nullable() }),
