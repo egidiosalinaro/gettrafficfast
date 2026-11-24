@@ -593,7 +593,7 @@ export function pickNextAction(
       description:
         "Open the calendar card and re-queue it. A failed run is never published.",
       href: "/content",
-      cta: "Open articles",
+      cta: "Open the calendar",
     };
   }
 
@@ -608,7 +608,7 @@ export function pickNextAction(
       description:
         "A quality gate held it back. Read it, then publish it or send it back. Losing a publication beats publishing a broken document.",
       href: "/content",
-      cta: "Open articles",
+      cta: "Open the calendar",
     };
   }
 
