@@ -1080,6 +1080,8 @@ export default function TodayPage() {
         onSetPublishedUrl={(publishedUrl) => saveLink(target.id, publishedUrl)}
         onMarkRemoved={(reason) => act(target.id, "mark_removed", reason ? { reason } : {})}
         onUnmarkRemoved={() => act(target.id, "unmark_removed")}
+        askXHandle={Boolean(data.askXHandle)}
+        onXHandleSaved={() => void load()}
       />
     ) : (
       <ReplyItem
@@ -1370,6 +1372,8 @@ export default function TodayPage() {
           target={linkSheet}
           onSave={(publishedUrl) => act(linkSheet.id, "set_published_url", { publishedUrl }, true)}
           onClose={closeLinkSheet}
+          askXHandle={Boolean(data?.hasBusiness && data.askXHandle)}
+          onXHandleSaved={() => void load()}
         />
       )}
       {todayOpen && data.today && (

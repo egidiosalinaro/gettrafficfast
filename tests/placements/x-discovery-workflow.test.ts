@@ -7,11 +7,12 @@ import { X_AUTO_DRAFTS_PER_RUN, xDiscoveryWorkflow } from "@/lib/jobs/workflows/
 import { isLlmBoundJob } from "@/lib/jobs/registry";
 import { DAILY_DRAFT_CAP } from "@/lib/paid-access";
 import type { StepContext } from "@/lib/jobs/types";
+import { XApiClient } from "@/lib/providers/x/api";
 import { LedgerFake } from "./x-fake";
 
 /**
- * The daily X search job: it does nothing on a site that has not turned
- * Find posts on X on, or on a platform without the X API; it drafts the best
+ * The daily X search job: it runs on every site (no per-site switch since
+ * 2026-11-24) and does nothing on a platform without the X API; it drafts the best
  * finds, at most five a run, through the same start a person's "Draft it"
  * uses, so the daily draft cap and the About you prerequisite hold.
  */
@@ -66,21 +67,22 @@ it("is a model-bound job: it waits out the LLM billing pause like discovery", ()
 });
 
 describe("search", () => {
-  it("does nothing on a site that has Find posts on X off, even with the platform on", async () => {
+  it("searches a site whose stored Find posts on X says off: every site takes part since 2026-11-24", async () => {
     process.env.X_API_ENABLED = "1";
     process.env.X_API_BEARER_TOKEN = "t";
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const db = new LedgerFake({ businesses: [business({ findPostsOnX: false })] });
-    expect(await step("search").run(ctx(db))).toEqual({ skipped: "Find posts on X is off for this site" });
-    expect(fetchSpy).not.toHaveBeenCalled();
-    fetchSpy.mockRestore();
+    const searchRecent = vi.spyOn(XApiClient.prototype, "searchRecent").mockResolvedValue({ posts: [], missingIds: [], billedPosts: 0, costUsd: 0 });
+    const db = new LedgerFake({ businesses: [business({ findPostsOnX: false })], placement_targets: [], keywords: [], entities: [] });
+    const out = (await step("search").run(ctx(db))) as Record<string, unknown>;
+    expect(typeof out.skipped).not.toBe("string");
+    expect(searchRecent).toHaveBeenCalled();
+    searchRecent.mockRestore();
   });
 
   it("does nothing when the platform has only the key, not the opt-in", async () => {
     delete process.env.X_API_ENABLED;
     process.env.X_API_BEARER_TOKEN = "t";
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const db = new LedgerFake({ businesses: [business({ findPostsOnX: true })] });
+    const db = new LedgerFake({ businesses: [business({})] });
     expect(await step("search").run(ctx(db))).toEqual({ skipped: "the X API is not turned on for this deployment" });
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(db.tables.provider_spend).toEqual([]);
@@ -94,7 +96,7 @@ describe("rules", () => {
     const row = (id: string, text: string) =>
       found(id, 0, { status: "discovered", qualify_score: null, url: `https://x.com/a/status/${id}`, external_id: `status:${id}`, title: text.slice(0, 200), excerpt: text, posted_at: posted, comment_count: 0, found_for: '"ai content"' });
     const db = new LedgerFake({
-      businesses: [business({ findPostsOnX: true })],
+      businesses: [business({})],
       placement_targets: [
         row("1", "FREE Early Access to our AI visibility tool! Fill out the form and our team will reach out. https://t.co/a"),
         row("2", "4 Datasets On AI Visibility: ChatGPT Sends 0.62% Of Google's Organic Traffic https://t.co/b"),
@@ -127,7 +129,7 @@ describe("draft", () => {
       found("manual", 99, { found_via: "manual" }),
     ];
     const db = new LedgerFake({
-      businesses: [business({ findPostsOnX: true, aboutYou: "I built it and use it daily." })],
+      businesses: [business({ aboutYou: "I built it and use it daily." })],
       placement_targets: rows,
       placements: [{ id: "p1", target_id: "drafted" }],
       jobs: [],
@@ -143,7 +145,7 @@ describe("draft", () => {
   it("stops at the daily draft cap", async () => {
     const recent = new Date(Date.now() - 3_600_000).toISOString();
     const db = new LedgerFake({
-      businesses: [business({ findPostsOnX: true, aboutYou: "I built it." })],
+      businesses: [business({ aboutYou: "I built it." })],
       placement_targets: [found("f1", 90)],
       placements: [],
       jobs: Array.from({ length: DAILY_DRAFT_CAP }, (_, i) => ({ id: `j${i}`, user_id: USER, type: "placement-draft", status: "completed", created_at: recent, input: {} })),
@@ -153,7 +155,7 @@ describe("draft", () => {
   });
 
   it("drafts nothing while About you is empty: drafting would be refused", async () => {
-    const db = new LedgerFake({ businesses: [business({ findPostsOnX: true })], placement_targets: [found("f1", 90)], placements: [], jobs: [] });
+    const db = new LedgerFake({ businesses: [business({})], placement_targets: [found("f1", 90)], placements: [], jobs: [] });
     const out = (await step("draft").run(ctx(db))) as { started: number };
     expect(out.started).toBe(0);
     expect(db.tables.jobs).toEqual([]);

@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { dayLabel, rowMeta } from "@/components/placements/reply-logic";
 import { PostText } from "@/components/placements/reply-item";
 import { BusyLabel, CHIP, FIELD, PRIMARY, Problem } from "@/components/placements/ui";
+import { X_HANDLE_HINT, XHandleField } from "@/components/placements/x-handle-field";
 import {
   AuthorAvatar,
   BusinessAvatar,
@@ -117,9 +118,30 @@ export interface PostedItemProps {
   onSetPublishedUrl: (publishedUrl: string) => Promise<string | null>;
   onMarkRemoved?: (reason: string | undefined) => Promise<string | null>;
   onUnmarkRemoved?: () => Promise<string | null>;
+  /**
+   * Ask for the site's X account under a reply on X with no link
+   * ("Your X account", XHandleField): the page's `askXHandle`, true while
+   * the platform reads X and GTF does not know the account.
+   */
+  askXHandle?: boolean;
+  /** Called once the account is saved, so the page reloads what GTF now does. */
+  onXHandleSaved?: () => void;
 }
 
-export function PostedItem({ target, now, business, headerEnd, aeoQueries, busy, finding = null, onSetPublishedUrl, onMarkRemoved, onUnmarkRemoved }: PostedItemProps) {
+export function PostedItem({
+  target,
+  now,
+  business,
+  headerEnd,
+  aeoQueries,
+  busy,
+  finding = null,
+  onSetPublishedUrl,
+  onMarkRemoved,
+  onUnmarkRemoved,
+  askXHandle = false,
+  onXHandleSaved,
+}: PostedItemProps) {
   const removed = isRemoved(target);
   const missing = missingPublishedLink(target);
   const reply = postedReplyText(target);
@@ -178,6 +200,9 @@ export function PostedItem({ target, now, business, headerEnd, aeoQueries, busy,
           </>
         ))}
       {problem && <Problem>{problem}</Problem>}
+      {missing && askXHandle && target.surface === "x" && !removed && (
+        <XHandleField hint={X_HANDLE_HINT} onSaved={() => onXHandleSaved?.()} />
+      )}
 
       {/* One row: the primary and the quiet actions beside it. On a phone
           the primary is as wide as the row and the others wrap under it. */}

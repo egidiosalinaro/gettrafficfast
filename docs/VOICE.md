@@ -16,8 +16,10 @@ the real game-changer…"). Both are fixed here.
 ## The setting
 
 `Settings → Voice` (`app/(app)/settings/voice`, titled "Voice and facts"
-since 2026-11-14; `findPostsOnX`, stored here, is switched in Settings →
-Connections since that day, through the `PATCH` below), saved per business in
+since 2026-11-14; `xHandle`, the site's X account, is stored here and
+edited in Settings → Connections and on Today, through the `PATCH` below;
+the `findPostsOnX` switch once stored here is gone since 2026-11-24 and
+ignored when read), saved per business in
 `businesses.voice_settings`: a jsonb parsed through defaults by
 `lib/voice/settings.ts`, the same shape as `media_settings` and
 `automation_settings`, so a new knob is a schema change and old rows keep

@@ -449,6 +449,32 @@ describe("the manual workflow", () => {
     expect(mocks.afterTasks).toHaveLength(2);
   });
 
+  it("mark_reply_posted asks for the site's X account the first time it is not known, and no more once it is saved", async () => {
+    const env = { ...process.env };
+    process.env.X_API_ENABLED = "1";
+    process.env.X_API_BEARER_TOKEN = "t";
+    try {
+      const db = seed();
+      const first = await call(db, "mark_reply_posted", { targetId: T_OPEN, draftId: D_OPEN });
+      expect(first).toMatchObject({ ok: true, output: { xHandleNeeded: true, xHandleMessage: expect.stringContaining("update_voice_settings (xHandle)") } });
+
+      expect(await call(db, "update_voice_settings", { xHandle: "@Owner" })).toMatchObject({ ok: true, output: { settings: { xHandle: "owner" } } });
+      await call(db, "unmark_reply_posted", { targetId: T_OPEN });
+      const again = await call(db, "mark_reply_posted", { targetId: T_OPEN, draftId: D_OPEN });
+      expect(again).toMatchObject({ ok: true, output: { xHandleNeeded: false, xHandleMessage: null } });
+
+      // With the link given, nothing is asked: the link names the account.
+      const linked = seed();
+      expect(await call(linked, "mark_reply_posted", { targetId: T_OPEN, link: MY_REPLY })).toMatchObject({ ok: true, output: { xHandleNeeded: false } });
+
+      // Without the platform's X API, nothing is asked either.
+      delete process.env.X_API_ENABLED;
+      expect(await call(seed(), "mark_reply_posted", { targetId: T_OPEN })).toMatchObject({ ok: true, output: { xHandleNeeded: false } });
+    } finally {
+      process.env = env;
+    }
+  });
+
   it("unmark_reply_posted is the Undo of I posted it: back to the open inbox, drafts kept; refused once a link is saved", async () => {
     const db = seed();
     await call(db, "mark_reply_posted", { targetId: T_OPEN, draftId: D_OPEN });

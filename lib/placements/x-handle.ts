@@ -1,18 +1,27 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { domainOf } from "@/lib/providers/serp/types";
+import { isXApiEnabled } from "@/lib/providers/x/api";
+import { parseVoiceSettings } from "@/lib/voice/settings";
 
 /**
- * The X account a site's replies are posted from, read off the links to the
- * person's own replies: a posted X row stores `published_url`, and an X
- * status link names its author, `x.com/<handle>/status/<id>`.
+ * The X account a site's replies are posted from.
  *
  * Two jobs need it: finding the link of a reply the person marked as posted
  * (search the thread for a reply from this account) and reading the
- * account's followers once a day. Nothing is asked of the person and nothing
- * is guessed: the handle is the one their own saved links carry most often,
- * and a site with no linked X reply has none (null), so both jobs skip it.
- * It is read per site, never borrowed from another site of the same person,
- * because two sites can be marketed from two accounts.
+ * account's followers once a day. Where it comes from, in order:
+ *
+ *   1. the handle the person gave for the site (`voice_settings.xHandle`,
+ *      since 2026-11-24: Today asks for it the first time a reply on X is
+ *      marked as posted while it is unknown; Settings → Connections;
+ *      `update_voice_settings`);
+ *   2. else the one the site's own saved reply links carry most often: a
+ *      posted X row stores `published_url`, and an X status link names its
+ *      author, `x.com/<handle>/status/<id>`.
+ *
+ * Nothing is guessed: a site with neither has none (null), both jobs skip
+ * it, and the screens ask. It is read per site, never borrowed from another
+ * site of the same person, because two sites can be marketed from two
+ * accounts.
  */
 
 const X_HOSTS = new Set(["x.com", "twitter.com", "mobile.twitter.com", "mobile.x.com"]);
@@ -69,11 +78,11 @@ export function mostFrequentHandle(urls: ReadonlyArray<string | null | undefined
 }
 
 /**
- * The X handle a site posts its replies from, lowercased, or null when it
- * has no posted X reply with a link yet. Through the caller's client: RLS
+ * The handle the site's own saved reply links name, lowercased, or null when
+ * it has no posted X reply with a link yet. Through the caller's client: RLS
  * (or the service role, in a job) is the access control.
  */
-export async function ownXHandle(supabase: SupabaseClient, businessId: string): Promise<string | null> {
+export async function inferredXHandle(supabase: SupabaseClient, businessId: string): Promise<string | null> {
   const { data, error } = await supabase
     .from("placement_targets")
     .select("published_url, published_at")
@@ -85,4 +94,54 @@ export async function ownXHandle(supabase: SupabaseClient, businessId: string): 
     .limit(HANDLE_SAMPLE_ROWS);
   if (error || !data) return null;
   return mostFrequentHandle((data as Array<{ published_url: string | null }>).map((row) => row.published_url));
+}
+
+/** The handle the person saved for the site, from its stored voice settings, or null. */
+export function savedXHandle(voiceSettings: unknown): string | null {
+  return parseVoiceSettings(voiceSettings).xHandle;
+}
+
+/** Where a site's handle came from: the person gave it, or their saved reply links name it. */
+export type XHandleSource = "saved" | "links";
+
+/**
+ * The X handle a site posts its replies from, with where it came from: the
+ * saved one first, else the one its saved reply links name; both null when
+ * neither is known.
+ */
+export async function resolveXHandle(
+  supabase: SupabaseClient,
+  businessId: string
+): Promise<{ handle: string | null; source: XHandleSource | null }> {
+  const { data } = await supabase.from("businesses").select("voice_settings").eq("id", businessId).maybeSingle();
+  const saved = savedXHandle((data as { voice_settings?: unknown } | null)?.voice_settings);
+  if (saved) return { handle: saved, source: "saved" };
+  const inferred = await inferredXHandle(supabase, businessId);
+  return inferred ? { handle: inferred, source: "links" } : { handle: null, source: null };
+}
+
+/** The X handle a site posts its replies from, lowercased, or null when it is not known (`resolveXHandle`). */
+export async function ownXHandle(supabase: SupabaseClient, businessId: string): Promise<string | null> {
+  return (await resolveXHandle(supabase, businessId)).handle;
+}
+
+/** What GTF says when it needs the site's X account: one sentence, for the screens and the tools. */
+export const X_HANDLE_NEEDED =
+  "GTF does not know this site's X account yet. Ask the person for their X username and save it with update_voice_settings (xHandle); GTF then finds the links of their replies on X by itself.";
+
+/**
+ * Whether GTF asks for the site's X account after this reply was marked as
+ * posted: a reply on X with no link, while the platform reads X and the
+ * handle is not known (neither saved nor named by a saved link). What
+ * `mark_reply_posted` answers as `xHandleNeeded`; the Today screen asks the
+ * same from the inbox payload (`askXHandle`).
+ */
+export async function xHandleNeededFor(
+  supabase: SupabaseClient,
+  businessId: string,
+  target: { surface: string; status: string; publishedUrl: string | null }
+): Promise<boolean> {
+  if (!isXApiEnabled()) return false;
+  if (target.surface !== "x" || target.status !== "published_manually" || (target.publishedUrl ?? "").trim()) return false;
+  return (await ownXHandle(supabase, businessId)) === null;
 }

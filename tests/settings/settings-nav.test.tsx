@@ -14,7 +14,7 @@ vi.mock("next/navigation", () => ({
 import { settingsBack, settingsGroups, settingsItems } from "@/components/dashboard/settings-nav";
 import { SettingsBackLink, SettingsSubmenu } from "@/components/dashboard/settings-submenu";
 import { SettingsOverview } from "@/components/settings/settings-overview";
-import { FindPostsOnXSwitch } from "@/components/settings/find-posts-on-x";
+import { XAccountCard } from "@/components/settings/x-account";
 import { SETTINGS_PATH as SEARCH_CONSOLE_RETURN } from "@/app/api/integrations/search-console/shared";
 import { LEGACY_REDIRECTS } from "@/lib/legacy-redirects";
 import { ONBOARDING_STEPS } from "@/lib/onboarding";
@@ -186,28 +186,31 @@ describe("the phone's list", () => {
   });
 });
 
-describe("Find posts on X, in Connections", () => {
-  it("is a switch when the platform has the X API, and a plain sentence when it has not", () => {
-    const on = renderToStaticMarkup(<FindPostsOnXSwitch initialOn available hasBusiness />);
-    expect(on).toContain('role="switch"');
-    expect(on).toContain('aria-checked="true"');
-    expect(on).toContain("min-h-[44px]");
+describe("X, in Connections (no per-site switch since 2026-11-24)", () => {
+  it("has no switch: on for every site when the platform reads X, a plain sentence when it does not", () => {
+    const on = renderToStaticMarkup(<XAccountCard saved={null} inferred={null} available hasBusiness />);
+    expect(on).not.toContain('role="switch"');
+    expect(on).not.toContain("Find posts on X");
+    expect(on).toContain("On for every site");
+    expect(on).toContain("Your X account");
 
-    const off = renderToStaticMarkup(<FindPostsOnXSwitch initialOn available={false} hasBusiness />);
-    expect(off).not.toContain('role="switch"');
+    const off = renderToStaticMarkup(<XAccountCard saved={null} inferred={null} available={false} hasBusiness />);
     expect(off).toContain("Not available yet");
-    expect(off).toContain("nothing is searched even though this is on");
   });
 
-  it("changes only that field, through the partial PATCH", () => {
-    const toggle = source("components/settings/find-posts-on-x.tsx");
-    expect(toggle).toContain('method: "PATCH"');
-    expect(toggle).toContain("JSON.stringify({ findPostsOnX: next })");
+  it("shows the saved account, else the one the saved links name", () => {
+    expect(renderToStaticMarkup(<XAccountCard saved="postwren" inferred="other" available hasBusiness />)).toContain('value="postwren"');
+    const inferred = renderToStaticMarkup(<XAccountCard saved={null} inferred="samrivdev" available hasBusiness />);
+    expect(inferred).toContain("From your saved reply links: @samrivdev");
+    expect(inferred).toContain('value=""');
   });
 
-  it("lives on Connections, not in the voice form", () => {
-    expect(source("app/(app)/settings/integrations/page.tsx")).toContain("<FindPostsOnXSwitch");
-    expect(source("components/settings/voice-settings-form.tsx")).not.toContain("Find posts on X</h2>");
+  it("saves only the account, through the partial PATCH", () => {
+    const field = source("components/placements/x-handle-field.tsx");
+    expect(field).toContain('method: "PATCH"');
+    expect(field).toContain("JSON.stringify({ xHandle: handle })");
+    expect(source("app/(app)/settings/integrations/page.tsx")).toContain("<XAccountCard");
+    expect(source("app/(app)/settings/integrations/page.tsx")).not.toContain("findPostsOnX");
   });
 });
 

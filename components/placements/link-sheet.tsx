@@ -10,6 +10,7 @@ import type { PlacementTargetRecord } from "@/lib/placements/read";
 import { cn } from "@/lib/utils";
 import { pasteLinkFor } from "@/components/placements/posted-item";
 import { BusyLabel, CHIP, FIELD, PRIMARY, Problem } from "@/components/placements/ui";
+import { X_HANDLE_HINT, XHandleField } from "@/components/placements/x-handle-field";
 
 /**
  * The link to the reply, asked for the moment it is marked as posted
@@ -31,6 +32,10 @@ import { BusyLabel, CHIP, FIELD, PRIMARY, Problem } from "@/components/placement
  * Since 2026-11-13 it does not open for a reply GTF will look for on X by
  * itself (`findingToast`): the toast says so, and the card says when GTF
  * stops looking.
+ *
+ * Since 2026-11-24, for a reply on X while GTF does not know the site's X
+ * account (`askXHandle`), it also asks "Your X account": saved once per
+ * site, after which GTF finds the links of the next replies by itself.
  */
 
 export type LinkSheetOutcome = "saved" | "skipped";
@@ -73,7 +78,13 @@ export function LinkSheet({
   onSave,
   onClose,
   initialValue = "",
+  askXHandle = false,
+  onXHandleSaved,
 }: {
+  /** Ask for the site's X account under the link (a reply on X, the account unknown). */
+  askXHandle?: boolean;
+  /** Called once the account is saved. */
+  onXHandleSaved?: () => void;
   /** What the field starts with: empty in the app. */
   initialValue?: string;
   target: Pick<PlacementTargetRecord, "surface" | "url">;
@@ -228,6 +239,9 @@ export function LinkSheet({
           />
           {(refused || problem) && <Problem>{refused ?? problem}</Problem>}
         </form>
+        {askXHandle && target.surface === "x" && (
+          <XHandleField hint={X_HANDLE_HINT} onSaved={() => onXHandleSaved?.()} className="border-t border-border pt-3" />
+        )}
       </div>
     </div>
   );

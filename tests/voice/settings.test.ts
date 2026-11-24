@@ -7,11 +7,13 @@ import {
   VoiceSettings,
   VoiceSettingsChange,
   describeVoice,
+  normalizeXHandle,
   noteRules,
   notesAsRules,
   parseVoiceSettings,
   voiceForWriter,
   withLiveConfirmations,
+  xHandleProblem,
 } from "@/lib/voice/settings";
 
 /**
@@ -24,7 +26,7 @@ describe("parseVoiceSettings", () => {
   it("defaults to a plain voice that claims nothing about the writer", () => {
     expect(parseVoiceSettings(null)).toEqual(DEFAULT_VOICE_SETTINGS);
     expect(parseVoiceSettings({})).toEqual(DEFAULT_VOICE_SETTINGS);
-    expect(DEFAULT_VOICE_SETTINGS).toEqual({ preset: "plain", person: "auto", aboutYou: "", articleFacts: "", instructions: "", dailyReplyGoal: null, findPostsOnX: false, confirmedFacts: {} });
+    expect(DEFAULT_VOICE_SETTINGS).toEqual({ preset: "plain", person: "auto", aboutYou: "", articleFacts: "", instructions: "", dailyReplyGoal: null, xHandle: null, confirmedFacts: {} });
   });
 
   it("keeps a stored voice and falls back whole when a value is not one we know", () => {
@@ -35,7 +37,7 @@ describe("parseVoiceSettings", () => {
       articleFacts: "",
       instructions: "",
       dailyReplyGoal: null,
-      findPostsOnX: false,
+      xHandle: null,
       confirmedFacts: {},
     });
     expect(parseVoiceSettings({ preset: "shouty" })).toEqual(DEFAULT_VOICE_SETTINGS);
@@ -58,6 +60,36 @@ describe("parseVoiceSettings", () => {
       articleFacts: "I build GetTrafficFast.",
     });
     expect(parseVoiceSettings({ aboutYou: "9 impressions a week." }).articleFacts).toBe("");
+  });
+});
+
+describe("the site's X account (xHandle, 2026-11-24)", () => {
+  it("is stored lowercased without the @, and only as X allows: 1 to 15 letters, digits or underscores", () => {
+    expect(VoiceSettings.parse({ xHandle: "@SamRivDev" }).xHandle).toBe("samrivdev");
+    expect(VoiceSettings.parse({ xHandle: "  sam_riv_2 " }).xHandle).toBe("sam_riv_2");
+    expect(VoiceSettings.parse({ xHandle: null }).xHandle).toBeNull();
+    for (const bad of ["", "@", "sam riv", "sam-riv", "a".repeat(16), "https://x.com/samriv", "sam.riv"]) {
+      expect(VoiceSettings.safeParse({ xHandle: bad }).success, bad).toBe(false);
+    }
+    expect(normalizeXHandle(" @Postwren ")).toBe("postwren");
+    expect(xHandleProblem("@postwren")).toBeNull();
+    expect(xHandleProblem("")).toMatch(/Type your X username/);
+    expect(xHandleProblem("post wren")).toMatch(/1 to 15 letters/);
+  });
+
+  it("is written alone by a partial change, and an old row reads as none", () => {
+    expect(VoiceSettingsChange.parse({ xHandle: "@Postwren" })).toEqual({ xHandle: "postwren" });
+    expect(VoiceSettingsChange.parse({ xHandle: null })).toEqual({ xHandle: null });
+    expect(VoiceSettingsChange.safeParse({ xHandle: "not a handle" }).success).toBe(false);
+    expect(parseVoiceSettings({ aboutYou: "I run it." }).xHandle).toBeNull();
+  });
+
+  it("ignores the removed Find posts on X switch: a stored value is dropped, and an old page's PATCH saves nothing of it", () => {
+    expect(parseVoiceSettings({ aboutYou: "I run it.", findPostsOnX: false })).toEqual(parseVoiceSettings({ aboutYou: "I run it." }));
+    expect("findPostsOnX" in parseVoiceSettings({ findPostsOnX: true })).toBe(false);
+    expect(VoiceSettingsChange.parse({ findPostsOnX: true })).toEqual({});
+    expect(VoiceSettingsChange.parse({ findPostsOnX: false, dailyReplyGoal: 4 })).toEqual({ dailyReplyGoal: 4 });
+    expect(VoiceSettingsChange.safeParse({ somethingElse: 1 }).success).toBe(false);
   });
 });
 
@@ -121,7 +153,7 @@ describe("describeVoice", () => {
       articleFacts: "",
       instructions: "Never call it an AI agent.",
       dailyReplyGoal: null,
-      findPostsOnX: false,
+      xHandle: null,
       confirmedFacts: {},
     }).join("\n");
     expect(lines).toContain("Casual:");

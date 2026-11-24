@@ -11,7 +11,7 @@ import { X_METRICS_MAX_IDS_PER_RUN, X_METRICS_WINDOW_DAYS, meteredXCall, type Me
  *
  * Which replies: posted on X (`published_manually`), with the link to the
  * reply saved (`published_url`, a status id), posted in the last 14 days,
- * on a site whose owner turned "Find posts on X" on. A reply already read
+ * on any site whose owner pays (no per-site switch since 2026-11-24). A reply already read
  * today is not read again, so a second run the same day costs nothing.
  *
  * Honest numbers: what X returned is stored as it came; a number it did not

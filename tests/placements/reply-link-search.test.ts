@@ -13,7 +13,7 @@ vi.mock("next/server", async (importOriginal) => ({
 
 import type { XApiClient, XApiPost, XCallResult } from "@/lib/providers/x/api";
 import { LINK_SEARCH_ROWS_PER_RUN } from "@/lib/placements/reply-link";
-import { findReplyLinkNow, findReplyLinks, replyLinkFinderOn } from "@/lib/placements/reply-link-search";
+import { LINK_SEARCH_NEW_REPLIES_PER_SITE_PER_DAY, findReplyLinkNow, findReplyLinks, replyLinkFinderOn } from "@/lib/placements/reply-link-search";
 import { LedgerFake, xPost } from "./x-fake";
 
 /**
@@ -22,8 +22,10 @@ import { LedgerFake, xPost } from "./x-fake";
  * link is (set_published_url: the check, the text read back, the numbers
  * pick it up) and recorded as found; X is asked on schedule and never more
  * than four times on its own; a doubtful answer saves nothing and stops; a
- * link the person saved is never replaced; only opted-in sites whose owner
- * pays and whose account is known are searched; every call is metered, and
+ * link the person saved is never replaced; every site whose owner pays and
+ * whose account is known (saved, else named by a saved link) is searched,
+ * with no per-site switch since 2026-11-24, under a daily bound of new
+ * replies a site; every call is metered, and
  * a refusal before X was asked gives the attempt back.
  */
 
@@ -63,8 +65,8 @@ const linkedBefore = posted("known", {
   published_at: "2026-11-12T09:00:00.000Z",
 });
 
-function site(id = SITE, userId = USER, findPostsOnX = true) {
-  return { id, user_id: userId, name: "Acme", voice_settings: { aboutYou: "I run Acme.", findPostsOnX } };
+function site(id = SITE, userId = USER, voice: Record<string, unknown> = {}) {
+  return { id, user_id: userId, name: "Acme", voice_settings: { aboutYou: "I run Acme.", ...voice } };
 }
 
 function seed(targets: Record<string, unknown>[], over: Record<string, Record<string, unknown>[]> = {}) {
@@ -198,10 +200,11 @@ describe("the sweep", () => {
     expect(search(db, "r1")).toMatchObject({ outcome: "other_replies" });
   });
 
-  it("searches only opted-in sites whose owner pays and whose X account is known", async () => {
+  it("searches every site whose owner pays and whose X account is known, whatever an old switch says", async () => {
     const unknownAccount = { ...posted("r3", { business_id: OTHER_SITE, user_id: OTHER_USER }) };
     const db = seed([posted("r1"), unknownAccount], {
-      businesses: [site(SITE, USER, false), site(OTHER_SITE, OTHER_USER, true)],
+      // The removed per-site switch, stored false: ignored.
+      businesses: [site(SITE, USER, { findPostsOnX: false }), site(OTHER_SITE, OTHER_USER)],
       subscriptions: [
         { user_id: USER, status: "active", current_period_end: null },
         { user_id: OTHER_USER, status: "active", current_period_end: null },
@@ -209,14 +212,64 @@ describe("the sweep", () => {
     });
     const { client, searchReplies } = fakeX([[theReply()]]);
     const outcome = await findReplyLinks({ admin: db as never, client, now: at("2026-11-13T10:03:00Z") });
-    // r1: Find posts on X off; r3: no linked reply, so no known account.
-    expect(outcome).toMatchObject({ due: 2, notEligible: 2, searched: 0 });
-    expect(searchReplies).not.toHaveBeenCalled();
-    expect(db.tables.placement_link_searches).toEqual([]);
+    // r1: searched and found; r3: no saved handle, no linked reply, so no known account.
+    expect(outcome).toMatchObject({ due: 2, notEligible: 1, searched: 1, found: 1 });
+    expect(searchReplies).toHaveBeenCalledTimes(1);
+    expect(search(db, "r3")).toBeUndefined();
 
     const unpaid = seed([posted("r1")], { subscriptions: [] });
-    await findReplyLinks({ admin: unpaid as never, client, now: at("2026-11-13T10:03:00Z") });
-    expect(searchReplies).not.toHaveBeenCalled();
+    const { client: unpaidClient, searchReplies: unpaidSearch } = fakeX([[theReply()]]);
+    await findReplyLinks({ admin: unpaid as never, client: unpaidClient, now: at("2026-11-13T10:03:00Z") });
+    expect(unpaidSearch).not.toHaveBeenCalled();
+  });
+
+  it("on a new site, searches from the handle the person saved, with no link saved before", async () => {
+    const db = seed([posted("r1")], { businesses: [site(SITE, USER, { xHandle: "owner" })] });
+    db.tables.placement_targets = db.tables.placement_targets.filter((r) => r.id !== "known");
+    const { client, searchReplies } = fakeX([[theReply()]]);
+    const outcome = await findReplyLinks({ admin: db as never, client, now: at("2026-11-13T10:03:00Z") });
+    expect(outcome).toMatchObject({ searched: 1, found: 1 });
+    expect(searchReplies.mock.calls[0][0].query).toContain("from:owner");
+  });
+
+  it("searches from the saved handle over the one the links name", async () => {
+    const db = seed([posted("r1")], { businesses: [site(SITE, USER, { xHandle: "acme_hq" })] });
+    const { client, searchReplies } = fakeX([[theReply("1855000000000000101", { handle: "acme_hq" })]]);
+    await findReplyLinks({ admin: db as never, client, now: at("2026-11-13T10:03:00Z") });
+    expect(searchReplies.mock.calls[0][0].query).toContain("from:acme_hq");
+    expect(searchReplies.mock.calls[0][0].query).not.toContain("from:owner");
+    expect(target(db, "r1").published_url).toBe("https://x.com/acme_hq/status/1855000000000000101");
+  });
+
+  it("starts at most the daily bound of new replies a site in 24 hours; replies already searched go on", async () => {
+    const earlier = Array.from({ length: LINK_SEARCH_NEW_REPLIES_PER_SITE_PER_DAY }, (_, i) => ({
+      target_id: `old${i}`,
+      user_id: USER,
+      business_id: SITE,
+      attempts: 4,
+      outcome: "not_found",
+      posts_seen: 0,
+      created_at: "2026-11-13T02:00:00.000Z",
+    }));
+    const db = seed([posted("r1"), posted("r2", { url: "https://x.com/bob/status/1855000000000000300" })], {
+      placement_link_searches: [
+        ...earlier,
+        { target_id: "r2", user_id: USER, business_id: SITE, attempts: 1, outcome: "not_found", posts_seen: 0, last_attempt_at: "2026-11-13T10:02:00.000Z", created_at: "2026-11-13T10:02:00.000Z" },
+      ],
+    });
+    const { client, searchReplies } = fakeX();
+    // 10:16: r2's second slot (15 min) is due; r1 would be a new reply.
+    const outcome = await findReplyLinks({ admin: db as never, client, now: at("2026-11-13T10:16:00Z") });
+    expect(searchReplies).toHaveBeenCalledTimes(1);
+    expect(search(db, "r2")).toMatchObject({ attempts: 2 });
+    expect(search(db, "r1")).toBeUndefined();
+    expect(outcome.notEligible).toBe(1);
+
+    // A day later the bound is free again.
+    const later = seed([posted("r3", { published_at: "2026-11-14T10:00:00.000Z" })], { placement_link_searches: earlier });
+    const second = fakeX();
+    await findReplyLinks({ admin: later as never, client: second.client, now: at("2026-11-14T10:03:00Z") });
+    expect(second.searchReplies).toHaveBeenCalledTimes(1);
   });
 
   it("never searches a removed reply, one on another platform, or one past X's 7 days", async () => {
@@ -271,16 +324,15 @@ describe("the sweep", () => {
 
 describe("whether GTF looks for a site's links", () => {
   const status = { enabled: true, capUsd: 20, spentUsd: 3, capReached: false, pausedUntil: null, resetsAt: "2026-12-01T00:00:00Z" };
-  it("only with the platform on, the site's switch on, its account known, not paused and under the cap", () => {
-    expect(replyLinkFinderOn(status, { findPostsOnX: true, handleKnown: true, ownerPays: true })).toBe(true);
-    expect(replyLinkFinderOn(null, { findPostsOnX: true, handleKnown: true, ownerPays: true })).toBe(false);
-    expect(replyLinkFinderOn(status, { findPostsOnX: false, handleKnown: true, ownerPays: true })).toBe(false);
-    expect(replyLinkFinderOn(status, { findPostsOnX: true, handleKnown: false, ownerPays: true })).toBe(false);
-    expect(replyLinkFinderOn({ ...status, pausedUntil: "2026-11-13T11:00:00Z" }, { findPostsOnX: true, handleKnown: true, ownerPays: true })).toBe(false);
-    expect(replyLinkFinderOn({ ...status, spentUsd: 19.99 }, { findPostsOnX: true, handleKnown: true, ownerPays: true })).toBe(false);
-    expect(replyLinkFinderOn({ ...status, spentUsd: null }, { findPostsOnX: true, handleKnown: true, ownerPays: true })).toBe(false);
+  it("only with the platform on, the site's account known, the owner paying, not paused and under the cap", () => {
+    expect(replyLinkFinderOn(status, { handleKnown: true, ownerPays: true })).toBe(true);
+    expect(replyLinkFinderOn(null, { handleKnown: true, ownerPays: true })).toBe(false);
+    expect(replyLinkFinderOn(status, { handleKnown: false, ownerPays: true })).toBe(false);
+    expect(replyLinkFinderOn({ ...status, pausedUntil: "2026-11-13T11:00:00Z" }, { handleKnown: true, ownerPays: true })).toBe(false);
+    expect(replyLinkFinderOn({ ...status, spentUsd: 19.99 }, { handleKnown: true, ownerPays: true })).toBe(false);
+    expect(replyLinkFinderOn({ ...status, spentUsd: null }, { handleKnown: true, ownerPays: true })).toBe(false);
     // The sweep searches only for owners who pay: no card says GTF is looking otherwise.
-    expect(replyLinkFinderOn(status, { findPostsOnX: true, handleKnown: true, ownerPays: false })).toBe(false);
+    expect(replyLinkFinderOn(status, { handleKnown: true, ownerPays: false })).toBe(false);
   });
 });
 
@@ -304,13 +356,32 @@ describe("find_reply_link: one reply, now", () => {
     expect(result).toMatchObject({ ok: true, outcome: "not_found", finding: { state: "looking" } });
   });
 
-  it("refuses in words: X off, the site's switch off, not posted, linked, too many searches, account unknown", async () => {
-    expect(await run(seed([posted("r1")]), null)).toMatchObject({ ok: false, code: "unavailable" });
-    expect(await run(seed([posted("r1")], { businesses: [site(SITE, USER, false)] }), fakeX().client)).toMatchObject({
+  it("searches on a site whose stored switch says off: the switch is gone", async () => {
+    const db = seed([posted("r1")], { businesses: [site(SITE, USER, { findPostsOnX: false })] });
+    expect(await run(db, fakeX([[theReply()]]).client)).toMatchObject({ ok: true, outcome: "found" });
+  });
+
+  it("refuses a new reply over the site's daily bound, in words", async () => {
+    const earlier = Array.from({ length: LINK_SEARCH_NEW_REPLIES_PER_SITE_PER_DAY }, (_, i) => ({
+      target_id: `old${i}`,
+      user_id: USER,
+      business_id: SITE,
+      attempts: 1,
+      outcome: "not_found",
+      posts_seen: 0,
+      created_at: "2026-11-13T09:00:00.000Z",
+    }));
+    const { client, searchReplies } = fakeX([[theReply()]]);
+    expect(await run(seed([posted("r1")], { placement_link_searches: earlier }), client)).toMatchObject({
       ok: false,
       code: "invalid_state",
-      error: expect.stringContaining("Find posts on X"),
+      error: expect.stringContaining("daily limit"),
     });
+    expect(searchReplies).not.toHaveBeenCalled();
+  });
+
+  it("refuses in words: X off, not posted, linked, too many searches, account unknown (asking for it)", async () => {
+    expect(await run(seed([posted("r1")]), null)).toMatchObject({ ok: false, code: "unavailable" });
     expect(await run(seed([posted("r1", { status: "drafted" })]), fakeX().client)).toMatchObject({ ok: false, code: "invalid_state" });
     expect(await run(seed([posted("r1", { published_url: "https://x.com/owner/status/1855000000000000555" })]), fakeX().client)).toMatchObject({
       ok: false,
@@ -320,7 +391,7 @@ describe("find_reply_link: one reply, now", () => {
     expect(await run(tried, fakeX().client)).toMatchObject({ ok: false, error: expect.stringContaining("6 times") });
     const noAccount = seed([posted("r1")]);
     noAccount.tables.placement_targets = noAccount.tables.placement_targets.filter((r) => r.id !== "known");
-    expect(await run(noAccount, fakeX().client)).toMatchObject({ ok: false, code: "prerequisite_missing" });
+    expect(await run(noAccount, fakeX().client)).toMatchObject({ ok: false, code: "prerequisite_missing", error: expect.stringContaining("xHandle") });
     expect(await run(seed([posted("r1")]), fakeX().client, "nope")).toMatchObject({ ok: false, code: "not_found" });
   });
 });

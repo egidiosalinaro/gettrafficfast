@@ -47,7 +47,7 @@ function reply(publishedAt: string, snapshots: ReplyMetrics[], over: Partial<Pos
 }
 
 const input = (replies: PostedXReply[], over: Partial<Parameters<typeof summarizeReplyStats>[0]> = {}) =>
-  summarizeReplyStats({ now: NOW, platformEnabled: true, siteEnabled: true, replies, metricsReadable: true, handle: "samriv", account: [], ...over });
+  summarizeReplyStats({ now: NOW, platformEnabled: true, replies, metricsReadable: true, handle: "samriv", account: [], ...over });
 
 describe("the week's sums", () => {
   it("adds the newest numbers of the measured replies, says who is not measured, and never turns a gap into 0", () => {
@@ -135,10 +135,9 @@ describe("the week's sums", () => {
     });
   });
 
-  it("says why nothing is read when the X API is off for the site", () => {
+  it("says why nothing is read when the platform has no X API, and reads every site otherwise", () => {
     expect(input([], { platformEnabled: false }).status).toBe("off_platform");
-    expect(input([], { siteEnabled: false }).status).toBe("off_site");
-    expect(offLine("off_site")).toMatch(/Find posts on X in Settings → Connections/);
+    expect(input([]).status).toBe("on");
     expect(offLine("off_platform")).toMatch(/not available yet/);
     expect(offLine("on")).toBeNull();
   });
@@ -193,7 +192,7 @@ describe("how the numbers read", () => {
   });
 
   it("uses no em dash anywhere a person reads", () => {
-    for (const line of [REPLY_STATS_NOTE, offLine("off_site"), offLine("off_platform"), coverageLine({ posted: 3, measured: 1, withoutLink: 2 })]) {
+    for (const line of [REPLY_STATS_NOTE, offLine("off_platform"), coverageLine({ posted: 3, measured: 1, withoutLink: 2 })]) {
       expect(line).not.toContain("—");
     }
   });
@@ -237,7 +236,7 @@ describe("loadReplyStats", () => {
 
   it("reads the site's posted replies on X, their texts, their snapshots and the account, and sums them", async () => {
     const db = new FakeSupabase({
-      businesses: [{ id: SITE, user_id: USER, voice_settings: { findPostsOnX: true } }],
+      businesses: [{ id: SITE, user_id: USER, voice_settings: {} }],
       placement_targets: [
         target("a", { published_text: "Put the answer in the first sentence." }),
         target("b", { published_url: "https://x.com/samriv/status/1855000000000000002", selected_placement_id: "d2" }),
@@ -268,7 +267,7 @@ describe("loadReplyStats", () => {
     expect(stats.followers).toMatchObject({ handle: "Samriv", followers: 2310, change: 34, changeSince: "2026-11-06" });
   });
 
-  it("says the X API is off for the site, and reads followers as not measured while the table is not there", async () => {
+  it("ignores a stored findPostsOnX false, and reads followers as not measured while the table is not there", async () => {
     const db = new FakeSupabase({
       businesses: [{ id: SITE, user_id: USER, voice_settings: { findPostsOnX: false } }],
       placement_targets: [target("a")],
@@ -283,7 +282,7 @@ describe("loadReplyStats", () => {
       return chain;
     };
     const stats = await loadReplyStats(db as never, SITE, { xApiEnabled: true, now: NOW });
-    expect(stats.status).toBe("off_site");
+    expect(stats.status).toBe("on");
     expect(stats.followers).toMatchObject({ handle: "samriv", followers: null, day: null, change: null });
     expect(stats.week).toMatchObject({ posted: 1, measured: 0, views: null });
   });

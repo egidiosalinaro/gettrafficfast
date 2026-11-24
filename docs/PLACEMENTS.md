@@ -186,13 +186,43 @@ the public numbers of the replies a person posted, the followers of the
 site's own X account, and finding the link of a reply marked as posted.
 Nothing is ever posted on X: a reply is a person's tap on X's web intent.
 
-**Opt-in, twice.** The deployment turns it on (`X_API_ENABLED=1` and
-`X_API_BEARER_TOKEN`; the token alone spends nothing), and each site turns
-it on (Settings → Connections → **Find posts on X**, `findPostsOnX` in
-`voice_settings`, default off). Without the deployment setting the card
-says it is not available and nothing is searched. The site's owner must
-have paid access; the search, which leads to model calls, also needs the
-owner under the daily AI spend limit.
+**Opt-in, once, by the deployment.** The deployment turns it on
+(`X_API_ENABLED=1` and `X_API_BEARER_TOKEN`; the token alone spends
+nothing). Since 2026-11-24 there is no per-site switch: with the deployment
+setting on, the X features run for every site (the "Find posts on X"
+switch, `voice_settings.findPostsOnX`, is gone; a stored value is ignored,
+and a `findPostsOnX` sent by an old page or caller is accepted and
+dropped). Without the deployment setting Settings → Connections says it is
+not available and nothing is searched or read. The site's owner must have
+paid access; the search, which leads to model calls, also needs the owner
+under the daily AI spend limit.
+
+**What bounds the cost now.** The per-site switch was also how few sites
+took part; without it every paying site does, so every use has its own
+bound, per site and per run, all under the monthly cap below:
+
+| Use | Per site | Per run |
+|---|---|---|
+| Daily search (`x-post-discovery`) | at most once in 20 hours, 3 searches of 10 posts | at most 10 sites, the ones searched longest ago first (`rotateSites`), so every site gets its turn |
+| Reply numbers | each reply once a day for 14 days | one batched lookup of at most 100 replies |
+| Followers | one user lookup a day | at most 10 sites, read longest ago first |
+| Quoted and replied-to posts | | at most 30 posts |
+| Reply links | at most 25 new replies a site in 24 hours (`LINK_SEARCH_NEW_REPLIES_PER_SITE_PER_DAY`), each searched at most 4 times by itself, 6 with `find_reply_link` | at most 10 searches every 5 minutes |
+
+**The site's X account** (`voice_settings.xHandle`, since 2026-11-24).
+Finding a reply's link and reading the followers need the account the
+site's replies are posted from. `ownXHandle` (`lib/placements/x-handle.ts`)
+resolves it per site: the handle the person gave first, else the one the
+site's own saved reply links name most often, else none (the jobs skip the
+site and the screens ask). It is asked the first time a reply on X is
+marked as posted on a site where it is not known, while the platform reads
+X: on Today, "Your X account" in the link sheet and on the posted reply's
+card; over MCP, `mark_reply_posted` answers `xHandleNeeded: true` with a
+sentence, and `update_voice_settings` saves `xHandle`; the `daily_routine`
+prompt asks the person then. It is shown and edited in Settings →
+Connections → X. Validated as X does: 1 to 15 letters, digits or
+underscores, a leading @ dropped, stored lowercased. The daily search and
+the close-accounts trial also leave the saved handle's own posts out.
 
 **Costs, as configuration.** Unit prices are constants in
 `lib/providers/x/api.ts` (`X_SEARCH_USD_PER_POST`, `X_LOOKUP_USD_PER_POST`,
@@ -253,7 +283,8 @@ endpoint, posts returned and the estimated cost.
   (up to 30 rows a run), and `draft` starts drafts for the best qualified
   finds, at most 5 a run, through `startDraft` (each asks the daily draft
   cap; nothing is drafted while About you is empty).
-- At most 10 sites a run; a site searched in the last 20 hours is skipped.
+- At most 10 sites a run, the ones searched longest ago first; a site
+  searched in the last 20 hours is skipped.
 
 **The numbers** (`lib/placements/x-metrics.ts`, same cron). Once a day, the
 replies posted on X with a link (`published_url`), posted in the last 14
@@ -287,8 +318,8 @@ have a link and a snapshot), and the best reply. `loadReplyStats`
 docs/LIFECYCLE.md) shows it; `get_reply_stats` and `get_growth` answer it.
 
 The followers of the site's own X account (`lib/placements/x-account.ts`):
-the handle is read from the links of the site's posted replies
-(`ownXHandle`), looked up once a day (one user lookup a site, at most 10
+the handle is the one the person gave, else the one the links of the site's
+posted replies name (`ownXHandle`), looked up once a day (one user lookup a site, at most 10
 sites a run) and stored in `x_account_metrics`. `summarizeFollowers` gives
 the change only when both days belong to the same handle and the earlier
 one is inside the window; otherwise the change is null.
@@ -306,7 +337,9 @@ account in that thread,
 
 from an hour before the tap to six hours after, 10 results. The cron
 `/api/cron/x-reply-links` tries 2 minutes, 15 minutes, 2 hours and 12 hours
-after "I posted it", at most 10 searches a run. A single match is stored as
+after "I posted it", at most 10 searches a run, for any site whose owner
+pays and whose X account is known, at most 25 new replies a site in 24
+hours (a reply over the bound is pasted, as before). A single match is stored as
 the link; several candidates are offered for the person to pick
 (`link-match.ts`); none leaves the row as it was.
 
@@ -521,7 +554,7 @@ state says discovery is not searching yet.
 | `PATCH /api/placements/drafts/:id` | edit a draft; the gate runs again |
 | `POST /api/placements/:id/drafts` | "Write your own" |
 | `POST /api/placements/drafts/:id/correct` | Fix it |
-| `/api/cron/x-posts` | daily, `CRON_SECRET`; off unless `X_API_ENABLED`: reply numbers, followers, then one `x-post-discovery` job per site with Find posts on X on (at most 10) |
+| `/api/cron/x-posts` | daily, `CRON_SECRET`; off unless `X_API_ENABLED`: reply numbers, followers, then one `x-post-discovery` job per paying site (at most 10, searched longest ago first) |
 | `/api/cron/x-close-trial` | every 3 hours during the day, `CRON_SECRET`; off unless `X_API_ENABLED` and the site is in `X_CLOSE_TRIAL_BUSINESS_IDS`, until `X_CLOSE_TRIAL_UNTIL` |
 | `/api/cron/x-reply-links` | every 5 minutes, `CRON_SECRET`; off unless `X_API_ENABLED` |
 | `GET /api/placements/reply-stats` | the period on X summed and the followers; stored rows only |

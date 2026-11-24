@@ -169,9 +169,9 @@ export function ArticleFactsField({ value, onChange }: { value: string; onChange
  * keeps drafts honest — drafts speak as someone who uses the product, and
  * with it empty there is nothing honest to say, so none is written.
  *
- * Find posts on X is stored with the voice (`findPostsOnX`) but switched in
- * Settings → Connections since 2026-11-14 (FindPostsOnXSwitch). This form
- * still sends the whole object it loaded, that value included, unchanged.
+ * The site's X account is stored with the voice (`xHandle`) but edited in
+ * Settings → Connections and on Today (XHandleField). This form still sends
+ * the whole object it loaded, that value included, unchanged.
  */
 export function VoiceSettingsForm() {
   const [settings, setSettings] = useState<VoiceSettings>(DEFAULT_VOICE_SETTINGS);

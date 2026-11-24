@@ -4,6 +4,7 @@ import { X_QUERY_MAX_CHARS, isXApiEnabled, searchWorstCaseUsd, type XApiClient }
 import { storeTargets } from "./discovery";
 import { saveTargetMedia } from "./media";
 import { referencedFromXApi, saveTargetReferenced } from "./referenced";
+import { savedXHandle } from "./x-handle";
 import { meteredXCall, type MeteredRefusal } from "./x-budget";
 import { existingStatusIds, filterXPosts, ownXHandle, xPostAsTarget, xPostMediaState, xQueryFilters, type XSkips } from "./x-search";
 
@@ -142,7 +143,9 @@ export function closeAccountsFrom(
 export async function loadCloseAccounts(
   supabase: SupabaseClient,
   businessId: string,
-  now: Date
+  now: Date,
+  /** The handle the person gave for the site; wins over the one the links name. */
+  savedHandle: string | null = null
 ): Promise<{ accounts: CloseAccount[]; ownHandle: string | null }> {
   const since = new Date(now.getTime() - X_CLOSE_LOOKBACK_DAYS * 86_400_000).toISOString();
   const { data, error } = await supabase
@@ -155,7 +158,7 @@ export async function loadCloseAccounts(
     .limit(1000);
   if (error) throw new Error(`placement targets: ${error.message}`);
   const rows = (data ?? []) as PostedReplyRow[];
-  const ownHandle = ownXHandle(rows.map((r) => r.published_url));
+  const ownHandle = savedHandle ?? ownXHandle(rows.map((r) => r.published_url));
   return { accounts: closeAccountsFrom(rows, { now, ownHandle }), ownHandle };
 }
 
@@ -256,14 +259,15 @@ export interface CloseSearchOutcome {
 export async function searchXCloseAccounts(params: {
   supabase: SupabaseClient;
   client: XApiClient | null;
-  business: { id: string; user_id: string; content_language: string | null };
+  /** `voice_settings` carries the handle the person gave for the site, when they did. */
+  business: { id: string; user_id: string; content_language: string | null; voice_settings?: unknown };
   windowStart: Date;
   now?: Date;
   signal?: AbortSignal;
 }): Promise<CloseSearchOutcome> {
   const now = params.now ?? new Date();
   const { supabase, business } = params;
-  const { accounts, ownHandle } = await loadCloseAccounts(supabase, business.id, now);
+  const { accounts, ownHandle } = await loadCloseAccounts(supabase, business.id, now, savedXHandle(business.voice_settings));
   const handles = accounts.map((a) => a.handle);
   const built = buildCloseQueries(handles, business.content_language ?? "en");
   const outcome: CloseSearchOutcome = {

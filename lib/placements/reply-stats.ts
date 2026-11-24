@@ -97,7 +97,7 @@ export const TopReply = z.object({
 export type TopReply = z.infer<typeof TopReply>;
 
 export const AccountFollowers = z.object({
-  handle: z.string().nullable().describe("The site's own X account, read off its saved reply links; null when no link names one."),
+  handle: z.string().nullable().describe("The site's own X account: the one the person gave (update_voice_settings xHandle), else the one its saved reply links name; null when neither."),
   day: z.string().nullable().describe("The UTC day of the newest snapshot; null when never read."),
   followers: Count.describe("Followers on that day; null when never read or X returned nothing."),
   following: Count,
@@ -113,8 +113,8 @@ export const ReplyStats = z.object({
     .number()
     .describe("The length of the period, in days: 7 (the default) or 28. `week` is these days and `previousWeek` the same length before."),
   status: z
-    .enum(["on", "off_platform", "off_site"])
-    .describe("on: the numbers are read daily; off_platform: the X API is not set up on GetTrafficFast; off_site: Find posts on X is off for this site (Settings → Connections)."),
+    .enum(["on", "off_platform"])
+    .describe("on: the numbers are read daily (every site, since 2026-11-24); off_platform: the X API is not set up on GetTrafficFast."),
   measured: z.boolean().describe("False when the stored reply numbers could not be read at all: unknown, not zero."),
   note: z.string(),
   week: ReplyWeek,
@@ -157,7 +157,6 @@ export interface ReplyStatsInput {
   /** The period, in days: 7 (default) or 28. */
   days?: number;
   platformEnabled: boolean;
-  siteEnabled: boolean;
   replies: readonly PostedXReply[];
   /** False when the reply numbers could not be read. */
   metricsReadable: boolean;
@@ -316,7 +315,7 @@ export function summarizeReplyStats(input: ReplyStatsInput): ReplyStats {
   const previousWeek = summarizeWeek(input.replies, before, input.metricsReadable);
   return {
     days,
-    status: !input.platformEnabled ? "off_platform" : !input.siteEnabled ? "off_site" : "on",
+    status: !input.platformEnabled ? "off_platform" : "on",
     measured: input.metricsReadable,
     note: replyStatsNote(days),
     week: thisWeek,
@@ -359,6 +358,5 @@ export function coverageLine(week: Pick<ReplyWeek, "posted" | "measured" | "with
 /** The sentence when there is nothing to sum, or null when there is. */
 export function offLine(status: ReplyStats["status"]): string | null {
   if (status === "off_platform") return "Numbers from X are not available yet: reading X is not set up on GetTrafficFast.";
-  if (status === "off_site") return "Turn on Find posts on X in Settings → Connections to see your replies' numbers here, read once a day.";
   return null;
 }

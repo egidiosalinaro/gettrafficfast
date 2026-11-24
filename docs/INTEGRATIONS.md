@@ -18,10 +18,11 @@ because Google's consent screen and the emails return to it) →
 `/settings/integrations/wordpress`, `/settings/integrations/webhook`, and
 `/settings/integrations/search-console`, each with "‹ Connections" at the top.
 Since 2026-11-14 the page is three groups: **Google** (Search Console),
-**X** (the site's Find posts on X switch, `voice_settings.findPostsOnX`,
-moved here from Settings → Voice and saved through the partial
+**X** (since 2026-11-24 no switch: the X features run for every site when
+the platform has the X API on; the card says so and holds the site's X
+account, `voice_settings.xHandle`, saved through the partial
 `PATCH /api/business/voice-settings`, the merge `update_voice_settings`
-runs), and **Your blog** (WordPress, Webhooks; Shopify, Wix, Webflow and
+runs; until 2026-11-24 it held the Find posts on X switch), and **Your blog** (WordPress, Webhooks; Shopify, Wix, Webflow and
 Framer named as coming soon, not offered).
 
 The Connected badge on each row is the union of two tables:

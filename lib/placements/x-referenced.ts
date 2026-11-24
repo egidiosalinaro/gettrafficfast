@@ -123,7 +123,7 @@ export async function backfillReferencedPosts(params: {
   /** The service role: every site's rows, and the ledger. */
   admin: SupabaseClient;
   client: XApiClient | null;
-  /** Sites taking part in Find posts on X whose owner pays: their posts go through the metered lookup. */
+  /** Sites whose owner pays (every site takes part in X since 2026-11-24): their posts go through the metered lookup. */
   apiBusinessIds: readonly string[];
   now?: Date;
   capUsd?: number;

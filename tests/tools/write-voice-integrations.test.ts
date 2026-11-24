@@ -58,7 +58,7 @@ describe("update_voice_settings", () => {
     const run = await call(db, "update_voice_settings", { preset: "casual", person: "i" });
     expect(run).toEqual({
       ok: true,
-      output: { settings: { preset: "casual", person: "i", aboutYou: "I run Acme.", articleFacts: "", instructions: "Lowercase, short lines.", dailyReplyGoal: null, findPostsOnX: false, confirmedFacts: {} } },
+      output: { settings: { preset: "casual", person: "i", aboutYou: "I run Acme.", articleFacts: "", instructions: "Lowercase, short lines.", dailyReplyGoal: null, xHandle: null, confirmedFacts: {} } },
     });
     expect(site(db).voice_settings).toMatchObject({ preset: "casual", instructions: "Lowercase, short lines." });
     expect(site(db, SITE_B).voice_settings).not.toMatchObject({ preset: "casual" });
@@ -66,7 +66,7 @@ describe("update_voice_settings", () => {
 
   it("changes the daily goal alone, or clears it, and keeps every other voice field (the Today sheet's write)", async () => {
     const db = seed();
-    const stored = { preset: "casual", person: "i", aboutYou: "I run Acme.", articleFacts: "", instructions: "Lowercase, short lines.", dailyReplyGoal: 5, findPostsOnX: true, confirmedFacts: {} };
+    const stored = { preset: "casual", person: "i", aboutYou: "I run Acme.", articleFacts: "", instructions: "Lowercase, short lines.", dailyReplyGoal: 5, xHandle: "postwren", confirmedFacts: {} };
     site(db).voice_settings = stored;
     expect(await call(db, "update_voice_settings", { dailyReplyGoal: 6 })).toMatchObject({ ok: true, output: { settings: { ...stored, dailyReplyGoal: 6 } } });
     expect(site(db).voice_settings).toEqual({ ...stored, dailyReplyGoal: 6 });
@@ -74,6 +74,27 @@ describe("update_voice_settings", () => {
     expect(site(db).voice_settings).toEqual({ ...stored, dailyReplyGoal: null });
     expect(await call(db, "update_voice_settings", { dailyReplyGoal: 51 })).toMatchObject({ ok: false, status: 400 });
     expect(site(db).voice_settings).toEqual({ ...stored, dailyReplyGoal: null });
+  });
+
+  it("saves the site's X account alone, normalised, and refuses one X would not accept", async () => {
+    const db = seed();
+    site(db).voice_settings = { preset: "plain", person: "auto", aboutYou: "I run Acme.", instructions: "Short." };
+    expect(await call(db, "update_voice_settings", { xHandle: "@SamRivDev" })).toMatchObject({ ok: true, output: { settings: { xHandle: "samrivdev", aboutYou: "I run Acme." } } });
+    expect(site(db).voice_settings).toMatchObject({ xHandle: "samrivdev", instructions: "Short." });
+    // Only this site: the other one keeps none.
+    expect((site(db, SITE_B).voice_settings as Record<string, unknown> | null)?.xHandle ?? null).toBeNull();
+    expect(await call(db, "update_voice_settings", { xHandle: "sam riv" })).toMatchObject({ ok: false, status: 400 });
+    expect(site(db).voice_settings).toMatchObject({ xHandle: "samrivdev" });
+    expect(await call(db, "update_voice_settings", { xHandle: null })).toMatchObject({ ok: true });
+    expect(site(db).voice_settings).toMatchObject({ xHandle: null });
+  });
+
+  it("takes no Find posts on X switch any more: an old caller's field is ignored and nothing of it is stored", async () => {
+    const db = seed();
+    site(db).voice_settings = { preset: "plain", person: "auto", aboutYou: "I run Acme.", instructions: "" };
+    const run = await call(db, "update_voice_settings", { findPostsOnX: false, dailyReplyGoal: 3 });
+    expect(run).toMatchObject({ ok: true, output: { settings: { dailyReplyGoal: 3 } } });
+    expect(site(db).voice_settings).not.toHaveProperty("findPostsOnX");
   });
 
   it("refuses a partial change over settings it cannot read, and accepts a whole one", async () => {

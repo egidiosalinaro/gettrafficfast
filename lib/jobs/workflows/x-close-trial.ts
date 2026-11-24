@@ -7,7 +7,6 @@ import {
   lastCloseSearchAt,
   searchXCloseAccounts,
 } from "@/lib/placements/x-close";
-import { parseVoiceSettings } from "@/lib/voice/settings";
 import type { Workflow } from "@/lib/jobs/types";
 import { loadBusiness } from "./placement-discovery";
 import { xFindSteps } from "./x-discovery";
@@ -48,7 +47,6 @@ export const xCloseTrialWorkflow: Workflow = {
         if (!gate.ok) return { skipped: gate.reason };
         const business = await loadBusiness(ctx.supabase, businessId);
         if (!business) return { skipped: "business not found" };
-        if (!parseVoiceSettings(business.voice_settings).findPostsOnX) return { skipped: "Find posts on X is off for this site" };
         const client = xApiClientFromEnv();
         if (!client) return { skipped: "the X API is not turned on for this deployment" };
         const windowStart = closeWindowStart(await lastCloseSearchAt(ctx.supabase, businessId, X_CLOSE_TRIAL, ctx.job.id), now);

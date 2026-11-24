@@ -6,7 +6,7 @@ vi.mock("@/lib/notifications/email", () => ({ operatorEmailAddress: () => null, 
 import { compactCount, mapReplyMetrics, metricsLine } from "@/lib/placements/reply-metrics";
 import { loadReplyMetrics } from "@/lib/placements/reply-metrics-read";
 import { pickRepliesToRead, refreshXReplyMetrics } from "@/lib/placements/x-metrics";
-import { runXDaily } from "@/lib/placements/x-daily";
+import { X_MAX_BUSINESSES_PER_RUN, rotateSites, runXDaily } from "@/lib/placements/x-daily";
 import { LedgerFake, fakeXClient, xPost } from "./x-fake";
 
 /**
@@ -146,6 +146,16 @@ describe("the line on a posted reply", () => {
   });
 });
 
+describe("rotateSites", () => {
+  it("puts the sites never searched first, then the one searched longest ago, keeping their order on a tie", () => {
+    const last = new Map([
+      ["a", "2026-11-10T13:20:00Z"],
+      ["b", "2026-11-09T13:20:00Z"],
+    ]);
+    expect(rotateSites([{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }], last).map((s) => s.id)).toEqual(["c", "d", "b", "a"]);
+  });
+});
+
 describe("the daily run's gate", () => {
   const seed = () =>
     new LedgerFake({
@@ -173,20 +183,47 @@ describe("the daily run's gate", () => {
     fetchSpy.mockRestore();
   });
 
-  it("reads numbers and enqueues a search only for the sites that turned Find posts on X on", async () => {
+  it("reads numbers and enqueues a search for every site, a stored switch off included", async () => {
     const db = seed();
     const { client, lookup } = fakeXClient({ lookup: () => ({ posts: [xPost("11")], missingIds: [], billedPosts: 1, costUsd: 0.005 }) });
     const out = await runXDaily({ admin: db as never, now: NOW, client });
-    expect(out.sites).toBe(1);
-    expect((lookup.mock.calls[0] as unknown as [string[]])[0]).toEqual(["11"]);
-    expect(db.tables.jobs).toEqual([expect.objectContaining({ type: "x-post-discovery", business_id: SITE, input: { businessId: SITE } })]);
+    expect(out.sites).toBe(2);
+    expect([...(lookup.mock.calls[0] as unknown as [string[]])[0]].sort()).toEqual(["11", "99"]);
+    expect(db.tables.jobs.map((job) => job.business_id).sort()).toEqual([SITE, OFF_SITE].sort());
 
     // The columns the database fills by default on insert.
-    Object.assign(db.tables.jobs[0], { status: "completed", created_at: NOW.toISOString() });
+    for (const job of db.tables.jobs) Object.assign(job, { status: "completed", created_at: NOW.toISOString() });
     // Run again the same day (a retried cron): no second search.
     const again = await runXDaily({ admin: db as never, now: new Date("2026-11-11T14:00:00Z"), client });
-    expect(again.search).toMatchObject({ enqueued: 0, recent: 1 });
-    expect(db.tables.jobs).toHaveLength(1);
+    expect(again.search).toMatchObject({ enqueued: 0, recent: 2 });
+    expect(db.tables.jobs).toHaveLength(2);
+  });
+
+  it("searches at most X_MAX_BUSINESSES_PER_RUN sites a run, the ones searched longest ago first", async () => {
+    const ids = Array.from({ length: X_MAX_BUSINESSES_PER_RUN + 2 }, (_, i) => `site-${String(i).padStart(2, "0")}`);
+    const db = new LedgerFake({
+      businesses: ids.map((id, i) => ({ id, user_id: USER, voice_settings: {}, created_at: `2026-01-${String(i + 1).padStart(2, "0")}T00:00:00Z` })),
+      subscriptions: [{ user_id: USER, status: "active", current_period_end: null }],
+      placement_targets: [],
+      placement_metrics: [],
+      x_account_metrics: [],
+      // The first ten were searched yesterday; the last two never.
+      jobs: ids.slice(0, X_MAX_BUSINESSES_PER_RUN).map((id, i) => ({
+        id: `job-${i}`,
+        business_id: id,
+        type: "x-post-discovery",
+        status: "completed",
+        created_at: "2026-11-09T13:20:00Z",
+      })),
+      agent_runs: [],
+    });
+    const { client } = fakeXClient();
+    const out = await runXDaily({ admin: db as never, now: NOW, client });
+    expect(out.search).toMatchObject({ enqueued: X_MAX_BUSINESSES_PER_RUN });
+    const enqueued = db.tables.jobs.filter((job) => !String(job.id).startsWith("job-")).map((job) => job.business_id);
+    expect(enqueued).toContain(ids[X_MAX_BUSINESSES_PER_RUN]);
+    expect(enqueued).toContain(ids[X_MAX_BUSINESSES_PER_RUN + 1]);
+    expect(enqueued).toHaveLength(X_MAX_BUSINESSES_PER_RUN);
   });
 
   it("enqueues no search once the month's cap is reached", async () => {

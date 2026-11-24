@@ -173,11 +173,12 @@ describe("the daily read of the account", () => {
 });
 
 describe("inside the daily X run", () => {
-  it("reads the followers of the sites that turned Find posts on X on, owners who pay", async () => {
+  it("reads the followers of every site whose owner pays, a stored switch off included, from the saved handle first", async () => {
     const db = new LedgerFake({
       businesses: [
-        { id: site(1), user_id: USER, voice_settings: { findPostsOnX: true, aboutYou: "I run it." } },
-        { id: site(2), user_id: USER, voice_settings: { findPostsOnX: false } },
+        { id: site(1), user_id: USER, voice_settings: { aboutYou: "I run it." } },
+        // The removed switch, stored off, is ignored; the saved handle wins over the links' "other".
+        { id: site(2), user_id: USER, voice_settings: { findPostsOnX: false, xHandle: "postwren" } },
       ],
       subscriptions: [{ user_id: USER, status: "active", current_period_end: null }],
       placement_targets: [posted("a", site(1), "samriv", "11"), posted("b", site(2), "other", "12")],
@@ -188,10 +189,9 @@ describe("inside the daily X run", () => {
     });
     const { client, userByUsername } = fakeXClient({ lookup: () => ({ posts: [xPost("11")], missingIds: [], billedPosts: 1, costUsd: 0.005 }) });
     const out = await runXDaily({ admin: db as never, now: NOW, client });
-    expect(userByUsername).toHaveBeenCalledTimes(1);
-    expect(userByUsername.mock.calls[0][0]).toBe("samriv");
-    expect(out.account).toMatchObject({ considered: 1, asked: 1, stored: 1 });
-    expect(db.tables.x_account_metrics).toEqual([expect.objectContaining({ business_id: site(1), followers: 1200 })]);
+    expect(userByUsername).toHaveBeenCalledTimes(2);
+    expect(userByUsername.mock.calls.map((call) => call[0]).sort()).toEqual(["postwren", "samriv"]);
+    expect(out.account).toMatchObject({ considered: 2, asked: 2, stored: 2 });
   });
 
   it("with the key present but the platform not opted in, reads no account", async () => {

@@ -43,7 +43,7 @@ const QUOTE_SHAPE_RULES = new Set(["x_too_short", "x_link_share", "x_broadcast"]
  *              through the same `startDraft` "Draft it" uses, so each one
  *              asks the daily draft cap and the About you prerequisite.
  *
- * Only on a site whose owner turned "Find posts on X" on, and only when the
+ * On every site (no per-site switch since 2026-11-24), only when the
  * platform has the X API on. Nothing is posted: a person replies through X's
  * own web intent, as with every other row.
  */
@@ -270,7 +270,6 @@ export const xDiscoveryWorkflow: Workflow = {
         const { businessId } = readInput(ctx.input);
         const business = await loadBusiness(ctx.supabase, businessId);
         if (!business) return { skipped: "business not found" };
-        if (!parseVoiceSettings(business.voice_settings).findPostsOnX) return { skipped: "Find posts on X is off for this site" };
         const client = xApiClientFromEnv();
         if (!client) return { skipped: "the X API is not turned on for this deployment" };
         const { keywords, entities } = await loadExpertise(ctx.supabase, businessId, 20);

@@ -331,7 +331,7 @@ export function linkSourceOf(publishedUrl: string | null | undefined, search: Li
  *   looking — GTF will look again by itself, until `stopsBy`;
  *   stopped — GTF looked and stopped (`outcome` says why): the person pastes;
  *   off     — GTF does not look for this one: not on X, removed, too old
- *             for X's search, the site or the platform has it off, the
+ *             for X's search, the platform has it off, the
  *             account is not known, or the searches could not be read.
  * Null for a reply that has its link or is not a posted reply.
  */
@@ -354,8 +354,8 @@ export interface LinkFindingTarget {
 /**
  * The state of the search for one posted reply. `finderOn` is whether GTF
  * looks for this site's replies at all (lib/placements/reply-link-search.ts,
- * `replyLinkFinderOn`: the platform's X API, the site's Find posts on X, the
- * cap, the account known).
+ * `replyLinkFinderOn`: the platform's X API, the cap, the account known, the
+ * owner paying).
  */
 export function linkFinding(target: LinkFindingTarget, ctx: { finderOn: boolean; now: number }): LinkFinding | null {
   if (target.status !== "published_manually" || (target.publishedUrl ?? "").trim()) return null;

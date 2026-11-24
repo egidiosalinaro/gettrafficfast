@@ -5,7 +5,6 @@ import { llmPausedUntil } from "@/lib/llm-billing";
 import { isSpendSkip, logOwnerSkip, spendingOwners } from "@/lib/limits/owners";
 import { logUnpaidSkip, paidOwners } from "@/lib/paid-access";
 import { isXApiEnabled, xApiClientFromEnv, type XApiClient } from "@/lib/providers/x/api";
-import { parseVoiceSettings } from "@/lib/voice/settings";
 import { refreshXAccountMetrics, type AccountRefreshOutcome } from "./x-account";
 import { readXApiStatus } from "./x-budget";
 import { refreshXReplyMetrics, type MetricsRefreshOutcome } from "./x-metrics";
@@ -18,12 +17,15 @@ import { backfillReferencedPosts, type ReferencedBackfillOutcome } from "./x-ref
  * and one search job per site (run by the worker: search, rules, qualify,
  * draft).
  *
- * A site takes part when its owner turned "Find posts on X" on and the
- * platform has the X API on. Its owner must pay; the search, which leads to
- * model calls, also needs the owner under their daily AI spend limit and the
- * model accounts able to pay. The monthly cap is checked again before every
- * call to X, so what is decided here is only who is asked, never how much
- * is spent.
+ * Every site takes part when the platform has the X API on (`X_API_ENABLED`
+ * and a token): there is no per-site switch since 2026-11-24. Its owner must
+ * pay; the search, which leads to model calls, also needs the owner under
+ * their daily AI spend limit and the model accounts able to pay. At most
+ * X_MAX_BUSINESSES_PER_RUN sites are searched a run, the ones searched
+ * longest ago first, so every site gets its turn when there are more; a
+ * site is searched at most once in 20 hours. The monthly cap is checked
+ * again before every call to X, so what is decided here is only who is
+ * asked, never how much is spent.
  */
 
 /** Sites searched per run. The cap protects the bill; this keeps one run short. */
@@ -44,13 +46,47 @@ export interface XDailyOutcome {
   search: { enqueued: number; recent: number; skippedUnpaid: number; skippedSpendCap: number } | { skipped: string };
 }
 
-/** The sites whose owner turned "Find posts on X" on. */
-export async function sitesFindingOnX(admin: SupabaseClient): Promise<Array<{ id: string; user_id: string }>> {
-  const { data, error } = await admin.from("businesses").select("id, user_id, voice_settings").limit(CANDIDATE_BUSINESSES);
+/** How far back the run looks for a site's last search, to put the sites searched longest ago first. */
+const LAST_SEARCH_LOOKBACK_MS = 14 * 86_400_000;
+
+/** The sites the daily X run covers: every site, oldest first (whose owner pays is decided after). */
+export async function xSites(admin: SupabaseClient): Promise<Array<{ id: string; user_id: string }>> {
+  const { data, error } = await admin
+    .from("businesses")
+    .select("id, user_id")
+    .order("created_at", { ascending: true })
+    .limit(CANDIDATE_BUSINESSES);
   if (error) throw new Error(`businesses: ${error.message}`);
-  return ((data ?? []) as Array<{ id: string; user_id: string; voice_settings: unknown }>)
-    .filter((b) => parseVoiceSettings(b.voice_settings).findPostsOnX)
-    .map((b) => ({ id: b.id, user_id: b.user_id }));
+  return ((data ?? []) as Array<{ id: string; user_id: string }>).map((b) => ({ id: b.id, user_id: b.user_id }));
+}
+
+/**
+ * The sites in the order the search takes them: never searched (in the last
+ * 14 days) first, then the one searched longest ago. Stable, so two sites
+ * with the same history keep their order. Pure.
+ */
+export function rotateSites<T extends { id: string }>(sites: readonly T[], lastSearchedAt: ReadonlyMap<string, string>): T[] {
+  return sites
+    .map((site, index) => ({ site, index, at: lastSearchedAt.get(site.id) ?? "" }))
+    .sort((a, b) => a.at.localeCompare(b.at) || a.index - b.index)
+    .map((item) => item.site);
+}
+
+/** When each site's daily X search was last queued, over the last 14 days. Unreadable reads as none: the order is then the sites' own. */
+async function lastSearches(admin: SupabaseClient, now: Date): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const { data, error } = await admin
+    .from("jobs")
+    .select("business_id, created_at")
+    .eq("type", X_DISCOVERY)
+    .gte("created_at", new Date(now.getTime() - LAST_SEARCH_LOOKBACK_MS).toISOString())
+    .order("created_at", { ascending: false })
+    .limit(CANDIDATE_BUSINESSES * 14);
+  if (error) return out;
+  for (const row of (data ?? []) as Array<{ business_id: string | null; created_at: string }>) {
+    if (row.business_id && !out.has(row.business_id)) out.set(row.business_id, row.created_at);
+  }
+  return out;
 }
 
 /** True when this site's X search is queued, running, or ran in the last 20 hours. */
@@ -87,9 +123,9 @@ export async function runXDaily(params: {
   }
   const client = params.client === undefined ? xApiClientFromEnv() : params.client;
 
-  const sites = await sitesFindingOnX(admin);
+  const sites = await xSites(admin);
   if (sites.length === 0) {
-    const none = { skipped: "no site has Find posts on X on" };
+    const none = { skipped: "no site" };
     return { sites: 0, metrics: none, account: none, search: none };
   }
 
@@ -124,7 +160,7 @@ export async function runXDaily(params: {
   else {
     const owners = spendingOwners(admin, now);
     const counts = { enqueued: 0, recent: 0, skippedUnpaid: 0, skippedSpendCap: 0 };
-    for (const site of sites) {
+    for (const site of rotateSites(sites, await lastSearches(admin, now))) {
       if (counts.enqueued >= X_MAX_BUSINESSES_PER_RUN) break;
       const verdict = await owners.verdict(site.user_id);
       if (verdict !== true) {

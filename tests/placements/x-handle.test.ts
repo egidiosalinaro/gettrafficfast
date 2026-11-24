@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { handleOfStatusUrl, mostFrequentHandle, ownXHandle } from "@/lib/placements/x-handle";
+import { handleOfStatusUrl, mostFrequentHandle, ownXHandle, resolveXHandle, xHandleNeededFor } from "@/lib/placements/x-handle";
 import { FakeSupabase } from "../support/fake-supabase";
 
 /**
@@ -74,5 +74,55 @@ describe("ownXHandle", () => {
     expect(await ownXHandle(client, "biz-1")).toBe("me");
     expect(await ownXHandle(client, "biz-2")).toBe("other");
     expect(await ownXHandle(client, "biz-3")).toBeNull();
+  });
+});
+
+describe("the handle the person gave (xHandle, 2026-11-24)", () => {
+  const linked = {
+    id: "a",
+    business_id: "biz-1",
+    surface: "x",
+    status: "published_manually",
+    published_url: "https://x.com/fromlinks/status/11",
+    published_at: "2026-11-12T10:00:00Z",
+  };
+
+  it("wins over the one the saved links name, and is the only source on a new site", async () => {
+    const fake = new FakeSupabase({
+      businesses: [
+        { id: "biz-1", voice_settings: { xHandle: "postwren" } },
+        { id: "biz-2", voice_settings: { xHandle: "samrivdev" } },
+        { id: "biz-3", voice_settings: {} },
+      ],
+      placement_targets: [linked, { ...linked, id: "b", business_id: "biz-3" }],
+    });
+    const client = fake as unknown as SupabaseClient;
+    expect(await resolveXHandle(client, "biz-1")).toEqual({ handle: "postwren", source: "saved" });
+    expect(await resolveXHandle(client, "biz-2")).toEqual({ handle: "samrivdev", source: "saved" });
+    expect(await resolveXHandle(client, "biz-3")).toEqual({ handle: "fromlinks", source: "links" });
+    expect(await ownXHandle(client, "biz-4")).toBeNull();
+  });
+
+  it("is asked after a reply on X is marked as posted only while unknown, the platform reads X, and the reply has no link", async () => {
+    const env = { ...process.env };
+    process.env.X_API_ENABLED = "1";
+    process.env.X_API_BEARER_TOKEN = "t";
+    const fake = new FakeSupabase({
+      businesses: [
+        { id: "new-site", voice_settings: {} },
+        { id: "saved-site", voice_settings: { xHandle: "postwren" } },
+      ],
+      placement_targets: [],
+    });
+    const client = fake as unknown as SupabaseClient;
+    const reply = { surface: "x", status: "published_manually", publishedUrl: null };
+    expect(await xHandleNeededFor(client, "new-site", reply)).toBe(true);
+    expect(await xHandleNeededFor(client, "saved-site", reply)).toBe(false);
+    expect(await xHandleNeededFor(client, "new-site", { ...reply, publishedUrl: "https://x.com/me/status/1" })).toBe(false);
+    expect(await xHandleNeededFor(client, "new-site", { ...reply, surface: "reddit" })).toBe(false);
+    expect(await xHandleNeededFor(client, "new-site", { ...reply, status: "drafted" })).toBe(false);
+    delete process.env.X_API_ENABLED;
+    expect(await xHandleNeededFor(client, "new-site", reply)).toBe(false);
+    process.env = env;
   });
 });

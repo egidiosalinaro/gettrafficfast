@@ -98,8 +98,8 @@ three groups, listed once in `components/dashboard/settings-nav.ts` and read
 by the phone's `/settings` page, the desktop column (`SettingsSubmenu`) and
 every page's back link (`SettingsBackLink`, `settingsBack`): **This site**
 (Business `/settings/business`; Voice and facts `/settings/voice`;
-Connections `/settings/integrations`, which is Search Console, Find posts on
-X and the blog destinations; Claude and API `/settings/api-keys`, how to
+Connections `/settings/integrations`, which is Search Console, X (the
+site's X account) and the blog destinations; Claude and API `/settings/api-keys`, how to
 connect Claude through MCP and the API keys; Autopilot
 `/settings/automation`, with Images and video folded in under `#images`),
 **Plan** (Billing `/settings/billing`) and **You** (Account

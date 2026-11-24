@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseVoiceSettings } from "@/lib/voice/settings";
 import { authorHandle } from "./avatar";
 import { loadRemovals } from "./removed";
 import { loadReplyMetricsHistory } from "./reply-metrics-read";
@@ -88,7 +87,7 @@ export async function loadReplyStats(
   const now = options.now ?? new Date();
   const days = options.days ?? 7;
   const since = new Date(now.getTime() - replyDays(days) * 86_400_000).toISOString();
-  const [{ data, error }, { data: business }, handle, account] = await Promise.all([
+  const [{ data, error }, handle, account] = await Promise.all([
     supabase
       .from("placement_targets")
       .select("id, url, author, community, published_url, published_at, published_text, selected_placement_id")
@@ -98,7 +97,6 @@ export async function loadReplyStats(
       .gte("published_at", since)
       .order("published_at", { ascending: false })
       .limit(MAX_REPLIES),
-    supabase.from("businesses").select("voice_settings").eq("id", businessId).maybeSingle(),
     ownXHandle(supabase, businessId),
     loadXAccountHistory(supabase, businessId, { now, days: accountDays(days) }),
   ]);
@@ -143,7 +141,6 @@ export async function loadReplyStats(
     now,
     days,
     platformEnabled: options.xApiEnabled,
-    siteEnabled: parseVoiceSettings((business as { voice_settings?: unknown } | null)?.voice_settings).findPostsOnX,
     replies,
     metricsReadable: history !== null,
     handle,

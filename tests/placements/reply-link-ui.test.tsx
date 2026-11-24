@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { LinkBox, PostedItem } from "@/components/placements/posted-item";
 import { QueueRow } from "@/components/placements/queue";
-import { findingToast } from "@/components/placements/link-sheet";
+import { LinkSheet, findingToast } from "@/components/placements/link-sheet";
+import { X_HANDLE_HINT, saveXHandle } from "@/components/placements/x-handle-field";
 import { rowState } from "@/components/placements/reply-logic";
 import type { PlacementTargetRecord } from "@/lib/placements/read";
 
@@ -118,5 +119,45 @@ describe("the list and I posted it", () => {
     expect(page).toContain('if (lookingNow(target, Boolean(data?.hasBusiness && data.findsReplyLinks))) showToast(findingToast(), () => undoPosted(id));');
     expect(page).toContain('return linkFinding(target, { finderOn, now: Date.now() })?.state === "looking";');
     expect(page).toContain("else setLinkSheet(target);");
+  });
+});
+
+describe("Your X account, asked when GTF does not know it (2026-11-24)", () => {
+  const ask = (target: PlacementTargetRecord, askXHandle: boolean) =>
+    renderToStaticMarkup(
+      <PostedItem target={target} now={NOW} aeoQueries={[]} busy={false} finding={{ state: "off" }} onSetPublishedUrl={recorded} askXHandle={askXHandle} />
+    );
+
+  it("asks under a posted reply on X with no link, and only then", () => {
+    const html = ask(posted(), true);
+    expect(html).toContain("Your X account");
+    expect(html).toContain(X_HANDLE_HINT);
+    expect(ask(posted(), false)).not.toContain("Your X account");
+    expect(ask(posted({ publishedUrl: "https://x.com/me/status/1900000000000000009" }), true)).not.toContain("Your X account");
+    expect(ask(posted({ surface: "reddit", url: "https://www.reddit.com/r/seo/comments/abc/x/" }), true)).not.toContain("Your X account");
+  });
+
+  it("asks in the link sheet after I posted it on X", () => {
+    const sheet = (askXHandle: boolean, surface = "x") =>
+      renderToStaticMarkup(<LinkSheet target={{ surface, url: "https://x.com/asker/status/1900000000000000001" }} onSave={recorded} onClose={() => {}} askXHandle={askXHandle} />);
+    expect(sheet(true)).toContain("Your X account");
+    expect(sheet(false)).not.toContain("Your X account");
+    expect(sheet(true, "reddit")).not.toContain("Your X account");
+    const page = readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../app/(app)/today/page.tsx"), "utf8");
+    expect(page).toContain("askXHandle={Boolean(data?.hasBusiness && data.askXHandle)}");
+    expect(page).toContain("askXHandle={Boolean(data.askXHandle)}");
+  });
+
+  it("saves the account per site through the partial PATCH, as typed but normalised, and says the server's refusal", async () => {
+    const calls: Array<{ url: string; body: unknown }> = [];
+    const fetcher = (async (url: string, init: RequestInit) => {
+      calls.push({ url, body: JSON.parse(String(init.body)) });
+      return new Response(JSON.stringify({ success: true, settings: { xHandle: "samrivdev" } }), { status: 200 });
+    }) as unknown as typeof fetch;
+    expect(await saveXHandle("samrivdev", fetcher)).toEqual({ ok: true, handle: "samrivdev" });
+    expect(calls).toEqual([{ url: "/api/business/voice-settings", body: { xHandle: "samrivdev" } }]);
+
+    const refusing = (async () => new Response(JSON.stringify({ error: "xHandle: an X username" }), { status: 400 })) as unknown as typeof fetch;
+    expect(await saveXHandle("x", refusing)).toEqual({ ok: false, error: "xHandle: an X username" });
   });
 });

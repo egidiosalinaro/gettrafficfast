@@ -26,8 +26,9 @@ import { AI_CITED_FILTER, loadInbox, loadToday, type DiscoveryState, type Placem
 import { withXSearchOff } from "@/lib/placements/discovery-progress";
 import { isXApiEnabled } from "@/lib/providers/x/api";
 import { LINK_SEARCH_MAX_ATTEMPTS, LINK_SEARCH_OUTCOMES, linkFinding, type LinkFinding } from "@/lib/placements/reply-link";
-import { findReplyLinkNow, ownerPaysFor, replyLinkFinderFor, replyLinkFinderOn } from "@/lib/placements/reply-link-search";
+import { LINK_SEARCH_NEW_REPLIES_PER_SITE_PER_DAY, findReplyLinkNow, ownerPaysFor, replyLinkFinderFor, replyLinkFinderOn } from "@/lib/placements/reply-link-search";
 import { readXApiStatus } from "@/lib/placements/x-budget";
+import { X_HANDLE_NEEDED, xHandleNeededFor } from "@/lib/placements/x-handle";
 import { findActiveDraft, findLatestDraft, requestDiscovery } from "@/lib/placements/runs";
 import { TARGET_STATUSES, preferredDraft, type ManualActionInput } from "@/lib/placements/workflow";
 import { JobView, WaitSeconds, readJob, runJobWithin } from "./jobs";
@@ -130,7 +131,7 @@ const LinkFindingView = z
   .object({
     state: z
       .enum(["looking", "stopped", "off"])
-      .describe("looking: GTF searches X again by itself until stopsBy; stopped: it looked and stopped (outcome says why); off: it does not look for this one (not on X, removed, older than X's 7-day search, Find posts on X off, the site's X account not known yet, or the platform's X API off, paused or at its cap)."),
+      .describe("looking: GTF searches X again by itself until stopsBy; stopped: it looked and stopped (outcome says why); off: it does not look for this one (not on X, removed, older than X's 7-day search, the site's X account not known yet (update_voice_settings xHandle), over the site's daily limit of new searches, or the platform's X API off, paused or at its cap)."),
     stopsBy: z.string().nullable().describe("While looking: when GTF stops looking if it finds nothing."),
     outcome: z.enum(LINK_SEARCH_OUTCOMES).nullable().describe("When stopped: how the last search ended."),
   })
@@ -206,7 +207,7 @@ export const ReplyTarget = z.object({
   metrics: ReplyMetrics.nullable()
     .optional()
     .describe(
-      "A posted reply on X: its public numbers as X reported them on the newest day they were read (once a day, the 14 days after posting, when Find posts on X is on). A null number is one X did not return, never a zero; null: never read."
+      "A posted reply on X: its public numbers as X reported them on the newest day they were read (once a day, the 14 days after posting, when the platform has the X API on). A null number is one X did not return, never a zero; null: never read."
     ),
   linkSource: z
     .enum(["person", "found_on_x"])
@@ -238,7 +239,7 @@ const SearchRun = z.object({
 
 export const LastDiscovery = z.object({
   web: SearchRun.describe("Web discovery: Reddit, GitHub, LinkedIn, X, Hacker News, Quora, Stack Exchange… through a search engine, Monday, Wednesday and Friday at 10:00 UTC."),
-  x: SearchRun.nullable().describe("The daily X search for posts of the last hours; null when this site does not take part (Find posts on X off, or the platform has no X API)."),
+  x: SearchRun.nullable().describe("The daily X search for posts of the last hours; null when the platform has no X API (every site takes part otherwise)."),
 });
 
 const TargetOutput = z.object({ target: ReplyTarget });
@@ -392,9 +393,8 @@ export const listReplyInbox = defineTool({
       source: input.aiCited ? AI_CITED_FILTER : null,
       timeZone: input.timeZone ?? null,
     });
-    const xStatus = inbox.findPostsOnX && isXApiEnabled() ? await readXApiStatus(ctx.admin()) : null;
+    const xStatus = isXApiEnabled() ? await readXApiStatus(ctx.admin()) : null;
     const finderOn = replyLinkFinderOn(xStatus, {
-      findPostsOnX: Boolean(inbox.findPostsOnX),
       handleKnown: Boolean(inbox.xHandleKnown),
       ownerPays: xStatus && inbox.xHandleKnown ? await ownerPaysFor(ctx.client, ctx.userId) : false,
     });
@@ -739,24 +739,32 @@ export const markReplyPosted = defineTool({
   name: "mark_reply_posted",
   title: "Mark as posted",
   description:
-    "Records that the person posted the reply (\"I posted it\"). Optionally the link to their own posted reply (not the thread's), the draft that went out, and a note. The link can also be added later with set_reply_link. This records; it never posts.",
+    "Records that the person posted the reply (\"I posted it\"). Optionally the link to their own posted reply (not the thread's), the draft that went out, and a note. The link can also be added later with set_reply_link. On X, GTF finds the link by itself when it knows the site's X account; when it does not, xHandleNeeded is true and xHandleMessage says so: ask the person for their X username and save it with update_voice_settings (xHandle), once per site. This records; it never posts.",
   input: z.object({
     targetId: TargetId,
     link: z.string().trim().max(2000).optional().describe("The link to the person's own reply, e.g. https://x.com/you/status/…"),
     draftId: DraftId.optional(),
     note: z.string().trim().max(1000).optional(),
   }),
-  output: TargetOutput,
+  output: TargetOutput.extend({
+    xHandleNeeded: z
+      .boolean()
+      .describe("True when the reply is on X, has no link, the platform reads X, and GTF does not know this site's X account: ask the person for it and save it with update_voice_settings (xHandle). The Today screen asks the same, under the posted reply."),
+    xHandleMessage: z.string().nullable().describe("What to tell or ask the person when xHandleNeeded; null otherwise."),
+  }),
   scope: "write",
   paid: false,
   owns: { targetId: "placement_targets", draftId: "placements" },
-  handler: (ctx, input) =>
-    manualAction(ctx, input.targetId, {
+  async handler(ctx, input) {
+    const { target } = await manualAction(ctx, input.targetId, {
       action: "mark_published",
       publishedUrl: input.link ?? null,
       placementId: input.draftId,
       note: input.note,
-    }),
+    });
+    const needed = await xHandleNeededFor(ctx.client, ctx.businessId, target);
+    return { target, xHandleNeeded: needed, xHandleMessage: needed ? X_HANDLE_NEEDED : null };
+  },
 });
 
 export const unmarkReplyPosted = defineTool({
@@ -832,7 +840,7 @@ export const pasteReplyLinks = defineTool({
 export const findReplyLink = defineTool({
   name: "find_reply_link",
   title: "Find the reply's link on X",
-  description: `Searches X now for the link of a reply the person marked as posted on X and saves it when it is surely their own reply to that post (by the site's X account, in that thread, made around when it was marked as posted; when several could be it, the one whose words match the draft that was posted, else nothing is saved). GTF also does this by itself 2 min, 15 min, 2 h and 12 h after I posted it; this is the same search, now. One X search, counted against the reply's ${LINK_SEARCH_MAX_ATTEMPTS} searches and the platform's monthly limit on X. Needs Find posts on X on (update_voice_settings findPostsOnX), a reply posted in the last 7 days with no link, and the site's X account known from one reply link saved before. Reads X; never posts there.`,
+  description: `Searches X now for the link of a reply the person marked as posted on X and saves it when it is surely their own reply to that post (by the site's X account, in that thread, made around when it was marked as posted; when several could be it, the one whose words match the draft that was posted, else nothing is saved). GTF also does this by itself 2 min, 15 min, 2 h and 12 h after I posted it; this is the same search, now. One X search, counted against the reply's ${LINK_SEARCH_MAX_ATTEMPTS} searches and the platform's monthly limit on X. Needs a reply posted in the last 7 days with no link and the site's X account known: the one saved with update_voice_settings (xHandle), else the one a saved reply link names; refused with prerequisite_missing while neither is known (ask the person for their X username). A site starts searching for at most ${LINK_SEARCH_NEW_REPLIES_PER_SITE_PER_DAY} new replies in 24 hours. Reads X; never posts there.`,
   input: z.object({ targetId: TargetId }),
   output: z.object({
     outcome: z
@@ -935,7 +943,7 @@ export const getReplyMetrics = defineTool({
   name: "get_reply_metrics",
   title: "Get the numbers of posted replies",
   description:
-    "The public numbers of the replies posted on X from this site (views, likes, replies, reposts, quotes, bookmarks), as X reported them, one snapshot per day. They are read once a day for the 14 days after a reply is posted, only for replies whose link was saved and only while Find posts on X is on (Settings → Connections). A null number is one X did not return, never a zero; a reply with no snapshot was not read. Snapshots of X's public counters, not a total. Reads stored rows: no call to X.",
+    "The public numbers of the replies posted on X from this site (views, likes, replies, reposts, quotes, bookmarks), as X reported them, one snapshot per day. They are read once a day for the 14 days after a reply is posted, only for replies whose link was saved and only while the platform has the X API on. A null number is one X did not return, never a zero; a reply with no snapshot was not read. Snapshots of X's public counters, not a total. Reads stored rows: no call to X.",
   input: z.object({
     targetId: TargetId.optional().describe("One posted reply's target; all recent posted replies on X when left out."),
     days: z.number().int().min(1).max(60).default(14).describe("How many days of snapshots to return."),
@@ -997,7 +1005,7 @@ export const getReplyStats = defineTool({
   name: "get_reply_stats",
   title: "Get the week on X",
   description:
-    "Results → Replies on X: the replies posted on X from this site in the last 7 days against the 7 before, summed. Per week: `posted`, `measured` (link saved and numbers from X), `withoutLink`, and over the measured replies the sums of `views` (impressions), `likes`, `replies` (received) and `reposts`; `change` is this week minus the week before. They are X's running public counters, read once a day: a week's sum is the views so far of the replies posted in it, not views that happened during it, and the week before is read as of its own last day (`asOfDay`) so the two compare like with like. `top`: this week's 3 most viewed replies with their text, link, thread and numbers. `followers`: the site's own X account (the handle its saved reply links name), read once a day, with the change over 7 days when both ends were read. A null is not measured, never 0. `status` says whether the numbers are read at all (Find posts on X, Settings → Connections). Profile visits are not in X's public numbers. Reads stored rows: no call to X.",
+    "Results → Replies on X: the replies posted on X from this site in the last 7 days against the 7 before, summed. Per week: `posted`, `measured` (link saved and numbers from X), `withoutLink`, and over the measured replies the sums of `views` (impressions), `likes`, `replies` (received) and `reposts`; `change` is this week minus the week before. They are X's running public counters, read once a day: a week's sum is the views so far of the replies posted in it, not views that happened during it, and the week before is read as of its own last day (`asOfDay`) so the two compare like with like. `top`: this week's 3 most viewed replies with their text, link, thread and numbers. `followers`: the site's own X account (the one saved with update_voice_settings xHandle, else the handle its saved reply links name), read once a day, with the change over 7 days when both ends were read. A null is not measured, never 0. `status` says whether the numbers are read at all (the platform's X API). Profile visits are not in X's public numbers. Reads stored rows: no call to X.",
   input: z.object({}),
   output: ReplyStats,
   scope: "read",

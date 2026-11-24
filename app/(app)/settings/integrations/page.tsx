@@ -9,7 +9,8 @@ import {
 } from "@/lib/integrations/catalog";
 import { loadVoiceSettings } from "@/lib/voice/read";
 import { isXApiEnabled } from "@/lib/providers/x/api";
-import { FindPostsOnXSwitch } from "@/components/settings/find-posts-on-x";
+import { XAccountCard } from "@/components/settings/x-account";
+import { inferredXHandle } from "@/lib/placements/x-handle";
 
 export const dynamic = "force-dynamic";
 
@@ -89,8 +90,9 @@ function SectionHeading({ id, title, children }: { id: string; title: string; ch
  * site reads from (Search Console, X) and where it publishes (the blog).
  *
  * The Connected badge is the union of `integrations` and
- * `analytics_connections` (lib/integrations/catalog.ts). Find posts on X is
- * `voice_settings.findPostsOnX`, read here and switched in place.
+ * `analytics_connections` (lib/integrations/catalog.ts). X runs for every
+ * site when the platform has it; the site's X account is
+ * `voice_settings.xHandle`, read here and saved in place.
  */
 export default async function ConnectionsPage() {
   const supabase = await createClient();
@@ -100,22 +102,25 @@ export default async function ConnectionsPage() {
 
   const businessId = user ? await selectedBusinessId(supabase, user.id) : null;
   let connectedTypes = new Set<string>();
-  let findPostsOnX = false;
+  let xHandle: string | null = null;
+  let inferredHandle: string | null = null;
   let hasBusiness = false;
 
   if (user && businessId) {
     // Destinations in `integrations`, Search Console in `analytics_connections`.
     // The credential columns are not selected: this page only needs status.
-    const [{ data: publishing }, { data: analytics }, voice] = await Promise.all([
+    const [{ data: publishing }, { data: analytics }, voice, inferred] = await Promise.all([
       supabase.from("integrations").select("type, status").eq("business_id", businessId),
       supabase.from("analytics_connections").select("provider, status").eq("business_id", businessId),
       loadVoiceSettings(supabase, user.id, businessId),
+      inferredXHandle(supabase, businessId),
     ]);
     connectedTypes = connectedCatalogIds({
       publishing: (publishing ?? []).map((row) => ({ type: row.type as string, status: row.status as string })),
       analytics: (analytics ?? []).map((row) => ({ provider: row.provider as string, status: row.status as string })),
     });
-    findPostsOnX = voice.settings.findPostsOnX;
+    xHandle = voice.settings.xHandle;
+    inferredHandle = inferred;
     hasBusiness = voice.hasBusiness;
   }
 
@@ -140,11 +145,12 @@ export default async function ConnectionsPage() {
 
       <section aria-labelledby="connections-x" className="space-y-3">
         <SectionHeading id="connections-x" title="X">
-          Once a day, GetTrafficFast looks on X for fresh posts about your topics. They arrive in your replies with a
+          Every day, GetTrafficFast looks on X for fresh posts about your topics. They arrive in your replies with a
           draft. The numbers of the replies you post there (views, likes, replies) are read once a day too, and the
-          link of a reply you mark as posted is found on X for you. Nothing is ever posted for you.
+          link of a reply you mark as posted is found on X for you, once GTF knows your X account. Nothing is ever
+          posted for you.
         </SectionHeading>
-        <FindPostsOnXSwitch initialOn={findPostsOnX} available={isXApiEnabled()} hasBusiness={hasBusiness} />
+        <XAccountCard saved={xHandle} inferred={inferredHandle} available={isXApiEnabled()} hasBusiness={hasBusiness} />
       </section>
 
       <section aria-labelledby="connections-blog" className="space-y-3">

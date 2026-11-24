@@ -3,7 +3,6 @@ import { enqueueJob } from "@/lib/jobs/queue";
 import { X_CLOSE_TRIAL } from "@/lib/jobs/workflows/x-close-trial";
 import { llmPausedUntil } from "@/lib/llm-billing";
 import { logOwnerSkip, spendingOwners } from "@/lib/limits/owners";
-import { parseVoiceSettings } from "@/lib/voice/settings";
 import { readXApiStatus } from "./x-budget";
 import { closeTrialBusinessIds, closeTrialGate } from "./x-close";
 
@@ -12,8 +11,8 @@ import { closeTrialBusinessIds, closeTrialGate } from "./x-close";
  * hours from 06:00 to 21:00 UTC; docs/PLACEMENTS.md, "Close accounts
  * trial"): one `x-close-trial` job per listed site that may run now. Does
  * nothing unless the site is in `X_CLOSE_TRIAL_BUSINESS_IDS`, the platform
- * has the X API on, the date is before `X_CLOSE_TRIAL_UNTIL`, the site has
- * Find posts on X on and its owner pays and is under the AI spend limit.
+ * has the X API on, the date is before `X_CLOSE_TRIAL_UNTIL`, and the site's
+ * owner pays and is under the AI spend limit.
  * The monthly X cap is checked again before every call.
  */
 
@@ -44,14 +43,10 @@ export async function runXCloseTrial(params: { admin: SupabaseClient; now?: Date
       out.skippedSites.push({ businessId, reason: gate.reason });
       continue;
     }
-    const { data: business } = await admin.from("businesses").select("id, user_id, voice_settings").eq("id", businessId).maybeSingle();
-    const site = business as { id: string; user_id: string; voice_settings: unknown } | null;
+    const { data: business } = await admin.from("businesses").select("id, user_id").eq("id", businessId).maybeSingle();
+    const site = business as { id: string; user_id: string } | null;
     if (!site) {
       out.skippedSites.push({ businessId, reason: "business not found" });
-      continue;
-    }
-    if (!parseVoiceSettings(site.voice_settings).findPostsOnX) {
-      out.skippedSites.push({ businessId, reason: "Find posts on X is off for this site" });
       continue;
     }
     const verdict = await owners.verdict(site.user_id);

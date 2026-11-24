@@ -146,9 +146,10 @@ export function DocsContent({ engines, toolGroups, limits }: DocsContentProps) {
             pick your property. GTF only reads. The first pull reaches back 90 days.
           </li>
           <li>
-            <Strong>Turn on Find posts on X.</Strong> Same page. Once a day GTF looks on X for fresh posts about your
-            topics, and drafts replies to the best ones. If the switch says it is not available yet, searching X is not
-            set up on GetTrafficFast.
+            <Strong>Give your X account.</Strong> Same page. GTF looks on X for fresh posts about your topics for every
+            site, with nothing to turn on, and drafts replies to the best ones. Your X username lets it find the link of
+            each reply you post there. If the page says X is not available yet, reading X is not set up on
+            GetTrafficFast.
           </li>
           <li>
             <Strong>Connect your blog</Strong> (optional). WordPress, or a webhook for any other site. Without one,
@@ -164,8 +165,9 @@ export function DocsContent({ engines, toolGroups, limits }: DocsContentProps) {
               LinkedIn, GitHub, Hacker News, Quora, Stack Exchange and similar) and judges which are worth answering.
             </li>
             <li>
-              <Strong>Every day, 13:20.</Strong> With Find posts on X on, looks for fresh posts on X and drafts replies
-              to up to five of the best.
+              <Strong>Every day, 13:20.</Strong> Looks for fresh posts on X and drafts replies to up to five of the
+              best. Every site takes part; when there are many, the sites take turns, so yours may be searched every
+              other day.
             </li>
             <li>
               <Strong>Every day, 06:00.</Strong> With Autopilot on, keeps the calendar filled ahead and adds topics
@@ -209,8 +211,12 @@ export function DocsContent({ engines, toolGroups, limits }: DocsContentProps) {
             hold), it shows on Today again.
           </li>
           <li>
-            <Strong>The link of your reply.</Strong> On X, with Find posts on X on, GTF finds it by itself 2 minutes,
-            15 minutes, 2 hours and 12 hours after you mark the reply as posted. Anywhere else, paste it.
+            <Strong>The link of your reply.</Strong> On X, GTF finds it by itself 2 minutes, 15 minutes, 2 hours and 12
+            hours after you mark the reply as posted, once it knows your X account. The first time you mark a reply on
+            X as posted and GTF does not know it, it asks for it under the reply: type your username once for that
+            site, or change it later in <Place>Settings → Connections</Place>. Over MCP, mark_reply_posted says when
+            it is needed and update_voice_settings saves it (xHandle). Up to 25 new replies a site a day are looked
+            for; anywhere else, or past that, paste the link.
           </li>
         </Bullets>
         <Callout title="Three rules that do not change">

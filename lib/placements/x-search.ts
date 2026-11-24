@@ -7,6 +7,7 @@ import { topicsFor } from "./expertise";
 import { mediaFromProvider, saveTargetMedia, type PostMediaState } from "./media";
 import { X_EXCLUDED_WORDS, xConversationPhrases } from "./x-conversation";
 import { referencedFromXApi, saveTargetReferenced } from "./referenced";
+import { savedXHandle } from "./x-handle";
 import {
   X_SEARCH_CALL_WORST_USD,
   X_SEARCH_QUERIES_PER_RUN,
@@ -494,7 +495,8 @@ export interface XSearchOutcome {
 export async function searchXForBusiness(params: {
   supabase: SupabaseClient;
   client: XApiClient | null;
-  business: { id: string; user_id: string; content_language: string | null; niche: string | null };
+  /** `voice_settings` carries the handle the person gave for the site, when they did. */
+  business: { id: string; user_id: string; content_language: string | null; niche: string | null; voice_settings?: unknown };
   keywords: string[];
   entities: string[];
   brandNames: string[];
@@ -507,7 +509,8 @@ export async function searchXForBusiness(params: {
   const searches = buildXQueries({
     terms: xSearchTerms({ keywords: params.keywords, entities: params.entities, brandNames: params.brandNames, niche: business.niche }),
     language: business.content_language ?? "en",
-    ownHandle: context.ownHandle,
+    // The handle the person gave wins over the one their links name.
+    ownHandle: savedXHandle(business.voice_settings) ?? context.ownHandle,
     dayIndex: dayIndexOf(now),
   });
 

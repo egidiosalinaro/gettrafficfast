@@ -376,11 +376,11 @@ export interface XApiStatus {
 
 /**
  * What Replies says about the daily X search of a site: nothing when it does
- * not run (the site has it off, the platform has no X API), else whether the
- * cap stopped it, with the line that says so.
+ * not run (the platform has no X API), else whether the cap stopped it, with
+ * the line that says so. Every site takes part since 2026-11-24.
  */
-export function xSearchNotice(status: XApiStatus, findPostsOnX: boolean): { capReached: boolean; line: string | null } | null {
-  if (!status.enabled || !findPostsOnX) return null;
+export function xSearchNotice(status: XApiStatus): { capReached: boolean; line: string | null } | null {
+  if (!status.enabled) return null;
   return { capReached: status.capReached, line: status.capReached ? xCapReachedLine(new Date(status.resetsAt)) : null };
 }
 

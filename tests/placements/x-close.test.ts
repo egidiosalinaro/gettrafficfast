@@ -224,13 +224,13 @@ describe("runXCloseTrial", () => {
     expect(db.tables.jobs).toEqual([]);
   });
 
-  it("does not enqueue for a site with Find posts on X off", async () => {
+  it("enqueues a listed site whose stored Find posts on X says off: the switch is gone", async () => {
     Object.assign(process.env, ENV);
-    const db = seed();
+    const db = seed({ subscriptions: [{ user_id: USER, status: "active", current_period_end: null }], agent_runs: [] });
     db.tables.businesses[0].voice_settings = { findPostsOnX: false };
     const out = await runXCloseTrial({ admin: db as never, now: NOW, env: ENV });
-    expect(out.enqueued).toEqual([]);
-    expect(out.skippedSites).toEqual([{ businessId: SITE, reason: "Find posts on X is off for this site" }]);
+    expect(out.skippedSites).toEqual([]);
+    expect(out.enqueued).toEqual([SITE]);
   });
 
   it("does not enqueue after the end date", async () => {

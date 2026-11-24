@@ -309,25 +309,31 @@ export interface PlacementsInbox {
   business?: { name: string | null; domain: string | null };
   /**
    * The daily X search for this site, as the menu beside Run discovery says
-   * it: null when it is not running (the site has it off, or the platform
-   * has no X API), else whether this month's cap has stopped it and the line
+   * it: null when it is not running (the platform has no X API), else whether this month's cap has stopped it and the line
    * that says so. Set by the route, which can read the platform's ledger;
    * absent on an older payload.
    */
   xSearch?: XSearchNotice | null;
-  /** Whether this site's owner turned "Find posts on X" on. Absent on an older payload. */
-  findPostsOnX?: boolean;
   /**
-   * Whether the site's X account is known, from the links of its own posted
-   * replies (`ownXHandle`'s rule): GTF can look for a reply's link only then.
-   * Absent on an older payload.
+   * The site's X account (`ownXHandle`'s rule: the one the person gave,
+   * else the one the links of its own posted replies name), lowercased
+   * without the @; null when neither. Absent on an older payload.
    */
+  xHandle?: string | null;
+  /** Whether `xHandle` is known: GTF can look for a reply's link only then. Absent on an older payload. */
   xHandleKnown?: boolean;
   /**
+   * Whether the screen asks for the site's X account ("Your X account" on a
+   * posted reply on X and in its link sheet): the platform has the X API on
+   * and the handle is not known. Set by the route; absent on an older
+   * payload, read as no.
+   */
+  askXHandle?: boolean;
+  /**
    * Whether GTF looks for the links of this site's replies on X right now
-   * (`replyLinkFinderOn`: the platform's X API, Find posts on X, the account
-   * known, the owner paying, not paused, under the cap). Set by the route, which can read the
-   * platform's ledger; absent on an older payload, read as off.
+   * (`replyLinkFinderOn`: the platform's X API, the account known, the
+   * owner paying, not paused, under the cap). Set by the route, which can
+   * read the platform's ledger; absent on an older payload, read as off.
    */
   findsReplyLinks?: boolean;
 }
@@ -708,9 +714,10 @@ export async function loadToday(
 }
 
 /**
- * The site's X account, from the count rows the inbox already read: the
- * rule of `ownXHandle` (the handle its own posted replies' links carry most
- * often, newest first on a tie), without another query.
+ * The handle the site's own posted replies' links name, from the count rows
+ * the inbox already read (the links half of `ownXHandle`: the handle they
+ * carry most often, newest first on a tie), without another query. The
+ * handle the person gave wins over it (`voice.xHandle`).
  */
 export function xHandleOf(rows: readonly Row[]): string | null {
   const posted = rows
@@ -906,6 +913,7 @@ export async function loadInbox(
     discoveryProgressText({ status: job.status as string, currentStep: (job.current_step as string | null) ?? null, result: job.result })
   );
   const voice = parseVoiceSettings(businessRow?.voice_settings);
+  const xHandle = voice.xHandle ?? xHandleOf(countedRows);
   return {
     targets: orderInbox(
       targets.map((row) =>
@@ -947,15 +955,13 @@ export async function loadInbox(
       lastCompletedAt: web.lastCompletedAt,
       progress: web.progress,
       nextAt: web.nextAt,
-      // Whether the platform has the X API on is the route's to say (`withXSearchOff`).
-      x: voice.findPostsOnX
-        ? searchRunState((xJobRows ?? []) as Row[], nextScheduledRun(X_SEARCH_SCHEDULE, now).toISOString(), () => "Searching X…")
-        : null,
+      // Every site takes part; whether the platform has the X API on is the route's to say (`withXSearchOff`).
+      x: searchRunState((xJobRows ?? []) as Row[], nextScheduledRun(X_SEARCH_SCHEDULE, now).toISOString(), () => "Searching X…"),
     },
     aeoQueries: ((queryRows ?? []) as Row[]).map((r) => ({ id: r.id as string, query: r.query as string })),
     writer: { useRecorded: voice.aboutYou.trim().length > 0 },
-    findPostsOnX: voice.findPostsOnX,
-    xHandleKnown: xHandleOf(countedRows) !== null,
+    xHandle,
+    xHandleKnown: xHandle !== null,
     business: {
       name: typeof businessRow?.name === "string" && businessRow.name.trim() ? businessRow.name.trim() : null,
       domain: businessHostname(typeof businessRow?.website_url === "string" ? businessRow.website_url : null),

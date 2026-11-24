@@ -44,10 +44,9 @@ export async function GET(request: NextRequest) {
     // The platform's X ledger is the service role's to read; only whether
     // the cap stopped this site's search reaches the page, and whether GTF
     // looks for the links of its replies on X.
-    const xStatus = inbox.findPostsOnX && isXApiEnabled() ? await readXApiStatus(createAdminClient()) : null;
-    const xSearch = xStatus ? xSearchNotice(xStatus, true) : null;
+    const xStatus = isXApiEnabled() ? await readXApiStatus(createAdminClient()) : null;
+    const xSearch = xStatus ? xSearchNotice(xStatus) : null;
     const findsReplyLinks = replyLinkFinderOn(xStatus, {
-      findPostsOnX: Boolean(inbox.findPostsOnX),
       handleKnown: Boolean(inbox.xHandleKnown),
       ownerPays: xStatus && inbox.xHandleKnown ? await ownerPaysFor(supabase, user.id) : false,
     });
@@ -59,6 +58,8 @@ export async function GET(request: NextRequest) {
       discovery: withXSearchOff(inbox.discovery, isXApiEnabled()),
       xSearch,
       findsReplyLinks,
+      // "Your X account" on a posted reply on X, while GTF does not know it.
+      askXHandle: isXApiEnabled() && !inbox.xHandleKnown,
       providers: getDiscoveryProviders().map((p) => p.name),
     });
   } catch (err) {

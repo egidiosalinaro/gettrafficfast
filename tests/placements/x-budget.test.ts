@@ -169,16 +169,15 @@ describe("what the screens read", () => {
     const db = new LedgerFake({ provider_spend: [{ provider: "x-api", month: "2026-11-01", cost_usd: 19.97, calls: 1, posts: 1 }] });
     const off = await readXApiStatus(db as never, NOW);
     expect(off.enabled).toBe(false);
-    expect(xSearchNotice(off, true)).toBeNull();
+    expect(xSearchNotice(off)).toBeNull();
 
     process.env.X_API_ENABLED = "1";
     delete process.env.X_API_MONTHLY_CAP_USD;
     const on = await readXApiStatus(db as never, NOW);
     expect(on).toMatchObject({ enabled: true, capUsd: 20, spentUsd: 19.97, capReached: true, resetsAt: "2026-12-01T00:00:00.000Z" });
-    expect(xSearchNotice(on, true)).toEqual({ capReached: true, line: "Searching X is paused until Dec 1: this month's allowance for X is used up." });
-    expect(xSearchNotice(on, false)).toBeNull();
+    expect(xSearchNotice(on)).toEqual({ capReached: true, line: "Searching X is paused until Dec 1: this month's allowance for X is used up." });
 
     db.tables.provider_spend[0].cost_usd = 3.4;
-    expect(xSearchNotice(await readXApiStatus(db as never, NOW), true)).toEqual({ capReached: false, line: null });
+    expect(xSearchNotice(await readXApiStatus(db as never, NOW))).toEqual({ capReached: false, line: null });
   });
 });

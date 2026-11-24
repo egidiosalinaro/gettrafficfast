@@ -106,6 +106,32 @@ export const ConfirmedFacts = z
   .record(z.string().min(1).max(ABOUT_YOU_MAX), ConfirmedOn)
   .refine((map) => Object.keys(map).length <= CONFIRMED_FACTS_MAX, `at most ${CONFIRMED_FACTS_MAX} confirmations`);
 
+/** X's handle rule: 1 to 15 letters, digits or underscores. */
+export const X_HANDLE_PATTERN = /^[A-Za-z0-9_]{1,15}$/;
+
+/**
+ * An X handle as typed, normalised: spaces and one leading @ dropped,
+ * lowercased (X handles are not case sensitive). Pure; the result is
+ * checked against X_HANDLE_PATTERN by `XHandle`.
+ */
+export function normalizeXHandle(raw: string): string {
+  return raw.trim().replace(/^@/, "").trim().toLowerCase();
+}
+
+/** The sentence when a typed handle is not one, or null when it is. For the fields that ask for it. */
+export function xHandleProblem(raw: string): string | null {
+  const handle = normalizeXHandle(raw);
+  if (!handle) return "Type your X username, like @yourname.";
+  return X_HANDLE_PATTERN.test(handle) ? null : "An X username is 1 to 15 letters, digits or underscores.";
+}
+
+export const XHandle = z
+  .string()
+  .max(40)
+  .transform(normalizeXHandle)
+  .pipe(z.string().regex(X_HANDLE_PATTERN, "an X username: 1 to 15 letters, digits or underscores"))
+  .describe("The site's X account (username), with or without the @, e.g. \"@samrivdev\". Stored lowercased without the @.");
+
 export const VoiceSettings = z.object({
   preset: z.enum(PRESET_VALUES).default("plain"),
   person: z.enum(PERSON_VALUES).default("auto"),
@@ -127,17 +153,20 @@ export const VoiceSettings = z.object({
    */
   dailyReplyGoal: z.number().int().min(1).max(DAILY_REPLY_GOAL_MAX).nullable().default(null),
   /**
-   * "Find posts on X": once a day, search X through its official API for
-   * fresh posts on this site's topics (they arrive in Replies under Found
-   * for you, with a draft) and read the numbers of the replies posted there;
-   * since 2026-11-13 also find the link of a reply marked as posted on X
-   * (lib/placements/reply-link-search.ts). Off until the owner turns it on, and it does nothing unless the platform
-   * has the X API on as well (`X_API_ENABLED`): every post read is billed,
-   * under a platform-wide monthly cap (docs/PLACEMENTS.md). Here, like the
-   * daily goal, because this is the JSON the reply settings already use; the
-   * switch is in Settings → Connections since 2026-11-14.
+   * The X account this site's replies are posted from (since 2026-11-24),
+   * lowercased, without the @: GTF needs it to find the link of a reply
+   * marked as posted on X, and reads its followers once a day. Null until
+   * the person gives it (Today asks the first time a reply on X is marked as
+   * posted while it is unknown; Settings → Connections; update_voice_settings
+   * xHandle); until then the handle the site's own saved reply links name is
+   * used (lib/placements/x-handle.ts, `ownXHandle`). Per site, because two
+   * sites can be marketed from two accounts.
+   *
+   * The X features themselves have no per-site switch since 2026-11-24: they
+   * run for every site when the platform has the X API on (`X_API_ENABLED`).
+   * A `findPostsOnX` key stored by an older version is ignored.
    */
-  findPostsOnX: z.boolean().default(false),
+  xHandle: XHandle.nullable().default(null),
   /**
    * "Still true" on Today (since 2026-11-14): which facts of About you the
    * person confirmed are still true, and on which day. Kept apart from
@@ -174,12 +203,22 @@ export function voiceForWriter(settings: VoiceSettings): VoiceSettings {
  * never reset. Unknown keys are refused.
  */
 export const VoiceSettingsChange = z
-  .object(
-    Object.fromEntries(
+  .object({
+    ...(Object.fromEntries(
       Object.entries(VoiceSettings.shape).map(([key, schema]) => [key, (schema as z.ZodDefault<z.ZodType>).unwrap().optional()])
-    ) as { [K in keyof typeof VoiceSettings.shape]: z.ZodOptional<ReturnType<(typeof VoiceSettings.shape)[K]["unwrap"]>> }
-  )
-  .strict();
+    ) as { [K in keyof typeof VoiceSettings.shape]: z.ZodOptional<ReturnType<(typeof VoiceSettings.shape)[K]["unwrap"]>> }),
+    /**
+     * The per-site X switch removed on 2026-11-24. A page left open from
+     * before may still send it: accepted and dropped, never stored.
+     */
+    findPostsOnX: z.boolean().optional(),
+  })
+  .strict()
+  .transform((change) => {
+    const kept = { ...change };
+    delete kept.findPostsOnX;
+    return kept as Omit<typeof change, "findPostsOnX">;
+  });
 
 export const DEFAULT_VOICE_SETTINGS: VoiceSettings = VoiceSettings.parse({});
 

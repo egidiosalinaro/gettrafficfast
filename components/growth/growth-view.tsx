@@ -149,17 +149,7 @@ export function RepliesBlock({ stats, days }: { stats: ReplyStats | null; days: 
         />
       </div>
       {off ? (
-        <Note>
-          {off}
-          {stats.status === "off_site" && (
-            <>
-              {" "}
-              <Link href="/settings/integrations" className="inline-flex min-h-11 items-center font-medium text-foreground underline underline-offset-2 md:min-h-0">
-                Open Connections
-              </Link>
-            </>
-          )}
-        </Note>
+        <Note>{off}</Note>
       ) : !stats.measured ? (
         <Note>The numbers of your replies could not be read right now.</Note>
       ) : (

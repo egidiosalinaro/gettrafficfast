@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isXApiEnabled, xApiClientFromEnv, type XApiClient } from "@/lib/providers/x/api";
 import { hasPaidAccess, logUnpaidSkip, paidOwners } from "@/lib/paid-access";
-import { parseVoiceSettings } from "@/lib/voice/settings";
 import { applyManualAction } from "./actions";
 import { postedReplyText } from "./link-match";
 import { xStatusIdOf } from "./published-url";
@@ -25,7 +24,7 @@ import {
   type LinkSearchOutcome,
   type LinkSearchRecord,
 } from "./reply-link";
-import { ownXHandle } from "./x-handle";
+import { X_HANDLE_NEEDED, ownXHandle } from "./x-handle";
 import { meteredXCall, readXApiStatus, xPausedUntil, type MeteredRefusal, type XApiStatus } from "./x-budget";
 
 /**
@@ -35,14 +34,16 @@ import { meteredXCall, readXApiStatus, xPausedUntil, type MeteredRefusal, type X
  *
  * Who is searched: a reply marked as posted on X ("I posted it") with no
  * link yet, not marked as removed, posted recently enough for X's 7-day
- * search, on a site whose owner turned "Find posts on X" on (the same switch
- * as the daily X search and the reply numbers), whose owner pays, while the
- * platform has the X API on (`X_API_ENABLED=1` and a token), and whose X
- * account is known from the site's own linked replies (`ownXHandle`). Each
- * reply is searched at most four times on its own (2 min, 15 min, 2 h and
- * 12 h after the tap), at most six with `find_reply_link`, and never again
- * once an answer settles it: a call that returned posts is billed, so a
- * search that was billed and found nothing usable is not repeated.
+ * search, on any site whose owner pays, while the platform has the X API on
+ * (`X_API_ENABLED=1` and a token), and whose X account is known (the one the
+ * person gave, else the one its own linked replies name: `ownXHandle`).
+ * There is no per-site switch since 2026-11-24. Each reply is searched at
+ * most four times on its own (2 min, 15 min, 2 h and 12 h after the tap), at
+ * most six with `find_reply_link`, and never again once an answer settles
+ * it: a call that returned posts is billed, so a search that was billed and
+ * found nothing usable is not repeated. A site starts searching for at most
+ * LINK_SEARCH_NEW_REPLIES_PER_SITE_PER_DAY new replies in 24 hours, so one
+ * site cannot spend the platform's month.
  *
  * Every call goes through `meteredXCall`: ledgered, under the monthly cap,
  * stopped by the billing pause. What is found is saved through
@@ -50,6 +51,15 @@ import { meteredXCall, readXApiStatus, xPausedUntil, type MeteredRefusal, type X
  * so the link is checked the same way, the reply's text is read back from
  * X, and the daily numbers pick it up; only when the reply still has no link.
  */
+
+/**
+ * Replies of one site whose search may start in 24 hours (the first attempt;
+ * the later ones of the same reply are already bounded by
+ * LINK_SEARCH_MAX_ATTEMPTS). At most this many times six searches a site a
+ * day, under the platform's monthly cap. A reply over the bound is not
+ * searched by itself; the person pastes its link, as before.
+ */
+export const LINK_SEARCH_NEW_REPLIES_PER_SITE_PER_DAY = 25;
 
 /** The cron's name in the logs. */
 const CRON = "x-reply-links";
@@ -77,33 +87,32 @@ function log(level: "info" | "warn", fields: Record<string, unknown>) {
 /**
  * Whether GTF looks for the links of a site's replies, from what the screens
  * already know: the platform's X status (null when the platform has the X
- * API off or the site has Find posts on X off), whether the site's X
- * account is known, and whether its owner pays (the sweep searches only
+ * API off), whether the site's X account is known, and whether its owner pays (the sweep searches only
  * for owners who pay). Off while X is paused for billing, at the cap, or
  * when the ledger cannot be read: the person then pastes, as before, and
  * no card says GTF is looking when it is not.
  */
 export function replyLinkFinderOn(
   status: XApiStatus | null,
-  site: { findPostsOnX: boolean; handleKnown: boolean; ownerPays: boolean }
+  site: { handleKnown: boolean; ownerPays: boolean }
 ): boolean {
-  if (!status || !status.enabled || !site.findPostsOnX || !site.handleKnown || !site.ownerPays) return false;
+  if (!status || !status.enabled || !site.handleKnown || !site.ownerPays) return false;
   if (status.pausedUntil || status.spentUsd === null) return false;
   return status.spentUsd + LINK_SEARCH_CALL_WORST_USD <= status.capUsd;
 }
 
-/** `replyLinkFinderOn` for one site, read whole: its setting, its account, its owner, the platform. `admin` reads the ledger. */
+/** `replyLinkFinderOn` for one site, read whole: its account, its owner, the platform. `admin` reads the ledger. */
 export async function replyLinkFinderFor(admin: SupabaseClient, supabase: SupabaseClient, businessId: string, now = new Date()): Promise<boolean> {
   if (!isXApiEnabled()) return false;
-  const { data } = await supabase.from("businesses").select("user_id, voice_settings").eq("id", businessId).maybeSingle();
-  const business = data as { user_id?: string; voice_settings?: unknown } | null;
-  if (!business?.user_id || !parseVoiceSettings(business.voice_settings).findPostsOnX) return false;
+  const { data } = await supabase.from("businesses").select("user_id").eq("id", businessId).maybeSingle();
+  const business = data as { user_id?: string } | null;
+  if (!business?.user_id) return false;
   const [handle, status, ownerPays] = await Promise.all([
     ownXHandle(admin, businessId),
     readXApiStatus(admin, now),
     ownerPaysFor(supabase, business.user_id, now),
   ]);
-  return replyLinkFinderOn(status, { findPostsOnX: true, handleKnown: handle !== null, ownerPays });
+  return replyLinkFinderOn(status, { handleKnown: handle !== null, ownerPays });
 }
 
 /** Whether the owner pays, for the screens' "looking" line; unreadable reads as not (nothing is promised). */
@@ -433,24 +442,22 @@ export async function findReplyLinks(params: {
   const paused = await xPausedUntil(admin, now);
   if (paused) return { ...outcome, skipped: `x_api_paused_until ${paused.toISOString()}` };
 
-  // The sites: Find posts on X on, the owner paying, the account known.
+  // The sites: the owner paying, the account known, under the site's daily bound of new replies.
   const businessIds = [...new Set(due.map((item) => item.row.business_id as string))];
   const { data: businessRows, error: businessError } = await admin
     .from("businesses")
-    .select("id, user_id, voice_settings")
+    .select("id, user_id")
     .in("id", businessIds);
   if (businessError) throw new Error(`businesses: ${businessError.message}`);
-  const optedIn = new Map(
-    ((businessRows ?? []) as Array<{ id: string; user_id: string; voice_settings: unknown }>)
-      .filter((b) => parseVoiceSettings(b.voice_settings).findPostsOnX)
-      .map((b) => [b.id, b.user_id])
-  );
+  const owners = new Map(((businessRows ?? []) as Array<{ id: string; user_id: string }>).map((b) => [b.id, b.user_id]));
+  const startedToday = await newSearchesToday(admin, businessIds, now);
+  if (!startedToday) return { ...outcome, skipped: "searches_unreadable" };
   const paid = paidOwners(admin, now);
   const handles = new Map<string, string | null>();
   const eligible: typeof due = [];
   for (const item of due) {
     const businessId = item.row.business_id as string;
-    const owner = optedIn.get(businessId);
+    const owner = owners.get(businessId);
     if (!owner) {
       outcome.notEligible += 1;
       continue;
@@ -465,6 +472,15 @@ export async function findReplyLinks(params: {
     if (!handles.get(businessId)) {
       outcome.notEligible += 1;
       continue;
+    }
+    if (!item.previous) {
+      // A reply not searched yet starts only under the site's daily bound.
+      const started = startedToday.get(businessId) ?? 0;
+      if (started >= LINK_SEARCH_NEW_REPLIES_PER_SITE_PER_DAY) {
+        outcome.notEligible += 1;
+        continue;
+      }
+      startedToday.set(businessId, started + 1);
     }
     eligible.push(item);
     if (eligible.length >= maxRows) break;
@@ -527,6 +543,32 @@ export async function findReplyLinks(params: {
   return outcome;
 }
 
+/**
+ * How many replies of each site had their first search in the last 24 hours
+ * (a search record is created by the first attempt). Null when the searches
+ * cannot be read: nothing starts on a count nobody read.
+ */
+export async function newSearchesToday(admin: SupabaseClient, businessIds: readonly string[], now: Date): Promise<Map<string, number> | null> {
+  const out = new Map<string, number>();
+  if (businessIds.length === 0) return out;
+  const since = new Date(now.getTime() - 86_400_000).toISOString();
+  try {
+    const { data, error } = await admin
+      .from(LINK_SEARCHES_TABLE)
+      .select("business_id")
+      .in("business_id", [...businessIds])
+      .gte("created_at", since)
+      .limit(businessIds.length * (LINK_SEARCH_NEW_REPLIES_PER_SITE_PER_DAY + 1));
+    if (error) return null;
+    for (const row of (data ?? []) as Array<{ business_id: string | null }>) {
+      if (row.business_id) out.set(row.business_id, (out.get(row.business_id) ?? 0) + 1);
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 // ── One reply, now ──────────────────────────────────────────────────────────
 
 export type FindNowRefusal = { ok: false; code: "not_found" | "invalid_state" | "prerequisite_missing" | "unavailable"; error: string };
@@ -566,15 +608,6 @@ export async function findReplyLinkNow(params: {
   const client = params.client === undefined ? xApiClientFromEnv() : params.client;
   if (!client) return { ok: false, code: "unavailable", error: "Finding reply links on X is not turned on for GetTrafficFast yet. Add the link with set_reply_link." };
 
-  const { data: business } = await supabase.from("businesses").select("voice_settings").eq("id", businessId).maybeSingle();
-  if (!parseVoiceSettings((business as { voice_settings?: unknown } | null)?.voice_settings).findPostsOnX) {
-    return {
-      ok: false,
-      code: "invalid_state",
-      error: "Find posts on X is off for this site (Settings → Connections, or update_voice_settings findPostsOnX). It also turns on finding your reply links.",
-    };
-  }
-
   const { data: row } = await supabase
     .from("placement_targets")
     .select("id, user_id, business_id, surface, status, url, published_url, published_at, selected_placement_id")
@@ -612,12 +645,17 @@ export async function findReplyLinkNow(params: {
   }
 
   const handle = await ownXHandle(admin, businessId);
-  if (!handle) {
-    return {
-      ok: false,
-      code: "prerequisite_missing",
-      error: "GTF does not know this site's X account yet. Add the link of one reply with set_reply_link; after that it can find the others.",
-    };
+  if (!handle) return { ok: false, code: "prerequisite_missing", error: X_HANDLE_NEEDED };
+  if (!previous) {
+    const started = await newSearchesToday(admin, [businessId], now);
+    if (!started) return { ok: false, code: "unavailable", error: "Finding reply links is not ready yet. Try again in a few minutes." };
+    if ((started.get(businessId) ?? 0) >= LINK_SEARCH_NEW_REPLIES_PER_SITE_PER_DAY) {
+      return {
+        ok: false,
+        code: "invalid_state",
+        error: `GTF has started looking for ${LINK_SEARCH_NEW_REPLIES_PER_SITE_PER_DAY} replies of this site on X in the last 24 hours, its daily limit. Add this one's link with set_reply_link.`,
+      };
+    }
   }
 
   const texts = await replyTexts(admin, [{ id: targetId, selected_placement_id: target.selected_placement_id }]);

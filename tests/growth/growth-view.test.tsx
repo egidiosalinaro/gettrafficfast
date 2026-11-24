@@ -40,7 +40,6 @@ function stats(over: Partial<Parameters<typeof summarizeReplyStats>[0]> = {}): R
   return summarizeReplyStats({
     now: NOW,
     platformEnabled: true,
-    siteEnabled: true,
     replies: [
       reply("11", "2026-11-12T09:00:00Z", [snap("2026-11-13", { impressions: 12_400, likes: 31, replies: 6, reposts: 2 })]),
       reply("12", "2026-11-11T09:00:00Z", [snap("2026-11-13", { impressions: 800, likes: 4, replies: 1, reposts: 0 })]),
@@ -131,13 +130,13 @@ describe("Replies on X", () => {
     expect(out).not.toContain("Best reply");
   });
 
-  it("with the X API off for the site, says how to turn it on and reads nothing", () => {
-    const off = html(<RepliesBlock stats={stats({ siteEnabled: false })} days={7} />);
-    expect(off).toContain("Turn on Find posts on X in Settings → Connections");
-    expect(off).toContain('href="/settings/integrations"');
+  it("with the platform's X API off, says so and reads nothing; no site has a switch to turn on", () => {
+    const off = html(<RepliesBlock stats={stats({ platformEnabled: false })} days={7} />);
+    expect(off).toContain("not available yet");
     expect(off).toContain("not read");
     expect(off).not.toContain("13.2K");
-    expect(html(<RepliesBlock stats={stats({ platformEnabled: false })} days={7} />)).toContain("not available yet");
+    expect(off).not.toContain("Find posts on X");
+    expect(off).not.toContain('href="/settings/integrations"');
     expect(html(<RepliesBlock stats={null} days={7} />)).toContain("could not be read");
   });
 
