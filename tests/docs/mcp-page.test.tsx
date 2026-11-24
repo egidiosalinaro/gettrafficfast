@@ -119,7 +119,8 @@ describe("/docs/mcp", () => {
     for (const prompt of PROMPTS) expect(html).toContain(`>${prompt.name}</code>`);
     expect(text).toContain("/mcp__gettrafficfast__daily_routine Europe/Berlin");
     expect(text).toContain(`${TOOL_LIMITS.perMinute} calls a minute`);
-    expect(text).toContain("Never posts on X, Reddit or any social site.");
+    expect(text).toContain("Never posts on its own, and never on Reddit or any social site but X.");
+    expect(text).toContain("post_on_x");
     expect(text).toContain("Never publishes without the Publish permission.");
     expect(html).toContain('href="/privacy-policy#api-and-mcp"');
     expect(html).toContain(`href="mailto:${CONTACT_EMAIL}"`);

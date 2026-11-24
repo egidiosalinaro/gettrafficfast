@@ -99,7 +99,8 @@ describe("terms", () => {
   });
 
   it("says GTF never posts, keys are authorisation, Italian law, no prices", () => {
-    expect(terms).toContain("GTF never posts");
+    expect(terms).toContain("GTF never posts on its own");
+    expect(terms).toContain("only when you press Post");
     expect(terms).toContain("is your authorisation for that key or app to act on your account");
     expect(terms).toContain("governed by Italian law");
     expect(terms).toContain("courts of Rome");

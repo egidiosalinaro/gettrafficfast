@@ -21,7 +21,7 @@ describe("landing positioned as AI search visibility", () => {
     expect(html).toContain("Perplexity");
     expect(html).toContain("not averaged");
     expect(html).toContain("not measured");
-    expect(html).toContain("Nothing is posted");
+    expect(html).toContain("nothing is posted on its own");
   });
 
   it("does not claim engines the platform does not ask", () => {

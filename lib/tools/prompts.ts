@@ -112,7 +112,7 @@ const Topics = z
 
 /** The rules every routine keeps, as the screens keep them. */
 const RULES = [
-  "- GTF never posts on X or anywhere else, and neither do you: you give me the link, I post it myself.",
+  "- GTF never posts on its own, and you never post without my yes: you give me the link, I post it myself. The one exception is Post on X, only where the step below offers it, and only after I say yes to that exact reply.",
   "- A reply names no product and carries no link. Never add either.",
   "- Say only what the tools return. A null is \"not measured\", never 0. No guessed numbers, no dollar amounts.",
   "- Nothing that spends (a rewrite, a draft) without my yes first.",
@@ -139,7 +139,7 @@ export const DAILY_ROUTINE: PromptDefinition<typeof dailyArgs> = {
   name: "daily_routine",
   title: "Run my day",
   description:
-    "Today, emptied with you: progress toward the daily goal, then each reply in To do (approve, fix or skip; you post it on X yourself), then the other things that need a tap today. GTF and Claude never post.",
+    "Today, emptied with you: progress toward the daily goal, then each reply in To do (approve, fix or skip; you post it on X yourself, or, for a post that mentions you, GTF posts it from your connected X account once you say yes), then the other things that need a tap today. GTF and Claude never post on their own.",
   arguments: [
     {
       name: "timeZone",
@@ -155,6 +155,7 @@ export const DAILY_ROUTINE: PromptDefinition<typeof dailyArgs> = {
     "get_today",
     "list_reply_inbox",
     "get_reply_intent_url",
+    "post_on_x",
     "mark_reply_posted",
     "correct_reply_draft",
     "edit_reply_draft",
@@ -185,7 +186,8 @@ export const DAILY_ROUTINE: PromptDefinition<typeof dailyArgs> = {
       `1. Call get_today with timeZone "${zone}". In two or three lines: replies posted today against the goal (progress.posted of progress.goal; with no goal, just the count), where their links stand (progress.links.line), and how many wait in To do (counts.todo).`,
       "",
       `2. Call list_reply_inbox with status "open" and timeZone "${zone}". Take the targets one at a time, in exactly the order list_reply_inbox returns them: it is the order of To do on the Today screen, so the person and you are on the same reply. Never reorder them by score, relevance or anything else, and count them as the screen does ("1 of N"). For each, show the platform and the author, the post (title or excerpt, and its url) and the draft (the first in drafts whose auditStatus is passed, else warning, else blocked, as the screen picks it; if it is not passed, say what the gate flagged). Then ask me: approve, fix or skip. Wait for my answer before the next one.`,
-      "   - Approve: call get_reply_intent_url with the targetId and the draftId. Give me its url: it opens X with the reply typed in. If url is null, give me body to copy and threadUrl to open. Tell me to post it myself. When I say I posted it, call mark_reply_posted with the targetId and draftId, and my reply's link if I paste one (without it, GTF looks for the link on X by itself). If its answer has xHandleNeeded true, GTF does not know this site's X account yet: ask me for my X username once (the @ is optional) and save it with update_voice_settings, xHandle; if I would rather not, go on without it.",
+      "   - Approve, when the target's xPostAllowed is true (its post mentions or quotes the X account this site connected) and this connection has the Publish permission: offer to post it on X now. Only on my yes to that reply, call post_on_x with the targetId, the draftId and confirm true; it is recorded as posted with its link. If its answer has posted false, give me its intentUrl and go on as below from \"Tell me to post it myself\".",
+      "   - Approve, any other target: call get_reply_intent_url with the targetId and the draftId. Give me its url: it opens X with the reply typed in. If url is null, give me body to copy and threadUrl to open. Tell me to post it myself. When I say I posted it, call mark_reply_posted with the targetId and draftId, and my reply's link if I paste one (without it, GTF looks for the link on X by itself). If its answer has xHandleNeeded true, GTF does not know this site's X account yet: ask me for my X username once (the @ is optional) and save it with update_voice_settings, xHandle; if I would rather not, go on without it.",
       "   - Fix: ask me what is wrong, in my words, then call correct_reply_draft with the draftId and that reason (one rewrite, judged again, capped daily). Show the new draft and ask again. If I would rather change the words myself, use edit_reply_draft.",
       "   - Skip: call dismiss_reply_target, with my reason if I give one. \"Not now\" is snooze_reply_target (7 days unless I say otherwise).",
       "   - No draft yet: say so, and offer draft_reply (it spends one of the day's drafts: ask first) or write_own_reply with my own words.",

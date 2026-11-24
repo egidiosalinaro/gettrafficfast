@@ -69,8 +69,12 @@ const sections: LegalSection[] = [
         </p>
         <List>
           <li>
-            <strong>Replies are drafts.</strong> GTF suggests replies for a person to review and post. GTF never posts,
-            likes, follows or messages on X, Reddit or any other platform, in your name or its own.
+            <strong>Replies are drafts.</strong> GTF suggests replies for a person to review and post. GTF never posts
+            on its own, and never likes, follows or messages on X, Reddit or any other platform, in your name or its
+            own. The one exception is X, when you connect the X account a site posts from: GTF then posts on X from
+            that account only when you press Post (or confirm the post to your AI agent), and you are responsible for
+            what you post, as with anything you post yourself. Replies to people who did not mention you still open
+            in X for you to post.
           </li>
           <li>
             <strong>Articles are published only to destinations you connect</strong> (for example WordPress or a

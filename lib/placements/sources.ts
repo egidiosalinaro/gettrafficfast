@@ -9,7 +9,7 @@
  */
 
 export const DISCOVERY_UNAVAILABLE =
-  "Discovery is not searching yet. When it is on, the product looks for public conversations on Reddit, GitHub, LinkedIn and X that match this site's keywords. You still publish; nothing is posted for you.";
+  "Discovery is not searching yet. When it is on, the product looks for public conversations on Reddit, GitHub, LinkedIn and X that match this site's keywords. You still publish; nothing is posted on its own.";
 
 export function describeDiscoverySources(providerNames: string[]): {
   canRun: boolean;

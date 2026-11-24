@@ -80,7 +80,9 @@ describe("prompts/get", () => {
     expect(text).toMatch(/correct_reply_draft with the draftId and that reason/);
     expect(text).toContain("dismiss_reply_target");
     expect(text).toContain("alsoToday");
-    expect(text).toMatch(/GTF never posts on X or anywhere else, and neither do you/);
+    expect(text).toMatch(/GTF never posts on its own, and you never post without my yes/);
+    // Post on X only where X allows it, and only on the person's yes (2026-11-24).
+    expect(text).toMatch(/xPostAllowed is true[\s\S]*Only on my yes to that reply, call post_on_x[\s\S]*confirm true/);
     expect(text).toMatch(/names no product and carries no link/);
     expect(text).not.toMatch(/can only read|no Spend permission/);
     // A template: nothing was called, nothing was recorded.

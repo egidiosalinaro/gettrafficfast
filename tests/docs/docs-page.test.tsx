@@ -79,7 +79,7 @@ describe("the tools", () => {
 
   it("puts each tool in the group of what it can do", () => {
     const byGroup = Object.fromEntries(groups.map((group) => [group.id, group.tools.map((tool) => tool.name)]));
-    expect(byGroup.publish).toEqual(["publish_article"]);
+    expect([...byGroup.publish].sort()).toEqual(["post_on_x", "publish_article"]);
     for (const tool of TOOLS.list()) {
       const expected = tool.scope === "publish" ? "publish" : tool.paid ? "spend" : tool.scope;
       expect(byGroup[expected], tool.name).toContain(tool.name);
@@ -148,12 +148,13 @@ describe("what the docs say", () => {
     expect(shown).toContain("Run your day from Claude");
     for (const prompt of PROMPTS) expect(html).toContain(`>${prompt.name}</code>`);
     expect(shown).toContain("/mcp__gettrafficfast__daily_routine Europe/Berlin");
-    expect(shown).toContain("Neither GTF nor Claude ever posts.");
+    expect(shown).toContain("Neither GTF nor Claude ever posts on its own.");
   });
 
   it("says what never happens: no posting, no product or link in a reply, no check or extra spend started unasked", () => {
     const shown = text(render());
-    expect(shown).toContain("GTF never posts for you.");
+    expect(shown).toContain("GTF never posts on its own.");
+    expect(shown).toContain("Post on X.");
     expect(shown).toContain("A reply names no product and carries no link.");
     expect(shown).toContain("Start a check of the AI answer engines without asking you");
     // On by default since 2026-11-24: nothing to turn on.

@@ -11,7 +11,8 @@ copied into any project.
 GetTrafficFast works on one site you connect. It finds the conversations
 worth answering, drafts replies in your voice, writes and publishes articles
 for your blog, and measures what happened on Google and in AI answers. It
-never posts on social sites: you do.
+never posts on its own: you do (on X, a reply to a post that mentions you
+can be posted from your connected X account when you say yes).
 
 You need a GetTrafficFast account with a connected site and an active
 plan: without one, every tool answers that the account has no active plan.

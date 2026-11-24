@@ -49,8 +49,17 @@ describe("answer engines named on the public pages", () => {
 describe("the plan card sells what ships", () => {
   it("lists reply drafting", () => {
     expect(planFeatures(["gemini"])).toContain(
-      "Reply drafts for posts on X, Reddit and LinkedIn, in your voice. You post them yourself."
+      "Reply drafts for posts on X, Reddit and LinkedIn, in your voice. You post them yourself, or with one press on X when the post mentions you."
     );
+  });
+
+  it("says GTF posts on X only on the person's press, never on its own (2026-11-24)", () => {
+    const daily = renderToStaticMarkup(<DailyUse engines={["gemini"]} />);
+    expect(daily).toContain("GTF posts on X only when you press Post, from the X account you connected");
+    expect(daily).toContain("nothing is posted on its own");
+    const ai = renderToStaticMarkup(<AISearch engines={["gemini"]} />);
+    expect(ai).toContain("The product never posts on its own.");
+    expect(ai).not.toContain("never posts for you");
   });
 
   it("names only the engines that are on, and drops the line when none is", () => {

@@ -23,6 +23,7 @@ import {
   ONBOARDING_REFRESH_EVENT,
   ONBOARDING_STEPS,
   nextOnboardingStep,
+  onboardingSteps,
   OPTIONAL_ONBOARDING_STEPS,
   type OnboardingStatus,
   type OptionalOnboardingStatus,
@@ -124,10 +125,12 @@ export function GettingStarted({ showModal = false }: { showModal?: boolean }) {
     setDismissed(true);
   }
 
+  // The steps this deployment offers (Connect your X account only where posting on X is set up).
+  const steps = status ? onboardingSteps(status) : ONBOARDING_STEPS;
   const doneCount = status
-    ? ONBOARDING_STEPS.filter((s) => status[s.key]).length
+    ? steps.filter((s) => status[s.key]).length
     : 0;
-  const allDone = doneCount === ONBOARDING_STEPS.length;
+  const allDone = doneCount === steps.length;
   const pillShowing = status !== null && !allDone && !dismissed && collapsed;
 
   useEffect(() => {
@@ -192,7 +195,7 @@ export function GettingStarted({ showModal = false }: { showModal?: boolean }) {
                 <Rocket className="h-4 w-4" />
                 <span>Getting started</span>
                 <span className="text-xs text-muted-foreground">
-                  {doneCount}/{ONBOARDING_STEPS.length}
+                  {doneCount}/{steps.length}
                 </span>
               </button>
               <DismissButton onClick={dismiss} />
@@ -211,7 +214,7 @@ export function GettingStarted({ showModal = false }: { showModal?: boolean }) {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">
-                      {doneCount}/{ONBOARDING_STEPS.length} done
+                      {doneCount}/{steps.length} done
                     </span>
                     <ChevronDown className="h-4 w-4 text-muted-foreground" />
                   </div>
@@ -221,16 +224,18 @@ export function GettingStarted({ showModal = false }: { showModal?: boolean }) {
               <div className="h-1 bg-muted">
                 <div
                   className="h-1 bg-primary transition-all"
-                  style={{ width: `${(doneCount / ONBOARDING_STEPS.length) * 100}%` }}
+                  style={{ width: `${(doneCount / steps.length) * 100}%` }}
                 />
               </div>
               <ul className="p-2 overflow-y-auto">
-                {ONBOARDING_STEPS.map((step) => {
+                {steps.map((step) => {
                   const done = status[step.key];
                   const isNext = step.key === nextStep?.key;
+                  // A step that starts a sign-in elsewhere (X's consent screen) is a plain link: never prefetched.
+                  const StepLink = step.href.startsWith("/api/") ? "a" : Link;
                   return (
                     <li key={step.key}>
-                      <Link
+                      <StepLink
                         href={step.href}
                         className={cn(
                           "flex items-start gap-3 rounded-lg px-2 py-2 transition-colors",
@@ -260,7 +265,7 @@ export function GettingStarted({ showModal = false }: { showModal?: boolean }) {
                             </p>
                           )}
                         </div>
-                      </Link>
+                      </StepLink>
                     </li>
                   );
                 })}

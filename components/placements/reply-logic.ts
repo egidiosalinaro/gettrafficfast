@@ -646,3 +646,46 @@ export function shortcutFor(event: {
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target?.isContentEditable) return null;
   return KEYS[event.key.toLowerCase()] ?? null;
 }
+
+/** What "Post on X" answers: posted, or the server's sentence, with X's composer when X does not allow the reply. */
+export type PostOnXResult = { ok: true } | { ok: false; error: string; code?: string | null; intentUrl?: string | null };
+
+export type PostOnXOutcome =
+  | { kind: "posted" }
+  | { kind: "fell_back"; message: string }
+  | { kind: "failed"; message: string }
+  | { kind: "save_failed" }
+  | { kind: "blocked" };
+
+/**
+ * "Post on X" (docs/PLACEMENTS.md, "Post on X: only where X allows it"):
+ * one press, one post, from the site's connected account. An edited draft
+ * is saved (and checked) first, so what goes out is what the checks read;
+ * a draft the checks stop is not posted. When X answers that it does not
+ * allow the reply, X's composer opens with the text in the same click
+ * (`open`, a tab reserved before the request), exactly as Reply on X does,
+ * and the outcome says so. A tab reserved and not needed is closed by the
+ * caller.
+ */
+export async function postOnXThenFallback(io: {
+  dirty: boolean;
+  draftId: string;
+  save: () => Promise<{ id: string; auditStatus: string } | null>;
+  post: (draftId: string) => Promise<PostOnXResult>;
+  open: (url: string) => void;
+}): Promise<PostOnXOutcome> {
+  let draftId = io.draftId;
+  if (io.dirty) {
+    const saved = await io.save();
+    if (!saved) return { kind: "save_failed" };
+    if (saved.auditStatus === "blocked") return { kind: "blocked" };
+    draftId = saved.id;
+  }
+  const result = await io.post(draftId);
+  if (result.ok) return { kind: "posted" };
+  if ((result.code === "reply_not_allowed" || result.code === "not_allowed") && result.intentUrl) {
+    io.open(result.intentUrl);
+    return { kind: "fell_back", message: result.error };
+  }
+  return { kind: "failed", message: result.error };
+}

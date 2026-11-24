@@ -22,6 +22,7 @@ import { ARTICLE_PRODUCE_TOOLS } from "./articles-produce";
 import { PROVIDER_COMPARISON_TOOLS } from "./read-provider-comparison";
 import { INDEX_STATUS_TOOLS } from "./index-status";
 import { ARTICLE_PUSH_TOOLS } from "./article-pushes";
+import { X_POSTING_TOOLS } from "./x-posting";
 
 /**
  * The one registry (docs/ARCHITECTURE.md §4). The REST runner and the MCP
@@ -63,6 +64,7 @@ export const TOOLS: ToolRegistry = createRegistry([
   ...DEFAULT_SITE_TOOLS,
   ...WRITE_VOICE_TOOLS,
   ...WRITE_INTEGRATION_TOOLS,
+  ...X_POSTING_TOOLS,
   ...CONTENT_READ_TOOLS,
   ...ARTICLE_READ_TOOLS,
   ...KEYWORD_READ_TOOLS,

@@ -8,8 +8,9 @@ import { defineTool, requiredScopes } from "@/lib/tools/tool";
  * The registry and its definitions. What is pinned: a malformed tool fails
  * at load, not when an agent calls it; names are unique; every tool
  * publishes object JSON Schemas (MCP requires them); a paid tool needs the
- * spend scope; one tool publishes, to the customer's own site
- * (publish_article), and none posts anywhere.
+ * spend scope; two tools publish, with the publish scope and confirm:
+ * publish_article (to the customer's own site) and post_on_x (on X, from
+ * the account the person connected), and nothing else posts anywhere.
  */
 
 const ok = {
@@ -141,9 +142,13 @@ describe("TOOLS", () => {
     expect(describeTool(TOOLS.get("publish_article")!)).toMatchObject({ paid: false, subscription: true, scopes: ["publish"] });
   });
 
-  it("has one tool that publishes, to the customer's own site, and none that posts: the product hands the person a link", () => {
-    expect(TOOLS.list().filter((t) => t.scope === "publish").map((t) => t.name)).toEqual(["publish_article"]);
-    const allowed = ["add_x_post", "mark_reply_posted", "publish_article"];
+  it("has two tools that publish, each needing the publish scope and confirm, and nothing else that posts", () => {
+    expect(TOOLS.list().filter((t) => t.scope === "publish").map((t) => t.name).sort()).toEqual(["post_on_x", "publish_article"]);
+    for (const name of ["post_on_x", "publish_article"]) {
+      const input = TOOLS.get(name)!.input as unknown as z.ZodObject;
+      expect(input.safeParse({ confirm: false }).success, name).toBe(false);
+    }
+    const allowed = ["add_x_post", "mark_reply_posted", "publish_article", "post_on_x"];
     expect(names.some((n) => /(^|_)(post|publish|send|tweet)(_|$)/.test(n) && !allowed.includes(n))).toBe(false);
   });
 

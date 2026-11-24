@@ -101,6 +101,7 @@ describe("nextOnboardingStep", () => {
         hasArticles: true,
         hasIntegration: true,
         hasManualPost: true,
+        hasXAccount: false,
       })
     ).toBeNull();
   });

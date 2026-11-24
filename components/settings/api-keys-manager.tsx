@@ -176,8 +176,9 @@ export function ApiKeysManager({
           <h2 className="text-xl font-semibold mb-1">Connect Claude</h2>
           <p className="text-sm text-muted-foreground">
             Then ask Claude for what you would do here: &ldquo;what should I reply to today?&rdquo;, &ldquo;draft a
-            reply to this post&rdquo;, &ldquo;how did last week go?&rdquo;. Nothing is ever posted on X for you:
-            Claude hands you the link and you post it.
+            reply to this post&rdquo;, &ldquo;how did last week go?&rdquo;. Nothing is posted on X unless you say yes: Claude
+            hands you the link and you post it, or, for a post that mentions you, posts it from the X account you
+            connected once you confirm.
           </p>
         </div>
 
@@ -244,7 +245,7 @@ export function ApiKeysManager({
           <ul className="list-disc space-y-1 pl-5 text-sm">
             <li>
               <span className="font-medium">Run my day</span>: your replies one at a time, approve, fix or skip, with
-              the link that opens X with the reply written. You post it yourself.
+              the link that opens X with the reply written. You post it yourself (or confirm Post on X for a post that mentions you).
             </li>
             <li>
               <span className="font-medium">Review my week</span>: replies on X, Google and AI answers, then your next

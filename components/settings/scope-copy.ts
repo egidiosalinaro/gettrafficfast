@@ -18,6 +18,6 @@ export const SCOPE_COPY: ReadonlyArray<{ id: ApiKeyScope; label: string; detail:
   {
     id: "publish",
     label: "Publish",
-    detail: "Publish an article to your site's connected destination, when the agent confirms it. Nothing is ever posted on X.",
+    detail: "Publish an article to your site's connected destination, and post a reply on X from the X account you connected for the site, each only when you confirm it to the agent. Nothing is posted on its own.",
   },
 ];

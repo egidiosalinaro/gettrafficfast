@@ -94,8 +94,11 @@ const sections: LegalSection[] = [
         <p>
           <strong>X, if you use it.</strong> Your public X username, the posts you add or reply to, the address of
           your replies, and the public numbers X shows for them and for your account (such as views, likes and
-          followers). GTF reads X only through X&apos;s official API and its public embed service. GTF never posts,
-          likes or follows on X or anywhere else: you post yourself.
+          followers). GTF reads X only through X&apos;s official API and its public embed service. If you connect the
+          X account a site posts from, GTF also stores that account&apos;s X id and username and the access grant X
+          issues for it (an access token and a refresh token, stored encrypted), and uses them to post a reply or a
+          post on X only when you press Post (or confirm it to your AI agent). GTF never posts on its own, and never
+          likes, follows or messages on X or anywhere else.
         </p>
         <p>
           <strong>Public posts by other people.</strong> To suggest conversations worth answering, GTF finds and
@@ -164,8 +167,9 @@ const sections: LegalSection[] = [
           your consent (Art. 6(1)(a)), given in the cookie banner. Without it, the analytics script is not loaded.
         </li>
         <li>
-          <strong>Connecting Google Search Console or signing in with Google.</strong> These happen only when you
-          choose them; you can disconnect at any time. Legal basis: the contract with you.
+          <strong>Connecting Google Search Console, connecting the X account a site posts from, or signing in with
+          Google.</strong> These happen only when you choose them; you can disconnect at any time. Legal basis: the
+          contract with you.
         </li>
         <li>
           <strong>Service emails</strong> (sign-in links, messages about your account). Legal basis: the contract.
@@ -361,6 +365,10 @@ const sections: LegalSection[] = [
           with the account, as above.
         </li>
         <li>
+          <strong>X posting grant</strong>: deleted when you disconnect the X account (GTF also asks X to revoke
+          it), or when the site or the account is deleted. Replies and posts already made stay on X.
+        </li>
+        <li>
           <strong>Public posts found for a site</strong>: kept while the site is in the account, unless removed
           earlier on request (see above).
         </li>
@@ -388,7 +396,7 @@ const sections: LegalSection[] = [
     body: (
       <p>
         Access to data is restricted per account in the database (row-level security), connections use HTTPS,
-        publishing credentials and the Search Console grant are encrypted by GTF before they are stored, and keys
+        publishing credentials, the Search Console grant and the X posting grant are encrypted by GTF before they are stored, and keys
         and tokens are stored only as hashes. The hosting and database providers apply their own security measures.
         No system is perfectly secure; if a breach affects your data, we will notify you and the authority as the
         law requires.

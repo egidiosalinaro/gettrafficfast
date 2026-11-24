@@ -185,8 +185,8 @@ export const SERVICE_PROVIDERS: readonly ServiceProvider[] = [
   {
     id: "x",
     name: "X (official API and embeds)",
-    purpose: "Finding public posts on X worth answering, reading a post you add, and reading the public numbers of replies you posted and of your own account.",
-    data: "Search queries built from your site's topics, the post addresses and your public X username.",
+    purpose: "Finding public posts on X worth answering, reading a post you add, reading the public numbers of replies you posted and of your own account, and, if you connect the X account a site posts from, posting on X from it when you press Post.",
+    data: "Search queries built from your site's topics, the post addresses, your public X username, and, for a connected account, its access grant and the text you post.",
     privacyUrl: "https://x.com/en/privacy",
     evidence: { file: "lib/providers/x/api.ts", contains: "api.x.com" },
   },
@@ -290,7 +290,9 @@ export const PROVIDER_MODULES: Record<string, ModuleDisclosure> = {
   "lib/providers/video/youtube.ts": { kind: "provider", ids: ["youtube"] },
   "lib/providers/x/api.ts": { kind: "provider", ids: ["x"] },
   "lib/providers/x/links.ts": INTERNAL,
+  "lib/providers/x/oauth.ts": { kind: "provider", ids: ["x"] },
   "lib/providers/x/oembed.ts": { kind: "provider", ids: ["x"] },
+  "lib/providers/x/post.ts": { kind: "provider", ids: ["x"] },
   "lib/providers/x/short-link.ts": { kind: "provider", ids: ["x"] },
   "lib/providers/x/status-time.ts": INTERNAL,
 };

@@ -83,6 +83,7 @@ describe("every route that changes something is a tool, or says why not", () => 
         "DELETE /api/mcp",
         "POST /api/api-keys",
         "POST /api/business/select",
+        "POST /api/integrations/x/connect",
         "POST /api/create-billing-portal-session",
         "POST /api/create-checkout-session",
         "POST /api/gettrafficfast",

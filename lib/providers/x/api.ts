@@ -9,8 +9,9 @@ import { z } from "zod";
  * (`GET /2/tweets?ids=`) to read the public numbers of replies a person
  * posted, and user lookup by username (`GET /2/users/by/username/:username`)
  * to read the public numbers of the site's own account (followers). No
- * write endpoint is called, ever: the product finds and drafts, a person
- * posts through X's own web intent.
+ * write endpoint is called here: posting, which only ever follows a person's
+ * press of Post, acts with the site's connected account (user context), in
+ * post.ts and oauth.ts.
  *
  * Billing is pay-per-use (X's default model since 2026-02-06), per post
  * returned. The unit prices below are the only place a price is written;
@@ -164,7 +165,8 @@ export class XApiError extends Error {
   }
 }
 
-const BILLING_TEXT = /credits?\s*(are\s*|have\s*been\s*)?depleted|creditsdepleted|insufficient\s*credits|payment\s*required|usage\s*cap|spend\s*cap/i;
+/** X saying the account's credits are used up, in any of the ways it words it: billing, whatever the status. */
+export const BILLING_TEXT_PATTERN = /credits?\s*(are\s*|have\s*been\s*)?depleted|creditsdepleted|insufficient\s*credits|payment\s*required|usage\s*cap|spend\s*cap/i;
 
 /** `x-rate-limit-reset` (epoch seconds) as an ISO instant, or null. */
 export function rateLimitResetAt(header: string | null): string | null {
@@ -177,7 +179,7 @@ export function rateLimitResetAt(header: string | null): string | null {
 /** What an HTTP failure means, from the status and the body X sent. */
 export function classifyXFailure(status: number, body: string, resetHeader: string | null): XApiError {
   const excerpt = body.slice(0, 300);
-  if (status === 402 || BILLING_TEXT.test(body)) {
+  if (status === 402 || BILLING_TEXT_PATTERN.test(body)) {
     return new XApiError(`X API billing refused (${status}): ${excerpt}`, "billing", { status });
   }
   if (status === 429) {

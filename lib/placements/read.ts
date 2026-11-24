@@ -336,6 +336,13 @@ export interface PlacementsInbox {
    * read the platform's ledger; absent on an older payload, read as off.
    */
   findsReplyLinks?: boolean;
+  /**
+   * The X account this site posts from, when the deployment offers posting
+   * and the connection works: the draft of a post that mentions or quotes
+   * it gets Post on X (lib/placements/x-reply-allowed.ts). Set by the route;
+   * null or absent: Reply on X everywhere, as before.
+   */
+  xPosting?: { username: string } | null;
 }
 
 export interface XSearchNotice {

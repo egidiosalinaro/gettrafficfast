@@ -29,6 +29,8 @@ import { LINK_SEARCH_MAX_ATTEMPTS, LINK_SEARCH_OUTCOMES, linkFinding, type LinkF
 import { LINK_SEARCH_NEW_REPLIES_PER_SITE_PER_DAY, findReplyLinkNow, ownerPaysFor, replyLinkFinderFor, replyLinkFinderOn } from "@/lib/placements/reply-link-search";
 import { readXApiStatus } from "@/lib/placements/x-budget";
 import { X_HANDLE_NEEDED, xHandleNeededFor } from "@/lib/placements/x-handle";
+import { loadXPostingAccount, xPostingAvailable } from "@/lib/integrations/x-posting";
+import { xReplyAllowance } from "@/lib/placements/x-reply-allowed";
 import { findActiveDraft, findLatestDraft, requestDiscovery } from "@/lib/placements/runs";
 import { TARGET_STATUSES, preferredDraft, type ManualActionInput } from "@/lib/placements/workflow";
 import { JobView, WaitSeconds, readJob, runJobWithin } from "./jobs";
@@ -43,7 +45,10 @@ import { reportJobCost } from "./usage";
  * checked the key's scopes, the site, and that every `targetId` / `draftId`
  * is a row of this account and this site (`owns`).
  *
- * The product never posts: there is no tool that publishes a reply.
+ * The product never posts on its own. The one tool that posts a reply is
+ * `post_on_x` (lib/tools/x-posting.ts): on X only, from the account the
+ * site connected, only to a post that mentions or quotes it, with the
+ * publish scope and confirm: true. Every other reply is posted by a person.
  * `get_reply_intent_url` gives the X link a person opens to post it
  * themselves, and `mark_reply_posted` records that they did;
  * `mark_reply_removed` records that the site took it down; `find_reply_link`
@@ -228,6 +233,12 @@ export const ReplyTarget = z.object({
     .optional()
     .describe("When the product first found it (a person's own post: when they added it). The same instant as createdAt, named for what it means."),
   drafts: z.array(ReplyDraft),
+  xPostAllowed: z
+    .boolean()
+    .optional()
+    .describe(
+      "True when this site has an X account connected for posting and this post on X mentions it, quotes it, answers it or is its own: X lets post_on_x reply to it. False (or absent): the person posts the reply themselves through get_reply_intent_url."
+    ),
 });
 
 const SearchRun = z.object({
@@ -243,6 +254,21 @@ export const LastDiscovery = z.object({
 });
 
 const TargetOutput = z.object({ target: ReplyTarget });
+
+/**
+ * The connected X account's username when posting is offered and the
+ * connection works, else null: what `xPostAllowed` is judged against.
+ */
+async function postingUsername(ctx: ToolContext): Promise<string | null> {
+  if (!xPostingAvailable()) return null;
+  const account = await loadXPostingAccount(ctx.client, ctx.userId, ctx.businessId);
+  return account && account.status === "connected" ? account.username : null;
+}
+
+/** A target with `xPostAllowed` for the site's connected account (lib/placements/x-reply-allowed.ts). */
+function withXPostAllowed<T extends PlacementTargetRecord>(target: T, username: string | null): T & { xPostAllowed: boolean } {
+  return { ...target, xPostAllowed: Boolean(username && xReplyAllowance(target, username)) };
+}
 
 /** "N of G today" and its list, as the Replies page shows it (lib/placements/today.ts). */
 export const TodayReplies = z.object({
@@ -399,7 +425,10 @@ export const listReplyInbox = defineTool({
       ownerPays: xStatus && inbox.xHandleKnown ? await ownerPaysFor(ctx.client, ctx.userId) : false,
     });
     const now = Date.now();
-    const page = inbox.targets.slice(input.offset, input.offset + input.limit).map((t) => withLinkFinding(t, finderOn, now));
+    const username = await postingUsername(ctx);
+    const page = inbox.targets
+      .slice(input.offset, input.offset + input.limit)
+      .map((t) => withXPostAllowed(withLinkFinding(t, finderOn, now), username));
     const next = input.offset + page.length;
     return {
       targets: page,
@@ -467,7 +496,7 @@ export const getReplyTarget = defineTool({
       ? await replyLinkFinderFor(ctx.admin(), ctx.client, ctx.businessId)
       : false;
     return {
-      target: withLinkFinding(target, finderOn, Date.now()),
+      target: withXPostAllowed(withLinkFinding(target, finderOn, Date.now()), await postingUsername(ctx)),
       draftJob: latest ? await readJob(ctx.client, ctx.businessId, latest.id) : null,
     };
   },
@@ -477,7 +506,7 @@ export const getReplyIntentUrl = defineTool({
   name: "get_reply_intent_url",
   title: "Get the Reply on X link",
   description:
-    "The X web-intent link that opens X's composer as a reply to the post, with the draft already typed in. A person opens it, reads the reply and presses Post on X: the product never posts. Uses the given draft, else the best one. url is null when the post is not on X or the text is too long for a link; then copy body and open threadUrl.",
+    "The X web-intent link that opens X's composer as a reply to the post, with the draft already typed in. A person opens it, reads the reply and presses Post on X themselves. (For a target with xPostAllowed true, post_on_x can post it from the site's connected X account instead, on the person's yes.) Uses the given draft, else the best one. url is null when the post is not on X or the text is too long for a link; then copy body and open threadUrl.",
   input: z.object({ targetId: TargetId, draftId: DraftId.optional() }),
   output: z.object({
     url: z.string().nullable(),

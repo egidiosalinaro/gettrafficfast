@@ -26,7 +26,7 @@ export const SITE_NAME = "GetTrafficFast";
  * owner's rule, 2026-11-12).
  */
 export const SITE_SUMMARY =
-  "GetTrafficFast (GTF) helps people find your business: on Google, in AI answers, and in the threads where your buyers ask questions. You connect one site. GTF finds the conversations worth answering, drafts replies in your voice, writes the articles for your blog, and measures what happened. You post the replies yourself.";
+  "GetTrafficFast (GTF) helps people find your business: on Google, in AI answers, and in the threads where your buyers ask questions. You connect one site. GTF finds the conversations worth answering, drafts replies in your voice, writes the articles for your blog, and measures what happened. You post the replies yourself, or with one press on X from the account you connected; GTF never posts on its own.";
 
 /**
  * The light theme's page colour, `--background: 0 0% 98%` in

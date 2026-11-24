@@ -80,6 +80,7 @@ describe("GET /api/onboarding/status", () => {
         "hasIntegration": false,
         "hasKeywords": true,
         "hasManualPost": false,
+        "hasXAccount": false,
       }
     `);
   });
@@ -96,6 +97,7 @@ describe("GET /api/onboarding/status", () => {
         "hasIntegration": false,
         "hasKeywords": false,
         "hasManualPost": false,
+        "hasXAccount": false,
       }
     `);
   });

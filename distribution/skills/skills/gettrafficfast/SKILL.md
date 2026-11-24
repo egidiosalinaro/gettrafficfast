@@ -50,10 +50,13 @@ reconnect with it ticked. Do not look for a way around it.
 
 ## The rules, always
 
-1. **GTF never posts on X, Reddit or any social site, and neither do you.**
-   For a reply on X, `get_reply_intent_url` gives a link that opens X with
-   the reply typed in; the person posts it. Call `mark_reply_posted` only
-   after they say they did.
+1. **GTF never posts on its own, and neither do you.** For a reply on X,
+   `get_reply_intent_url` gives a link that opens X with the reply typed in;
+   the person posts it. Call `mark_reply_posted` only after they say they
+   did. The one exception: a target with `xPostAllowed` true (its post
+   mentions or quotes the X account the person connected) can be posted with
+   `post_on_x` (Publish permission, `confirm: true`), only after the person
+   says yes to that exact reply. Never Reddit or any other site.
 2. **A reply names no product and carries no link.** Never add either, even
    if asked; offer to improve the wording instead.
 3. **Respect the publish scope.** `publish_article` writes to the person's

@@ -257,7 +257,7 @@ async function alertOperator(
         html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#111">
   <h2 style="margin:0 0 16px">${escapeText(params.headline)}</h2>
   <p>${escapeText(params.detail.slice(0, 1000))}</p>
-  <p style="font-size:12px;color:#888">One email per period for this alert. Nothing is posted on X by the product, ever.</p>
+  <p style="font-size:12px;color:#888">One email per period for this alert. GTF posts on X only when a person presses Post (or confirms it to their agent).</p>
 </div>`,
       });
     }
@@ -280,7 +280,7 @@ export async function alertXCapReached(
     period: month,
     level: "warning",
     headline: `X API: this month's ${formatLimitUsd(params.capUsd)} cap is reached`,
-    detail: `The X API spend for ${month.slice(0, 7)} is estimated at ${params.spentUsd === null ? "an amount that could not be read" : formatSpendUsd(params.spentUsd)}. Searching X for fresh posts, reading reply numbers and reading the followers stop until ${nextMonthStart(now).toISOString().slice(0, 10)} (UTC). Raise X_API_MONTHLY_CAP_USD to resume sooner.`,
+    detail: `The X API spend for ${month.slice(0, 7)} is estimated at ${params.spentUsd === null ? "an amount that could not be read" : formatSpendUsd(params.spentUsd)}. Searching X for fresh posts, reading reply numbers, reading the followers and posting from GTF stop until ${nextMonthStart(now).toISOString().slice(0, 10)} (UTC). Raise X_API_MONTHLY_CAP_USD to resume sooner.`,
   });
 }
 
@@ -319,17 +319,29 @@ export type MeteredResult<T extends XBilled = XCallResult> =
  * the ledger did: the refusal says why, in words a log or a step output can
  * carry.
  */
-export async function meteredXCall<T extends XBilled = XCallResult>(params: {
+export async function meteredXCall<T extends XBilled = XCallResult, C = XApiClient>(params: {
   supabase: SupabaseClient;
-  client: XApiClient | null;
+  /**
+   * What makes the call: the app-only read client, or, for posting, the
+   * site's connected account (lib/placements/x-post.ts). Null: refused as
+   * `disabled` with `disabledMessage`.
+   */
+  client: C | null;
   worstCaseUsd: number;
-  run: (client: XApiClient) => Promise<T>;
+  run: (client: C) => Promise<T>;
   capUsd?: number;
   now?: Date;
+  disabledMessage?: string;
+  /** The sentence of a cap refusal; the search's by default. */
+  capLine?: (resetsAt: Date) => string;
 }): Promise<MeteredResult<T>> {
   const now = params.now ?? new Date();
   if (!params.client) {
-    return { ok: false, reason: "disabled", message: "The X API is not turned on for this deployment (X_API_ENABLED=1 and X_API_BEARER_TOKEN)." };
+    return {
+      ok: false,
+      reason: "disabled",
+      message: params.disabledMessage ?? "The X API is not turned on for this deployment (X_API_ENABLED=1 and X_API_BEARER_TOKEN).",
+    };
   }
 
   const paused = await xPausedUntil(params.supabase, now);
@@ -349,7 +361,7 @@ export async function meteredXCall<T extends XBilled = XCallResult>(params: {
       const spent = await readProviderSpend(params.supabase, X_SPEND_PROVIDER, now);
       await alertXCapReached(params.supabase, { capUsd, spentUsd: spent.ok ? spent.spend.costUsd : null, now });
       log("warn", { outcome: "cap_refused", cap_usd: capUsd, worst_case_usd: params.worstCaseUsd, month: reservation.month });
-      return { ok: false, reason: "cap", message: xCapReachedLine(nextMonthStart(now)) };
+      return { ok: false, reason: "cap", message: (params.capLine ?? xCapReachedLine)(nextMonthStart(now)) };
     }
     log("error", { outcome: "ledger_unwritable", error: reservation.error });
     return { ok: false, reason: "ledger", message: `The X API spend ledger could not be written, so no call was made: ${reservation.error}` };

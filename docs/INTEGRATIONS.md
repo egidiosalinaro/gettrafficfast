@@ -22,8 +22,10 @@ Since 2026-11-14 the page is three groups: **Google** (Search Console),
 the platform has the X API on; the card says so and holds the site's X
 account, `voice_settings.xHandle`, saved through the partial
 `PATCH /api/business/voice-settings`, the merge `update_voice_settings`
-runs; until 2026-11-24 it held the Find posts on X switch), and **Your blog** (WordPress, Webhooks; Shopify, Wix, Webflow and
-Framer named as coming soon, not offered).
+runs; until 2026-11-24 it held the Find posts on X switch; since 2026-11-24
+it also connects the X account the site posts from, see "X: the account GTF
+posts from" below), and **Your blog** (WordPress, Webhooks; Shopify, Wix,
+Webflow and Framer named as coming soon, not offered).
 
 The Connected badge on each row is the union of two tables:
 `integrations` (publishing destinations) and `analytics_connections` (Search
@@ -48,6 +50,54 @@ decision comes from two facts a user cannot write: the URL is the own
 receiver, and the row's `user_id` is an operator. Nothing in `config` opts a
 row in; a legacy `secret_from_env` flag is ignored. Unset means nobody: the
 check fails closed.
+
+## X: the account GTF posts from
+
+Since 2026-11-24 (owner's decision: "X must be connected because we will
+also post through GTF"). One row per site in `x_posting_connections`
+(migration 20261125100000): `x_user_id`, `username`, the access and refresh
+tokens encrypted at rest with the same AES-256-GCM helper and key
+(`INTEGRATIONS_ENCRYPTION_KEY`), `expires_at`, `scopes`, `status`
+(`connected`, or `error` when X refused the stored token). Two sites may
+connect the same X account or different ones. RLS: the owner reads their
+own rows, for a site they own; only the service role writes; nothing a
+client or a tool reads selects the token columns
+(`X_POSTING_PUBLIC_COLUMNS`, `lib/integrations/x-posting.ts`).
+
+- **Deployment switch.** `X_OAUTH_CLIENT_ID` and `X_OAUTH_CLIENT_SECRET`
+  (a confidential client in X's developer portal). Without both, nothing
+  about posting is shown: no Connect in Settings, no onboarding step,
+  `get_x_posting_account` says `available: false`.
+- **Connect** (`GET` or `POST /api/integrations/x/connect`, `?business=<id>`
+  optional, checked against the person's own sites): OAuth 2.0
+  Authorization Code with PKCE (S256). The state, the verifier, the person
+  and the site are sealed in one httpOnly cookie (`x_oauth_state`,
+  AES-256-GCM, 10 minutes; `lib/integrations/x-oauth-state.ts`), then X's
+  consent screen (`https://x.com/i/oauth2/authorize`, scopes `tweet.read
+  tweet.write users.read offline.access`). GET is the link the onboarding
+  step and `get_x_posting_account` hand out; POST is Settings' button.
+- **Callback** (`GET /api/integrations/x/callback`, registered in X's
+  portal as `<your origin>/api/integrations/x/callback`, built from
+  `NEXT_PUBLIC_SITE_URL`): the cookie must open, match X's `state` and the
+  signed-in person, and the site must still be theirs; the code is traded at
+  `https://api.x.com/2/oauth2/token` with the verifier (Basic auth); the
+  account is read (`GET /2/users/me`, one metered user read); the row is
+  saved for the site the round trip started from (`completeXConnect`,
+  `lib/integrations/x-connect.ts`). When the site has no X account saved,
+  the @username is saved as `voice_settings.xHandle`, so the person is not
+  asked to type it.
+- **Refresh.** Access tokens last about two hours. `xAccessTokenFor`
+  refreshes one with less than 5 minutes left before any post; X rotates
+  the refresh token, so the new pair is stored (only if the row still holds
+  the token just used: a concurrent refresh keeps its own). A refresh X
+  refuses marks the row `error`; Settings then says to connect again.
+- **Disconnect** (`POST /api/integrations/x/disconnect`, the
+  `disconnect_x_account` tool): both tokens revoked at
+  `https://api.x.com/2/oauth2/revoke` (best effort), the row deleted.
+- **What it is used for**: Post on X and `post_on_x` only
+  (docs/PLACEMENTS.md, "Post on X: only where X allows it"), each a person's
+  press or their confirmation to their agent. Every post is counted in the
+  platform's X ledger under `X_API_MONTHLY_CAP_USD`.
 
 ## Network safety: every customer URL goes through `safeFetch`
 

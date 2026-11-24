@@ -61,6 +61,7 @@ import {
   shortcutFor,
   withSavedDraft,
   type CorrectionResult,
+  type PostOnXResult,
   type PromoteNoteResult,
   type SaveDraftResult,
 } from "@/components/placements/reply-logic";
@@ -466,6 +467,44 @@ export default function TodayPage() {
         delete next[id];
         return next;
       });
+    }
+  };
+
+  /**
+   * Post on X (lib/placements/x-post.ts): one press, one reply from the
+   * site's connected account. Posted, the item leaves To do with its real
+   * link; refused, the item says why (and the card opens X's composer when
+   * X does not allow the reply).
+   */
+  const postOnX = async (id: string, draftId: string): Promise<PostOnXResult> => {
+    setBusy(id, true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/placements/${id}/post-on-x`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draftId }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        code?: string;
+        intentUrl?: string | null;
+        target?: PlacementTargetRecord;
+      };
+      if (!response.ok || !payload.target) {
+        return { ok: false, error: payload.error ?? "Could not post on X.", code: payload.code ?? null, intentUrl: payload.intentUrl ?? null };
+      }
+      const target = payload.target;
+      if (data?.hasBusiness && !inView(target, listOf(data.view), now) && open === id) setOpenId(nextOpenId(rowIds, id));
+      replaceTarget(target);
+      setReplied((current) => toggled(current, id, false));
+      showToast({ text: "Posted on X." });
+      await load();
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Network error: check X before trying again, the reply may be there." };
+    } finally {
+      setBusy(id, false);
     }
   };
 
@@ -1110,6 +1149,8 @@ export default function TodayPage() {
         onActions={(actions) => {
           itemActions.current = actions;
         }}
+        xPostingUsername={data.xPosting?.username ?? null}
+        onPostOnX={(draftId) => postOnX(target.id, draftId)}
       />
     );
 

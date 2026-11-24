@@ -10,6 +10,7 @@ import { isXApiEnabled } from "@/lib/providers/x/api";
 import { readXApiStatus, xSearchNotice } from "@/lib/placements/x-budget";
 import { withXSearchOff } from "@/lib/placements/discovery-progress";
 import { ownerPaysFor, replyLinkFinderOn } from "@/lib/placements/reply-link-search";
+import { loadXPostingAccount, xPostingAvailable } from "@/lib/integrations/x-posting";
 
 /**
  * The Placements inbox, for the selected site, through the user's own session.
@@ -51,8 +52,13 @@ export async function GET(request: NextRequest) {
       ownerPays: xStatus && inbox.xHandleKnown ? await ownerPaysFor(supabase, user.id) : false,
     });
 
+    // The account GTF posts from, when there is one that works: Post on X on the drafts X allows.
+    const xAccount = xPostingAvailable() ? await loadXPostingAccount(supabase, user.id, businessId) : null;
+    const xPosting = xAccount && xAccount.status === "connected" ? { username: xAccount.username } : null;
+
     return NextResponse.json({
       hasBusiness: true,
+      xPosting,
       ...inbox,
       // The daily X search runs only where the platform has the X API on.
       discovery: withXSearchOff(inbox.discovery, isXApiEnabled()),

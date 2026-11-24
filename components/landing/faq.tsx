@@ -69,7 +69,9 @@ export function FAQ({ engines }: { engines: readonly AnswerEngine[] }) {
             <AccordionContent>
               Open Replies first: drafts in your voice for posts on X, Reddit,
               LinkedIn and other sites. Post the ones you like yourself; on X,
-              Reply on X fills in the reply box. Then look at Prompts: which
+              Reply on X fills in the reply box, and a post that mentions you
+              gets Post on X, which posts your reply from the X account you
+              connected when you press it. GTF never posts on its own. Then look at Prompts: which
               engine cited you, and on the prompts you lost, which sources and
               competitors it cited instead. Put a page on the content calendar
               for that question. You do not need to live in the app.

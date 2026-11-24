@@ -37,7 +37,9 @@ Perplexity (AEO):
   as HTML or Markdown. Autopilot can do this on a schedule.
 - **Reply.** GTF finds fresh conversations on X and Reddit where your buyers
   ask questions and drafts replies in your voice, from facts you confirmed.
-  **It never posts.** A person reads the draft and posts it.
+  **It never posts on its own.** A person reads the draft and posts it; on X,
+  a reply to a post that mentions the site's connected X account can be
+  posted from it with one press of Post on X.
 - **Measure.** Google rank and clicks from Search Console, index status,
   and whether answer engines cite your pages. Citations are **sampled, per
   engine**: no engine exposes "was I cited" as an API, so GTF asks real

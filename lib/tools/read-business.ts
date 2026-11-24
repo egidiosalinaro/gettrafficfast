@@ -3,7 +3,7 @@ import { AutomationSettings } from "@/lib/automation/settings";
 import { businessProfile, loadBusiness } from "@/lib/business/read";
 import { loadHomeSnapshot } from "@/lib/home-snapshot";
 import { MediaSettings } from "@/lib/media/settings";
-import { ONBOARDING_STEPS, nextOnboardingStep } from "@/lib/onboarding";
+import { ONBOARDING_STEPS, nextOnboardingStep, onboardingSteps } from "@/lib/onboarding";
 import { loadOnboardingStatus } from "@/lib/onboarding-status";
 import { listFeedback } from "@/lib/placements/feedback";
 import { listBusinesses } from "@/lib/tenancy";
@@ -170,7 +170,7 @@ export const getOnboardingStatus = defineTool({
   name: "get_onboarding_status",
   title: "Get the setup checklist",
   description:
-    "The Getting started checklist for this site, step by step and in order: the business, About you, the image style (hasImageStyle: articles go out without images until it is chosen; update_media_settings with style, styleInstructions or brandPalette chooses it once the person says how their images should look), keywords, the first article, a connected website, the first post from X. Autopilot and images have no step to turn them on: both are on for every site. next is the first step not done, with the page that does it (href); complete when every step is.",
+    "The Getting started checklist for this site, step by step and in order: the business, About you, the image style (hasImageStyle: articles go out without images until it is chosen; update_media_settings with style, styleInstructions or brandPalette chooses it once the person says how their images should look), keywords, the first article, a connected website, the X account GTF posts from (only where the platform offers posting on X: a person connects it on X's consent screen; get_x_posting_account gives the link), the first post from X. Autopilot and images have no step to turn them on: both are on for every site. next is the first step not done, with the page that does it (href); complete when every step is.",
   input: z.object({}),
   output: z.object({
     steps: z.array(StepView),
@@ -181,7 +181,7 @@ export const getOnboardingStatus = defineTool({
   paid: false,
   async handler(ctx) {
     const status = await loadOnboardingStatus(ctx.client, ctx.businessId);
-    const steps = ONBOARDING_STEPS.map((step) => ({
+    const steps = onboardingSteps(status).map((step) => ({
       key: step.key,
       label: step.label,
       description: step.description,

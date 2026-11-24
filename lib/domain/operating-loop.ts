@@ -553,6 +553,12 @@ function onboardingAction(step: OnboardingStep): NextAction {
         "WordPress or a webhook. Without a destination, articles stay on the calendar after they are written.",
       cta: "Connect your site",
     },
+    hasXAccount: {
+      title: "Connect the X account GTF posts from",
+      description:
+        "Sign in on X once. A reply to a post that mentions or quotes you then posts with one press; replies to everyone else still open in X for you. GTF never posts on its own.",
+      cta: "Connect X",
+    },
     hasManualPost: {
       title: "Add your first post from X",
       description:

@@ -208,6 +208,17 @@ export function DocsContent({ engines, toolGroups, limits }: DocsContentProps) {
             draft typed in; anywhere else, copy it and open the thread. You post it, then tap I posted it.
           </li>
           <li>
+            <Strong>Post on X.</Strong> Connect the X account a site posts from, once, in{" "}
+            <Place>Settings → Connections → X</Place> (or from the Getting started checklist): you sign in on X and
+            allow it there. Then a reply to a post that mentions or quotes that account (or answers it) gets a Post on
+            X button: one press posts that reply from that account, and it is marked as posted with its link. X lets
+            an app reply only to posts like these; every other reply still opens in X for you to post, exactly as
+            before. If X refuses a reply anyway, X opens with it typed in, in the same press. GTF never posts on its
+            own, on a schedule, or anywhere but X from the account you connected. Each site connects its own account,
+            or the same one; Disconnect revokes it. Once connected, its @username is the site&apos;s X account, so you
+            are not asked for it.
+          </li>
+          <li>
             <Strong>Three views.</Strong> To do is what waits for you. Posted is the replies you posted, with their
             link and their numbers on X. Archive is what you set aside, and you can bring it back.
           </li>
@@ -233,7 +244,7 @@ export function DocsContent({ engines, toolGroups, limits }: DocsContentProps) {
         </Bullets>
         <Callout title="Three rules that do not change">
           <Bullets>
-            <li>GTF never posts for you. Nothing goes to X, Reddit or anywhere else without your tap.</li>
+            <li>GTF never posts on its own. Nothing goes to X without your press of Post (or your yes to your AI agent), and nothing goes to Reddit or anywhere else at all.</li>
             <li>A reply names no product and carries no link. The answer is the whole reply.</li>
             <li>
               A reply says only what is true. It speaks from About you, and a claim it cannot ground is refused before
@@ -509,12 +520,14 @@ export function DocsContent({ engines, toolGroups, limits }: DocsContentProps) {
           <P>
             For each reply, Claude shows the post and the draft and asks: approve, fix or skip. Approve gives you the
             link that opens X with the reply typed in. You post it yourself, then tell Claude, and it marks it as
-            posted. Neither GTF nor Claude ever posts.
+            posted. For a post that mentions or quotes the X account you connected, Claude can offer to post it from
+            that account instead, and does only after your yes to that reply. Neither GTF nor Claude ever posts on
+            its own.
           </P>
         </Sub>
         <Callout title="What Claude cannot do">
           <Bullets>
-            <li>Post on X, Reddit or anywhere else. It hands you the link; you post.</li>
+            <li>Post anywhere on its own. It hands you the link and you post; the one exception is Post on X from your connected account, for a post that mentions you, after your yes. Never Reddit or any other site.</li>
             <li>Create or revoke keys. Only you can, signed in.</li>
             <li>Connect WordPress or a webhook: a password or a secret never passes through a chat.</li>
             <li>

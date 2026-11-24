@@ -90,6 +90,7 @@ where the feature is paid: the ones marked "opt-in" also need their switch.
 | Citation probes (AEO) | `CITATIONS_GEMINI=true` (opt-in, reuses the Gemini key), `PERPLEXITY_API_KEY` | The weekly sweep reports itself disabled and records nothing |
 | Search Console | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, redirect URI `<your-origin>/api/integrations/search-console/callback` | Connect flow unavailable, no rank or click data |
 | Fresh posts on X | `X_API_ENABLED=1` (opt-in), `X_API_BEARER_TOKEN`, `X_API_MONTHLY_CAP_USD` | Users add posts by pasting links; web search still finds some |
+| Post on X from a site's connected account | `X_OAUTH_CLIENT_ID`, `X_OAUTH_CLIENT_SECRET` (both: the switch); see "Posting on X" below | No Connect in Settings, no onboarding step, every reply opens in X for the person to post |
 | Reddit API | `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` | Reddit threads come from web search (`SERPER_API_KEY`) |
 | GitHub discovery | `PLACEMENTS_GITHUB=true` (opt-in), `GITHUB_TOKEN` | Off |
 | Images and video | `IMAGES_ENABLED`, `IMAGE_PROVIDER`, `OPENAI_API_KEY`, `YOUTUBE_API_KEY` | No video without `YOUTUBE_API_KEY`. No image without `IMAGES_ENABLED=1`: the default provider uses `GEMINI_API_KEY`, the text models' key, so the key alone never starts spending on images. With it set, every site gets a featured image: on by default per site, turned off in Settings → Autopilot, Images and video |
@@ -97,8 +98,33 @@ where the feature is paid: the ones marked "opt-in" also need their switch.
 | Billing | `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET` | See "Running without billing" |
 | Error monitoring | Sentry, see below | No error reports |
 
-Replies on X and Reddit are only ever drafted. Nothing in the code posts on
-a social site; a person copies the draft and posts it.
+Replies on Reddit and everywhere else are only ever drafted: a person copies
+the draft and posts it. On X, the same, except where the deployment sets up
+posting (below) and a site connects its X account: then a reply to a post
+that mentions or quotes that account is posted when the person presses
+Post on X. Nothing in the code posts on its own.
+
+#### Posting on X
+
+In X's developer portal (developer.x.com), on the app of your project:
+
+1. **User authentication settings → Set up.** App permissions: **Read and
+   write**. Type of App: **Web App, Automated App or Bot** (a confidential
+   client).
+2. **Callback URI / Redirect URL**: `<your-origin>/api/integrations/x/callback`,
+   exactly, where `<your-origin>` is your `NEXT_PUBLIC_SITE_URL` (for
+   example `https://app.example.com/api/integrations/x/callback`). A preview
+   deployment with another origin needs its own entry.
+3. **Website URL**: `<your-origin>`.
+4. **Keys and tokens → OAuth 2.0 Client ID and Client Secret**: copy them
+   into `X_OAUTH_CLIENT_ID` and `X_OAUTH_CLIENT_SECRET`. (The app-only
+   Bearer Token is `X_API_BEARER_TOKEN`, for reading; the OAuth 1.0a keys
+   are not used.)
+
+Posting is pay-per-use on X's side: every post is reserved and settled in
+the same monthly ledger as the reads and refused over
+`X_API_MONTHLY_CAP_USD`. `INTEGRATIONS_ENCRYPTION_KEY` must be set (the
+tokens are stored encrypted with it).
 
 Variables used only by the hosted service's own blog and marketing
 (`BLOG_WEBHOOK_SECRET`, `OWN_BLOG_OWNER_USER_IDS`, `MCP_REGISTRY_AUTH`)

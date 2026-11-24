@@ -1172,12 +1172,15 @@ export function auditDraft(draft: DraftForAudit, ctx: AuditContext): AuditResult
         : `${bodyWords} words, ${length} characters.`,
   });
 
-  // 11. Nothing is posted by the platform. Structural, and stated so the reviewer knows.
+  // 11. Nothing is posted on its own. Structural, and stated so the reviewer knows.
   checks.push({
     id: "manual_publish",
-    label: "Published by you, never by the platform",
+    label: "Published by you, never on its own",
     status: "pass",
-    detail: "The platform has no credentials for this surface and no code path that posts. You copy, you open the original, you publish.",
+    detail:
+      ctx.thread.surface === "x"
+        ? "Nothing goes out until you act: you open X and post it, or, where the post mentions the X account you connected, you press Post on X and GTF posts this text from it, once."
+        : "The platform has no credentials for this surface and no code path that posts. You copy, you open the original, you publish.",
   });
 
   // 12. The writer's own notes, where code can read them (lowercase, for

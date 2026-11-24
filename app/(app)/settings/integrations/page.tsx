@@ -9,7 +9,8 @@ import {
 } from "@/lib/integrations/catalog";
 import { loadVoiceSettings } from "@/lib/voice/read";
 import { isXApiEnabled } from "@/lib/providers/x/api";
-import { XAccountCard } from "@/components/settings/x-account";
+import { XAccountCard, xConnectErrorLine, type XPostingCardState } from "@/components/settings/x-account";
+import { loadXPostingAccount, xPostingAvailable } from "@/lib/integrations/x-posting";
 import { inferredXHandle } from "@/lib/placements/x-handle";
 
 export const dynamic = "force-dynamic";
@@ -94,7 +95,15 @@ function SectionHeading({ id, title, children }: { id: string; title: string; ch
  * site when the platform has it; the site's X account is
  * `voice_settings.xHandle`, read here and saved in place.
  */
-export default async function ConnectionsPage() {
+export default async function ConnectionsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const query = (await searchParams) ?? {};
+  const one = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value) ?? null;
+  const xConnected = one(query.x_connected);
+  const xError = one(query.x_error);
   const supabase = await createClient();
   const {
     data: { user },
@@ -105,16 +114,19 @@ export default async function ConnectionsPage() {
   let xHandle: string | null = null;
   let inferredHandle: string | null = null;
   let hasBusiness = false;
+  const posting: XPostingCardState = { available: xPostingAvailable(), account: null };
 
   if (user && businessId) {
     // Destinations in `integrations`, Search Console in `analytics_connections`.
     // The credential columns are not selected: this page only needs status.
-    const [{ data: publishing }, { data: analytics }, voice, inferred] = await Promise.all([
+    const [{ data: publishing }, { data: analytics }, voice, inferred, xAccount] = await Promise.all([
       supabase.from("integrations").select("type, status").eq("business_id", businessId),
       supabase.from("analytics_connections").select("provider, status").eq("business_id", businessId),
       loadVoiceSettings(supabase, user.id, businessId),
       inferredXHandle(supabase, businessId),
+      posting.available ? loadXPostingAccount(supabase, user.id, businessId) : Promise.resolve(null),
     ]);
+    posting.account = xAccount ? { username: xAccount.username, status: xAccount.status } : null;
     connectedTypes = connectedCatalogIds({
       publishing: (publishing ?? []).map((row) => ({ type: row.type as string, status: row.status as string })),
       analytics: (analytics ?? []).map((row) => ({ provider: row.provider as string, status: row.status as string })),
@@ -147,10 +159,24 @@ export default async function ConnectionsPage() {
         <SectionHeading id="connections-x" title="X">
           Every day, GetTrafficFast looks on X for fresh posts about your topics. They arrive in your replies with a
           draft. The numbers of the replies you post there (views, likes, replies) are read once a day too, and the
-          link of a reply you mark as posted is found on X for you, once GTF knows your X account. Nothing is ever
-          posted for you.
+          link of a reply you mark as posted is found on X for you, once GTF knows your X account. GTF posts on X only
+          when you press Post on X (or confirm a post to your AI agent), from the X account you connect here for this
+          site; never on its own, and never anywhere else.
         </SectionHeading>
-        <XAccountCard saved={xHandle} inferred={inferredHandle} available={isXApiEnabled()} hasBusiness={hasBusiness} />
+        <XAccountCard
+          saved={xHandle}
+          inferred={inferredHandle}
+          available={isXApiEnabled()}
+          hasBusiness={hasBusiness}
+          posting={posting}
+          notice={
+            xConnected
+              ? { tone: "ok", text: `Connected @${xConnected.replace(/[^\w]/g, "").slice(0, 15)}.` }
+              : xError
+                ? { tone: "error", text: xConnectErrorLine(xError) }
+                : null
+          }
+        />
       </section>
 
       <section aria-labelledby="connections-blog" className="space-y-3">

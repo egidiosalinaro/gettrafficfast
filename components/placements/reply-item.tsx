@@ -2,12 +2,13 @@
 
 import { useEffect, useLayoutEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { AlertTriangle, Check, CheckCircle2, ExternalLink, Info, Loader2, Reply, XCircle } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, ExternalLink, Info, Loader2, Reply, Send, XCircle } from "lucide-react";
 import type { AuditCheck } from "@/lib/placements/audit";
 import { REASON_MAX } from "@/lib/placements/feedback";
 import type { PlacementDraftRecord, PlacementTargetRecord } from "@/lib/placements/read";
 import { variantCarriesLink } from "@/lib/placements/link";
 import { xReplyIntentUrl } from "@/lib/placements/intent";
+import { xReplyAllowance } from "@/lib/placements/x-reply-allowed";
 import { surfaceLabel } from "@/lib/placements/surfaces";
 import { draftWaitMessage, type DraftFailureKind } from "@/lib/placements/draft-progress";
 import { OPEN_STATUSES, isHumanWritten, preferredDraft, takesReply } from "@/lib/placements/workflow";
@@ -28,12 +29,14 @@ import {
   noteProblem,
   openIn,
   ownPath,
+  postOnXThenFallback,
   postLines,
   promoteNote,
   replyLabel,
   replyThenOpen,
   reserveTab,
   type CorrectionResult,
+  type PostOnXResult,
   type PromoteNoteResult,
   type SaveDraftResult,
 } from "@/components/placements/reply-logic";
@@ -65,8 +68,11 @@ import {
  * reply is out. Then the notes the owner gives most as one-tap chips, Skip,
  * and a ⋯ menu for the rest (Copy, Start over, Snooze, Open post, Voice).
  * The checks are one quiet mark when they pass and one line each when they
- * do not. The product posts nothing: every button here copies, opens the
- * other site, or records what the person did.
+ * do not. Every button here copies, opens the other site, or records what
+ * the person did, with one exception: on a post on X that mentions or quotes
+ * the X account the site connected, the primary button is Post on X, and one
+ * press posts that reply from that account (the only post GTF makes, and
+ * only on that press). Every other post keeps Reply on X.
  *
  * Until 2026-11-10 this was a card with twelve controls that opened by
  * itself for every draft (docs/PLACEMENTS.md, "The queue").
@@ -123,6 +129,10 @@ export interface ReplyItemProps {
   writerUseRecorded?: boolean;
   /** Told what the keyboard shortcuts press on this item, as it stands now. */
   onActions?: (actions: ItemActions) => void;
+  /** The X account this site posts from, without @; null or absent when none is connected. */
+  xPostingUsername?: string | null;
+  /** Post on X: posts the draft from that account. Absent: never offered. */
+  onPostOnX?: (draftId: string) => Promise<PostOnXResult>;
 }
 
 export function ReplyItem({
@@ -148,6 +158,8 @@ export function ReplyItem({
   onRemoveFact,
   writerUseRecorded = true,
   onActions,
+  xPostingUsername = null,
+  onPostOnX,
 }: ReplyItemProps) {
   const [activeDraft, setActiveDraft] = useState<string | null>(null);
   const [ownOpen, setOwnOpen] = useState(false);
@@ -283,6 +295,8 @@ export function ReplyItem({
           skipping={pending === "dismiss"}
           menu={menu}
           onActions={onActions}
+          xPostingUsername={xPostingUsername}
+          onPostOnX={onPostOnX}
         />
           ) : (
             <OwnReply
@@ -600,7 +614,11 @@ function DraftBlock({
   skipping = false,
   menu,
   onActions,
+  xPostingUsername = null,
+  onPostOnX,
 }: {
+  xPostingUsername?: string | null;
+  onPostOnX?: (draftId: string) => Promise<PostOnXResult>;
   skipping?: boolean;
   onAddFact?: (fact: string) => Promise<AddFactResult>;
   onRemoveFact?: (fact: string, aboutYou: string) => Promise<RemoveFactResult>;
@@ -645,6 +663,18 @@ function DraftBlock({
   // button falls back to copy-and-open.
   const intentFor = (text: string) =>
     surface === "x" && draft.variant === "short_comment" ? xReplyIntentUrl(target.url, text) : null;
+
+  // Post on X: only where X lets GTF reply from the connected account (the
+  // post mentions, quotes or answers it, or is its own), on a short reply
+  // the checks did not stop. Everywhere else, today's Reply on X.
+  const postable =
+    Boolean(onPostOnX && xPostingUsername) &&
+    canAct &&
+    !stopped &&
+    draft.variant === "short_comment" &&
+    xReplyAllowance(target, xPostingUsername) !== null;
+  const [postingX, setPostingX] = useState(false);
+  const [xNote, setXNote] = useState<{ text: string; url: string | null } | null>(null);
 
   const save = async (): Promise<PlacementDraftRecord | null> => {
     setSaving(true);
@@ -691,6 +721,41 @@ function DraftBlock({
       if (outcome !== "opened") reserved?.close();
     } finally {
       setReplying(false);
+    }
+  };
+
+  const postX = async () => {
+    if (!onPostOnX || postingX || saving || rewriting || replying) return;
+    setPostingX(true);
+    setXNote(null);
+    let fallbackUrl: string | null = null;
+    try {
+      const outcome = await postOnXThenFallback({
+        dirty,
+        draftId: draft.id,
+        save,
+        post: onPostOnX,
+        open: (url) => {
+          fallbackUrl = url;
+          // Still the press's own gesture in most browsers; where the tab is
+          // refused, the line under the button carries the same link.
+          const opened = window.open(url, "_blank");
+          if (opened) {
+            opened.opener = null;
+            fallbackUrl = null;
+          }
+        },
+      });
+      if (outcome.kind === "fell_back") {
+        setXNote({ text: outcome.message, url: fallbackUrl });
+        if (canAct) onRepliedChange(true);
+      } else if (outcome.kind === "failed") {
+        setXNote({ text: outcome.message, url: null });
+      } else if (outcome.kind === "blocked") {
+        setXNote({ text: "A check stopped this draft, so it was not posted. Fix it, or reply on X yourself.", url: null });
+      }
+    } finally {
+      setPostingX(false);
     }
   };
 
@@ -764,7 +829,7 @@ function DraftBlock({
   useEffect(() => {
     if (!onActions) return;
     onActions({
-      reply: () => void reply(stopped),
+      reply: () => void (postable ? postX() : reply(stopped)),
       posted: canAct ? onMarkPosted : undefined,
       fix: onCorrect ? () => dispatchFix({ type: "toggle" }) : undefined,
       skip: onSkip,
@@ -773,10 +838,12 @@ function DraftBlock({
   });
 
   const failing = flagged.filter((check) => check.status === "fail");
-  const waiting = busy || saving || replying || rewriting;
+  const waiting = busy || saving || replying || rewriting || postingX;
   const errorHref = ownPath(fix.error?.href ?? null);
   const fullMenu: MenuItem[] = [
     { label: "Copy", onSelect: () => void copyText(body).then((ok) => ok && flash()) },
+    // Post on X is the primary: posting it yourself stays one tap away.
+    ...(postable ? [{ label: "Reply on X yourself", onSelect: () => void reply(stopped), disabled: waiting }] : []),
     ...(canAct && !replied ? [{ label: "I posted it", onSelect: onMarkPosted, disabled: waiting, pending: posting }] : []),
     ...menu,
   ];
@@ -894,6 +961,12 @@ function DraftBlock({
         <Actions
           stay
           primary={
+            postable ? (
+              <button type="button" disabled={waiting} aria-busy={postingX || undefined} onClick={() => void postX()} className={MAIN}>
+                {postingX ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-4 w-4" aria-hidden="true" />}{" "}
+                {postingX ? "Posting…" : "Post on X"}
+              </button>
+            ) : (
             <button type="button" disabled={waiting} aria-busy={replying || undefined} onClick={() => void reply(stopped)} className={MAIN}>
               {replying ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -904,6 +977,7 @@ function DraftBlock({
               )}{" "}
               {copied ? "Copied, opening…" : stopped ? "Reply anyway" : replyLabel(surface)}
             </button>
+            )
           }
           menu={fullMenu}
         >
@@ -993,6 +1067,22 @@ function DraftBlock({
           )}
           {fix.promoted && !fix.promoted.ok && <Problem>{fix.promoted.text}</Problem>}
         </div>
+      )}
+      {postable && !replied && !xNote && (
+        <p className="text-xs text-muted-foreground">Posts this reply from @{xPostingUsername} now. Nothing else is posted.</p>
+      )}
+      {xNote && (
+        <p role="status" className="text-xs text-amber-700 dark:text-amber-400">
+          {xNote.text}
+          {xNote.url && (
+            <>
+              {" "}
+              <a href={xNote.url} target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
+                Open X with your reply
+              </a>
+            </>
+          )}
+        </p>
       )}
       {saveError && <Problem>{saveError}</Problem>}
     </div>

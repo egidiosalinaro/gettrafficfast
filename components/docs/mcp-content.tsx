@@ -105,7 +105,7 @@ export function McpDocsContent({ areas, limits }: McpDocsProps) {
         <Bullets>
           <li>Every action you can take on the screens is a tool, with the same checks: your sites only, your plan, the daily caps.</li>
           <li>The agent works on one of your sites at a time, chosen when you connect or by a header.</li>
-          <li>Nothing is posted on X, Reddit or any social site. The agent hands you a link; you post.</li>
+          <li>Nothing is posted on its own. The agent hands you a link and you post; the one exception is post_on_x, which posts on X from the account you connected for the site, only with the Publish permission and your yes to that post. Never Reddit or any other social site.</li>
         </Bullets>
       </Section>
 
@@ -450,10 +450,12 @@ export function McpDocsContent({ areas, limits }: McpDocsProps) {
       <Section id="never" title="What GTF never does">
         <Callout title="Through MCP, as on the screens">
           <Bullets>
-            <li>Never posts on X, Reddit or any social site. The agent hands you the link that opens X with the reply typed in; you post it.</li>
+            <li>Never posts on its own, and never on Reddit or any social site but X. The agent hands you the link that opens X with the reply typed in; you post it.</li>
             <li>
               Never publishes without the Publish permission. <Code>publish_article</Code> is the only tool that writes
-              to your own site, and it also needs <Code>confirm: true</Code>.
+              to your own site, and <Code>post_on_x</Code> the only one that posts on X (from the X account you
+              connected for the site, to a post that mentions or quotes it, or a post of the account&apos;s own); both
+              also need <Code>confirm: true</Code>.
             </li>
             <li>Never starts AI work without the Spend permission, and never switches spending on (Autopilot, images, scheduled checks) without <Code>confirm: true</Code>: the agent asks you first.</li>
             <li>Never reaches another account&apos;s data, or a site the key or connection is not for.</li>

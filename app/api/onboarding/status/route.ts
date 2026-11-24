@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { selectedBusinessId } from "@/lib/tenancy";
 import { EMPTY_ONBOARDING_STATUS, type OptionalOnboardingStatus } from "@/lib/onboarding";
 import { hasClaudeConnected, loadOnboardingStatus } from "@/lib/onboarding-status";
+import { isXPostingConfigured } from "@/lib/providers/x/oauth";
 
 export async function GET() {
   const supabase = await createClient();
@@ -28,7 +29,7 @@ export async function GET() {
   const businessId = await selectedBusinessId(supabase, user.id);
 
   if (!businessId) {
-    return NextResponse.json({ ...EMPTY_ONBOARDING_STATUS, ...optional });
+    return NextResponse.json({ ...EMPTY_ONBOARDING_STATUS, ...(isXPostingConfigured() ? { xPostingOffered: true } : {}), ...optional });
   }
 
   // The same counts as the Overview and `get_onboarding_status` (lib/onboarding-status.ts).

@@ -68,6 +68,9 @@ export const OWNED_TABLES: ReadonlySet<string> = new Set([
   "subscriptions",
   // The site's own X account, one row a day (lib/placements/reply-stats-read.ts).
   "x_account_metrics",
+  // The X account a site posts from: the tool layer selects X_POSTING_PUBLIC_COLUMNS
+  // only, never the encrypted tokens (lib/integrations/x-posting.ts).
+  "x_posting_connections",
 ]);
 
 const REFUSED = new Set(["rpc", "storage", "auth", "schema", "channel", "functions", "realtime"]);

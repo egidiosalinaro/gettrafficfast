@@ -14,6 +14,12 @@ import { IMAGE_STYLE_PATH } from "@/lib/media/settings";
  * until the image style is chosen (`media_settings.styleChosen`), articles
  * go out without images, so "Choose your image style" comes right after
  * About you, before the first article can be written.
+ *
+ * Connect your X account (2026-11-24) is a step only where the deployment
+ * offers posting on X (X_OAUTH_CLIENT_ID and X_OAUTH_CLIENT_SECRET:
+ * `xPostingOffered`); elsewhere `onboardingSteps` leaves it out, so it never
+ * shows, never counts and never keeps the widget open. Once connected, the
+ * account's @username is the site's X account, so nobody types it by hand.
  */
 
 export type OnboardingStatus = {
@@ -24,6 +30,10 @@ export type OnboardingStatus = {
   hasArticles: boolean;
   hasIntegration: boolean;
   hasManualPost: boolean;
+  /** The site has an X account connected to post from (`x_posting_connections`). */
+  hasXAccount: boolean;
+  /** The deployment offers connecting one; absent or false: the step is not shown. */
+  xPostingOffered?: boolean;
 };
 
 export const EMPTY_ONBOARDING_STATUS: OnboardingStatus = {
@@ -34,6 +44,7 @@ export const EMPTY_ONBOARDING_STATUS: OnboardingStatus = {
   hasArticles: false,
   hasIntegration: false,
   hasManualPost: false,
+  hasXAccount: false,
 };
 
 export function buildOnboardingStatus(input: {
@@ -47,8 +58,13 @@ export function buildOnboardingStatus(input: {
   integrationCount: number;
   /** `placement_targets` rows of the site with `found_via` = MANUAL_SOURCE. */
   manualPostCount: number;
+  /** Rows of `x_posting_connections` for the site (0 or 1). */
+  xPostingAccountCount?: number;
+  /** Whether the deployment offers connecting an X account to post from. */
+  xPostingOffered?: boolean;
 }): OnboardingStatus {
-  if (!input.hasBusiness) return { ...EMPTY_ONBOARDING_STATUS };
+  const offered = input.xPostingOffered === true ? { xPostingOffered: true } : {};
+  if (!input.hasBusiness) return { ...EMPTY_ONBOARDING_STATUS, ...offered };
   return {
     hasBusiness: true,
     hasAboutYou: input.aboutYou.trim().length > 0,
@@ -57,6 +73,8 @@ export function buildOnboardingStatus(input: {
     hasArticles: input.articleCount > 0,
     hasIntegration: input.integrationCount > 0,
     hasManualPost: input.manualPostCount > 0,
+    hasXAccount: (input.xPostingAccountCount ?? 0) > 0,
+    ...offered,
   };
 }
 
@@ -105,6 +123,13 @@ export const ONBOARDING_STEPS = [
     href: "/settings/integrations",
   },
   {
+    key: "hasXAccount" as const,
+    label: "Connect your X account",
+    description: "Sign in on X once. Replies to posts that mention you get a Post button; GTF never posts on its own.",
+    // Starts X's consent screen for the selected site (a plain link, never prefetched).
+    href: "/api/integrations/x/connect",
+  },
+  {
     key: "hasManualPost" as const,
     label: "Add your first post from X",
     description: "Paste the link of a post worth answering. A reply is drafted; you post it.",
@@ -130,10 +155,20 @@ export const OPTIONAL_ONBOARDING_STEPS = [
 
 export type OptionalOnboardingStatus = Record<(typeof OPTIONAL_ONBOARDING_STEPS)[number]["key"], boolean>;
 
+/**
+ * The steps this site is walked through: ONBOARDING_STEPS, without the ones
+ * the deployment does not offer (Connect your X account, unless
+ * `xPostingOffered`). What the widget counts and lists, and what
+ * `get_onboarding_status` answers.
+ */
+export function onboardingSteps(status: Pick<OnboardingStatus, "xPostingOffered">): OnboardingStep[] {
+  return ONBOARDING_STEPS.filter((step) => step.key !== "hasXAccount" || status.xPostingOffered === true);
+}
+
 export function nextOnboardingStep(
   status: OnboardingStatus
 ): OnboardingStep | null {
-  return ONBOARDING_STEPS.find((step) => !status[step.key]) ?? null;
+  return onboardingSteps(status).find((step) => !status[step.key]) ?? null;
 }
 
 // Lightweight cross-component signal so the "Getting started" checklist can

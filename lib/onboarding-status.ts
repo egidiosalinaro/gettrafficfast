@@ -4,6 +4,7 @@ import { parseVoiceSettings } from "@/lib/voice/settings";
 import { MANUAL_SOURCE } from "@/lib/placements/manual";
 import { buildOnboardingStatus, type OnboardingStatus } from "@/lib/onboarding";
 import { countLiveGrants } from "@/lib/oauth/tokens";
+import { isXPostingConfigured } from "@/lib/providers/x/oauth";
 
 /**
  * The Getting started checklist read from the database, once: the corner
@@ -20,6 +21,8 @@ export interface OnboardingCounts {
   integrationCount: number;
   /** `placement_targets` rows a person added (`found_via` = MANUAL_SOURCE). */
   manualPostCount: number;
+  /** The site's connected X account for posting: 0 or 1. */
+  xPostingAccountCount: number;
 }
 
 /** The business columns the checklist reads. */
@@ -33,7 +36,7 @@ export interface OnboardingSettings {
 
 /** Four head counts, no rows. A count that cannot be read counts as none, as it always has here. */
 export async function countOnboarding(supabase: SupabaseClient, businessId: string): Promise<OnboardingCounts> {
-  const [keyword, article, integration, manualPost] = await Promise.all([
+  const [keyword, article, integration, manualPost, xPosting] = await Promise.all([
     supabase.from("keywords").select("id", { count: "exact", head: true }).eq("business_id", businessId),
     supabase.from("articles").select("id", { count: "exact", head: true }).eq("business_id", businessId),
     supabase
@@ -46,12 +49,14 @@ export async function countOnboarding(supabase: SupabaseClient, businessId: stri
       .select("id", { count: "exact", head: true })
       .eq("business_id", businessId)
       .eq("found_via", MANUAL_SOURCE),
+    supabase.from("x_posting_connections").select("id", { count: "exact", head: true }).eq("business_id", businessId),
   ]);
   return {
     keywordCount: keyword.count ?? 0,
     articleCount: article.count ?? 0,
     integrationCount: integration.count ?? 0,
     manualPostCount: manualPost.count ?? 0,
+    xPostingAccountCount: xPosting.count ?? 0,
   };
 }
 
@@ -62,6 +67,7 @@ export function onboardingFrom(settings: OnboardingSettings | null | undefined, 
     aboutYou: parseVoiceSettings(settings?.voice_settings).aboutYou,
     imageStyleChosen: imageStyleChosen(parseMediaSettings(settings?.media_settings)),
     ...counts,
+    xPostingOffered: isXPostingConfigured(),
   });
 }
 

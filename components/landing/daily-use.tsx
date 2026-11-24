@@ -28,7 +28,7 @@ function steps(engines: readonly AnswerEngine[]) {
     {
       n: "4",
       title: "Do the work the same day",
-      body: "If you were not cited, put the page that should have been the source on your calendar, or open Replies: a draft in your voice for a post on X, Reddit or LinkedIn, which you post yourself. Nothing is posted to X, Reddit or anywhere else without you.",
+      body: "If you were not cited, put the page that should have been the source on your calendar, or open Replies: a draft in your voice for a post on X, Reddit or LinkedIn, which you post yourself. GTF posts on X only when you press Post, from the X account you connected; nothing goes to Reddit or anywhere else, and nothing is posted on its own.",
     },
   ];
 }

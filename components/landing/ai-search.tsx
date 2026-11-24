@@ -62,8 +62,9 @@ export function AISearch({ engines }: { engines: readonly AnswerEngine[] }) {
               Public conversations on X, Reddit, LinkedIn and other sites that
               match your keywords, plus any X post you add yourself. A draft in
               your voice that does not name your product, and a link to the
-              original. You post it; on X, one click fills in the reply box.
-              The product never posts for you.
+              original. You post it; on X, one click fills in the reply box,
+              or, for a post that mentions you, posts it from the X account
+              you connected. The product never posts on its own.
             </li>
             <li>
               <span className="font-medium text-foreground">Google, separately.</span>{" "}

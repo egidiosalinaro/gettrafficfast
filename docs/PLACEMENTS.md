@@ -14,10 +14,18 @@ the agents `placement-qualify` and `placement-draft`, and the inbox
 
 ## The principle: the product finds and writes, a person publishes
 
-Nothing is ever posted by the platform, on any surface. No write endpoint of
-any platform is called. The unit of work is **a placement proposed and
-ready**: a person reads it, edits it if needed, opens the original (or X's
-web intent) and posts it themselves, then marks it as posted.
+Nothing is posted by the platform on its own, on any surface. The unit of
+work is **a placement proposed and ready**: a person reads it, edits it if
+needed, opens the original (or X's web intent) and posts it themselves,
+then marks it as posted.
+
+One exception since 2026-11-24, on X only (the owner's decision: "X must be
+connected because we will also post through GTF"): a site may connect the X
+account it posts from, and a reply to a post X allows an app to answer gets
+a **Post on X** button. One press posts that reply from that account (see
+"Post on X: only where X allows it" below). Never on its own, never on a
+schedule, never on any other surface; replies to people who did not mention
+the account stay exactly as they were.
 
 Three reasons, all technical or contractual:
 
@@ -187,7 +195,9 @@ five read-only uses: a daily search for fresh posts on the site's topics,
 a daily search of the fresh posts of the accounts the site replies to most
 ("Close accounts"), the public numbers of the replies a person posted, the followers of the
 site's own X account, and finding the link of a reply marked as posted.
-Nothing is ever posted on X: a reply is a person's tap on X's web intent.
+None of them posts: a reply is a person's tap on X's web intent, or their
+press of Post on X (next section), which uses the site's own connected
+account, not this app-only token.
 
 **Opt-in, once, by the deployment.** The deployment turns it on
 (`X_API_ENABLED=1` and `X_API_BEARER_TOKEN`; the token alone spends
@@ -413,6 +423,60 @@ deployment, every site whose owner pays takes part.
   the monthly X cap before every call. One log line a run,
   `event: "x_close"` (accounts, calls, posts returned, stored, estimate).
 
+## Post on X: only where X allows it
+
+Since 2026-11-24 (owner's decision). X restricted programmatic replies on
+its self-serve access in February 2026: a reply through `POST /2/tweets` is
+allowed only when the author of the post being answered @mentioned the
+account, or quoted one of its posts (else 403; Enterprise is exempt). A
+standalone post, and a reply in one's own threads, are always allowed. So:
+
+- **The connection.** A site connects the X account it posts from in
+  Settings → Connections → X, or from the Getting started step "Connect your
+  X account" (docs/INTEGRATIONS.md, "X: the account GTF posts from"). Only
+  where the deployment has `X_OAUTH_CLIENT_ID` and `X_OAUTH_CLIENT_SECRET`.
+  Once connected, its @username becomes the site's X account
+  (`voice_settings.xHandle`) if none was saved, so the person is not asked
+  to type it.
+- **Which posts.** `xReplyAllowance` (`x-reply-allowed.ts`) reads what
+  discovery stored, nothing fetched: the post's text names `@username`
+  (`mention`; X's text carries a reply's leading mentions too), it quotes a
+  post by the account (`quote`, from `referenced_posts`), it answers one
+  (`reply_to_you`), or it is the account's own (`own_post`). It is a
+  pre-check, not a promise: a mention past the 2,000 stored characters is
+  missed (the post keeps Reply on X), and X may still refuse.
+- **The button.** On such a post, with a connected account and a short reply
+  the checks did not stop, the draft's primary button is **Post on X**
+  instead of Reply on X; Reply on X yourself stays in the ⋯ menu. Every
+  other post keeps today's flow and labels exactly: the composer opens with
+  the text, the person posts, GTF finds the link.
+- **One press, one post.** `POST /api/placements/:id/post-on-x` →
+  `postReplyOnX` (`x-post.ts`), the function `post_on_x` calls. An edited
+  draft is saved and checked first; the stored draft's text goes out. The
+  row is claimed as posted before X is called (an update conditional on the
+  row still being open), so a double press or two agents make one post; a
+  post X refuses gives the claim back. Posted, the reply's real link
+  (`https://x.com/<username>/status/<id>`) is saved at once through
+  `set_published_url`, so there is no link search and the daily numbers
+  pick it up.
+- **When X refuses.** `reply_not_allowed` (X's 403) opens X's composer with
+  the text in the same press (the intent link, as Reply on X) and the card
+  says so; the item then shows I posted it, as after Reply on X. A tab the
+  browser refuses to open is offered as a link under the button.
+  `rate_limited`, `auth_expired` (the connection is marked and Settings asks
+  to connect again), `cap_reached` and others are said under the button.
+- **Money.** Every post goes through `meteredXCall`: reserved and settled in
+  the platform's X ledger (`provider_spend`, provider `x-api`) at
+  `X_POST_USD_PER_POST` (an estimate from third-party summaries of X's
+  pay-per-use prices, the upper end, not an invoice), refused over
+  `X_API_MONTHLY_CAP_USD` and during X's billing pause. A refused post is
+  not billed; one X did not answer is counted as made. Reading the account
+  when connecting is one metered user read.
+- **A post of the account's own.** `post_on_x` with `text` posts one
+  (`postStandaloneOnX`). No screen composes one and nothing schedules one
+  yet: what to post, and when, is still to be decided. Nothing is stored
+  for it beyond the ledger and the log line.
+
 ## Draft and audit
 
 `placement-draft` writes the variants the surface calls for (`variantsFor`):
@@ -570,11 +634,13 @@ state says discovery is not searching yet.
 | `POST /api/placements/:id/action` | mark_published · unmark_published · set_published_url · mark_removed · unmark_removed · dismiss · snooze · reopen · approve |
 | `PATCH /api/placements/drafts/:id` | edit a draft; the gate runs again |
 | `POST /api/placements/:id/drafts` | "Write your own" |
+| `POST /api/placements/:id/post-on-x` | Post on X: posts the draft from the site's connected X account, only on a post X allows; `{ draftId }` |
 | `POST /api/placements/drafts/:id/correct` | Fix it |
 | `/api/cron/x-posts` | daily, `CRON_SECRET`; off unless `X_API_ENABLED`: reply numbers, followers, then one `x-post-discovery` job per paying site (at most 10, searched longest ago first): the topic search and the close accounts |
 | `/api/cron/x-reply-links` | every 5 minutes, `CRON_SECRET`; off unless `X_API_ENABLED` |
 | `GET /api/placements/reply-stats` | the period on X summed and the followers; stored rows only |
 | `X_API_ENABLED=1` + `X_API_BEARER_TOKEN` | the official X API; `X_API_MONTHLY_CAP_USD` (default 20) is the hard monthly cap |
+| `X_OAUTH_CLIENT_ID` + `X_OAUTH_CLIENT_SECRET` | connecting the X account a site posts from (Post on X, `post_on_x`); without them it is not offered. Posts count under the same monthly cap |
 | `SERPER_API_KEY` | web search discovery (paid per query) |
 | `PLACEMENTS_GITHUB=true` / `GITHUB_TOKEN` | GitHub discovery (free API; a token raises the rate limit) |
 | `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | Reddit's own API, only with an approved app; `SERPER_API_KEY` already finds Reddit threads without it |
@@ -592,8 +658,10 @@ Every inbox action is also a tool on the API and MCP (docs/API.md):
 `add_about_you_fact`, and the reads. The route and the tool call the same
 function: `applyManualAction` (`actions.ts`), `editDraft` (`edit.ts`),
 `requestDraft` (`generate.ts`), `addXPost` (`add.ts`), `requestDiscovery`
-(`runs.ts`), `saveOwnReply`, `correctDraft`, `findReplyLinkNow`. None posts:
-`get_reply_intent_url` hands back X's composer link for a person to open.
+(`runs.ts`), `saveOwnReply`, `correctDraft`, `findReplyLinkNow`,
+`postReplyOnX`. None posts on its own: `get_reply_intent_url` hands back X's
+composer link for a person to open, and `post_on_x` (publish scope,
+`confirm: true`) posts only where X allows it, from the connected account.
 
 ## Tests
 
@@ -605,5 +673,11 @@ pins the close accounts: the `close` step between the topic search and the
 shared steps, any site with no list and no end date, at most 2 searches of
 25 over 12 hours, the window from the last run, no call without replies or
 the X API, the retired trial type doing nothing; `x-budget.test.ts` the
-month's worst case with them. Every case uses fictional posts, handles and
+month's worst case with them. Post on X: `x-reply-allowed.test.ts` (which
+posts get the button), `x-post.test.ts` (the post recorded with its link, the
+fallback, the cap, one post per press, two sites with two accounts),
+`post-on-x.test.tsx` (the button only where allowed and connected, the
+fallback in the same press, Settings and onboarding), and
+`tests/providers/x-post.test.ts`, `tests/integrations/x-*.test.ts`,
+`tests/tools/x-posting.test.ts`. Every case uses fictional posts, handles and
 sites.

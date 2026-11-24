@@ -27,7 +27,7 @@ const BASE_FEATURES = [
   "An AI featured image for every article, and a relevant YouTube video when one fits",
   "Auto-publishing to WordPress, or to any platform via webhook",
   "Autopilot: keeps the calendar filled so no day goes empty",
-  "Reply drafts for posts on X, Reddit and LinkedIn, in your voice. You post them yourself.",
+  "Reply drafts for posts on X, Reddit and LinkedIn, in your voice. You post them yourself, or with one press on X when the post mentions you.",
 ];
 
 const TAIL_FEATURES = [

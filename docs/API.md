@@ -46,13 +46,16 @@ and `DAILY_CORRECTION_CAP`). The cap hints point there
 file. Settings → Claude and API (`/settings/api-keys`) carries the same
 two connection paths as numbered steps, above the keys.
 
-The product never posts on a social site for you. No tool posts on X, Reddit
-or anywhere like them: `get_reply_intent_url` hands back the link a person
-opens to post the reply themselves, and `mark_reply_posted` records that they
-did. One tool writes to the customer's **own** site: `publish_article`, which
-delivers an article to the destination connected to that site (WordPress,
-the webhook), as the calendar's Publish button does. It needs the `publish`
-scope and `confirm: true`.
+The product never posts on its own. No tool posts on Reddit or any social
+site but X: `get_reply_intent_url` hands back the link a person opens to post
+the reply themselves, and `mark_reply_posted` records that they did. Two
+tools act in the owner's name, each with the `publish` scope and
+`confirm: true`: `publish_article`, which delivers an article to the
+destination connected to that site (WordPress, the webhook), as the
+calendar's Publish button does; and `post_on_x` (2026-11-24), which posts on
+X from the X account the person connected for that site, as Post on X does:
+a reply only to a post that mentions or quotes that account (X refuses the
+others), or a post of the account's own. See "Posting on X" below.
 
 ---
 
@@ -120,7 +123,7 @@ key cannot make itself permanent.
 | `read` | list and read |
 | `write` | change the account's own data: edit a draft, mark as posted, skip, snooze, add keywords, schedule, edit settings |
 | `spend` | start work that costs money: a model call, or a job that makes one (drafting, corrections, discovery, suggestions, a visibility run, generating an article), or switch back on something that will (a visibility cadence, autopilot, Push page 3: on by default, so this is only after the person turned one off), or choose a site's image style the first time, which starts its images |
-| `publish` | put something public in the owner's name: `publish_article` (onto the site's own connected destination), and turning autopilot back on (autopilot writes and publishes articles there); no tool posts on X |
+| `publish` | put something public in the owner's name: `publish_article` (onto the site's own connected destination), `post_on_x` (on X, from the X account the person connected for the site), and turning autopilot back on (autopilot writes and publishes articles there) |
 
 A tool needs its own scope, plus `spend` when it is paid. A few changes need
 more than their tool's scope for one value of the input only, and the
@@ -846,8 +849,9 @@ Settings → Billing.
 not see the paid ones), with the catalogue's JSON Schemas, `readOnlyHint`
 on read tools, `destructiveHint` on the five that delete data
 (`delete_keywords`, `unschedule_article`, `delete_prompt`,
-`disconnect_integration`, `disconnect_search_console`), `openWorldHint` on
-`publish_article` (it reaches the customer's live site), and `_meta` naming
+`disconnect_integration`, `disconnect_search_console`, and
+`disconnect_x_account`), `openWorldHint` on the publish tools
+(`publish_article` reaches the customer's live site, `post_on_x` X), and `_meta` naming
 the scopes. `tools/call` goes through the
 REST runner's path; a refusal comes back as a tool result with `isError`
 and the error object above as its text. A success carries
@@ -870,11 +874,12 @@ through the runner, when Claude calls them.
 
 | Prompt | Arguments (strings, all optional) | What it makes Claude do |
 | --- | --- | --- |
-| `daily_routine` ("Run my day") | `timeZone` (IANA, UTC when empty), `site` | `get_today`, then a few lines on posted of goal, links and To do; `list_reply_inbox` `status: "open"`, one target at a time, in the order it returns (To do's order on the screen, never re-sorted by score): the post and the draft, then approve, fix or skip. Approve: `get_reply_intent_url` (the link that opens X with the reply typed in; `body` and `threadUrl` when it is null), the person posts it, then `mark_reply_posted` (when it answers `xHandleNeeded`, ask once for the person's X username and save it with `update_voice_settings` `xHandle`). Fix: the person's reason to `correct_reply_draft` (or their words to `edit_reply_draft`). Skip: `dismiss_reply_target`, not now: `snooze_reply_target`. Then each `alsoToday` item with its tools (`resettle_article`, `publish_article` only on an explicit yes, `generate_article`, `retry_article`, `set_reply_link` / `paste_reply_links`, `confirm_about_you_fact` / `update_voice_settings`) |
+| `daily_routine` ("Run my day") | `timeZone` (IANA, UTC when empty), `site` | `get_today`, then a few lines on posted of goal, links and To do; `list_reply_inbox` `status: "open"`, one target at a time, in the order it returns (To do's order on the screen, never re-sorted by score): the post and the draft, then approve, fix or skip. Approve: for a target with `xPostAllowed` and a connection with Publish, offer Post on X and, only on the person's yes to that reply, `post_on_x` (`confirm: true`; `posted: false` hands back `intentUrl`); otherwise `get_reply_intent_url` (the link that opens X with the reply typed in; `body` and `threadUrl` when it is null), the person posts it, then `mark_reply_posted` (when it answers `xHandleNeeded`, ask once for the person's X username and save it with `update_voice_settings` `xHandle`). Fix: the person's reason to `correct_reply_draft` (or their words to `edit_reply_draft`). Skip: `dismiss_reply_target`, not now: `snooze_reply_target`. Then each `alsoToday` item with its tools (`resettle_article`, `publish_article` only on an explicit yes, `generate_article`, `retry_article`, `set_reply_link` / `paste_reply_links`, `confirm_about_you_fact` / `update_voice_settings`) |
 | `weekly_review` ("Review my week") | `days` (`7` or `28`, default 7), `topics` (1 to 20, default 5), `site` | `get_growth`: X, Google and AI answers against the period before, AI per engine as "cited of readable", null as "not measured", sampled, never averaged; `list_ai_answers`: at most three answers worth seeing; `get_content`: the week's articles, then the next topics, keep or remove (`delete_keywords` after a yes) |
 
-Both say, in the text Claude reads: GTF and Claude never post on X or
-anywhere else (Claude hands over the link, the person posts); a reply names
+Both say, in the text Claude reads: GTF and Claude never post on their own
+(Claude hands over the link, the person posts; the one exception is Post on
+X where the daily routine offers it, after the person's yes to that reply); a reply names
 no product and carries no link; only what the tools return, a null is "not
 measured", no dollar amounts; nothing that spends without the person's yes.
 The text follows the grant: a read-only connection is told that approving,
@@ -1080,6 +1085,9 @@ caller's user and site, or the call is 404 `not_found` and nothing runs.
 | `reopen_reply_target` | write | Bring back |
 | `get_job` | read | a drafting, discovery or production job: status, the failure in words (a decline says why), the gate's verdict |
 | `generate_article` | write, spend | Generate now / Regenerate on one calendar article: the `produce-article` job the button enqueues (priority 10, 3 attempts), or the one already queued or running; `{ jobId, status, articleStatus }` after up to `waitSeconds`. Publishes nothing itself: the daily run publishes a generated article on its date |
+| `post_on_x` | publish (subscription) | Post on X (2026-11-24): `{ targetId, draftId, confirm: true }` posts that draft as a reply from the site's connected X account, only when the target's post mentions, quotes or answers that account (`xPostAllowed`), and records it as posted with its real link (`target`, `url`); or `{ text, confirm: true }`, a post of the account's own. `posted: false`, `reason: reply_not_allowed` and `intentUrl` when X does not allow the reply (the person posts it from the composer, then `mark_reply_posted`). 409 `prerequisite_missing` without a connection (or when X no longer accepts it), 429 `cap_reached` over the platform's monthly X cap, 429 `rate_limited`, 409 `invalid_state` for a draft the checks stopped or a post already posted. Not paid (no AI work): counted in the platform's X ledger |
+| `get_x_posting_account` | read | Whether the site has an X account connected for posting: `available` (the deployment offers it), `connected`, `username`, `needsReconnect`, `connectUrl` (the link a person opens, signed in, to connect it on X's consent screen) |
+| `disconnect_x_account` | write | Disconnect it: tokens revoked at X and deleted; destructive |
 | `publish_article` | publish (subscription) | Publish: delivers a generated (or republishes a published) article to its site's destination; answers the live `url`. `confirm: true` is required; an article in `needs_review` also needs `acknowledgeQualityIssues: true` (400 `invalid_input` naming the issues otherwise), the override the screen's click makes. One that fails the gates is moved to `needs_review` and not published (409). No destination: 409 `prerequisite_missing`; the site refused: 502 `delivery_failed` |
 | `resettle_article` | write | Re-checks one article waiting in `needs_review` under the current rules (2026-11-12), free and without a model: the deterministic gates run again on the stored document (Facts for articles, About you and the research the production job stored), the stored audit findings are read again (only an invented fact, a wrong link, a factual error or unsafe content holds; the author's own figures never do), and the hold is decided again. `{ status, changed, reasons, previousReasons, evidenceFound }`. Publishes nothing: one with no reason left becomes `generated` and the daily run publishes it on its date. Not in `needs_review`: 409 `invalid_state` |
 
@@ -1138,6 +1146,31 @@ connected by a person on Google's consent screen, from the link above.
 An API key moves an article through `move_article_for_owner` (the service
 role, naming the key's verified owner): `move_article` reads `auth.uid()`,
 which a key does not have (docs/MULTI_BUSINESS.md).
+
+### Posting on X
+
+Since 2026-11-24 (docs/PLACEMENTS.md, "Post on X: only where X allows it";
+the connection is docs/INTEGRATIONS.md, "X: the account GTF posts from").
+`post_on_x` takes the existing `publish` scope rather than a new one: it
+does what `publish` already means, put something public in the owner's
+name, and a person consenting to an app sees Publish described as exactly
+that ("…post a reply on X from the X account you connected for the site,
+each only when you confirm it"). A separate scope would have meant a new
+consent-screen checkbox, a migration of the keys' scope check and two
+words for the same consent; the cost is that a key with Publish for
+articles can also post on X, which is why both tools also need
+`confirm: true`, and why an agent is told to ask before every post.
+
+- Only where X allows it: a reply target says `xPostAllowed` (on
+  `list_reply_inbox` and `get_reply_target`) when the site has a connected
+  account and the post mentions, quotes or answers it, or is its own.
+  Anything else is answered with `posted: false` and the composer link,
+  without calling X.
+- One call, one post, never scheduled. Counted in the platform's X ledger
+  and refused over the monthly X cap (`cap_reached`), not in the AI spend:
+  the tool is not `paid`.
+- Connecting is a person's act on X's consent screen (a parity exception of
+  kind `sign_in`): `get_x_posting_account` answers `connectUrl`.
 
 ### Confirmation: nothing starts spending unasked
 
@@ -1268,7 +1301,7 @@ are listed by whitelisted fields, and the Search Console token never leaves
 | `get_business` | read | free | none | the site's settings, with Autopilot and its Images and video |
 | `get_home` | read | free | none | the Overview's loop (its screen became Today on 2026-11-14; `get_today` reads Today): the operating loop stage by stage, the replies row, the next action, the next articles, the unused keywords |
 | `get_today` | read | free | `timeZone?` | Today, as `/today` shows it: the day's progress and links, the tabs' counts, Also today (above, with the Replies tools) |
-| `get_onboarding_status` | read | free | none | the Getting started checklist in order (business, About you, image style `hasImageStyle` with its `href`, keywords, first article, website, first post from X), `next` and `complete` |
+| `get_onboarding_status` | read | free | none | the Getting started checklist in order (business, About you, image style `hasImageStyle` with its `href`, keywords, first article, website, X account `hasXAccount` only where the deployment offers posting on X with href the connect route, first post from X), `next` and `complete` |
 | `get_voice_settings` | read | free | none | Settings → Voice, with the tones and persons to choose from |
 | `list_draft_feedback` | read | free | `limit` (50, max 100) | the notes given on reply drafts, newest first, before and after the rewrite |
 | `list_integrations` | read | free | none | the publishing destinations (status, error, address, user) and the Search Console connection; never a secret |
@@ -1316,10 +1349,10 @@ test. The action route's moves are mapped one by one
 
 | Screen | Route → tool |
 | --- | --- |
-| Today, Replies | `[id]/action` → `mark_reply_posted`, `unmark_reply_posted`, `set_reply_link`, `mark_reply_removed`, `unmark_reply_removed`, `dismiss_reply_target`, `snooze_reply_target`, `reopen_reply_target`; `[id]/draft` → `draft_reply`; `[id]/drafts` → `write_own_reply`; `add` → `add_x_post`; `discover` → `run_reply_discovery`; `drafts/[id]/correct` → `correct_reply_draft`; `PATCH drafts/[id]` → `edit_reply_draft`; `feedback/[id]/promote` → `promote_feedback_to_notes`; `match-links` → `paste_reply_links` |
+| Today, Replies | `[id]/action` → `mark_reply_posted`, `unmark_reply_posted`, `set_reply_link`, `mark_reply_removed`, `unmark_reply_removed`, `dismiss_reply_target`, `snooze_reply_target`, `reopen_reply_target`; `[id]/draft` → `draft_reply`; `[id]/drafts` → `write_own_reply`; `[id]/post-on-x` → `post_on_x`; `add` → `add_x_post`; `discover` → `run_reply_discovery`; `drafts/[id]/correct` → `correct_reply_draft`; `PATCH drafts/[id]` → `edit_reply_draft`; `feedback/[id]/promote` → `promote_feedback_to_notes`; `match-links` → `paste_reply_links` |
 | Content | `article-pushes` → `push_article`; `article-pushes/[id]` → `resolve_article_push`; `calendar/add`, `calendar/add-bulk` → `schedule_keywords`; `remove` → `unschedule_article`; `requeue` → `retry_article`; `reschedule` → `reschedule_article`; `generate-now` → `generate_article`; `publish-now` → `publish_article`; `keywords/save`, `delete`, `suggest`, `update` → `add_keywords`, `delete_keywords`, `suggest_keywords`, `update_keyword` |
 | Growth | `visibility/places` → `find_places_from_last_run`; `visibility/queries` POST, PATCH, DELETE → `add_prompts`, `update_prompt`, `delete_prompt`; `queries/import`, `queries/suggest` → `import_prompts_from_keywords`, `suggest_prompts`; `visibility/run` → `run_visibility_check`; `visibility/settings` → `update_visibility_settings`; `index-status/inspect` → `inspect_url` |
-| Settings | `business/analyze`, `save`, `automation-settings`, `media-settings` → `analyze_website`, `create_business` / `update_business`, `update_automation_settings`, `update_media_settings`; `voice-settings` POST, PATCH → `update_voice_settings`; `voice-settings/about-you` POST, DELETE, PATCH → `add_about_you_fact`, `remove_about_you_fact`, `confirm_about_you_fact`; `integrations/disconnect` → `disconnect_integration`; `search-console/disconnect`, `select-site`, `sync` → `disconnect_search_console`, `select_search_console_property`, `sync_search_console` |
+| Settings | `business/analyze`, `save`, `automation-settings`, `media-settings` → `analyze_website`, `create_business` / `update_business`, `update_automation_settings`, `update_media_settings`; `voice-settings` POST, PATCH → `update_voice_settings`; `voice-settings/about-you` POST, DELETE, PATCH → `add_about_you_fact`, `remove_about_you_fact`, `confirm_about_you_fact`; `integrations/disconnect` → `disconnect_integration`; `search-console/disconnect`, `select-site`, `sync` → `disconnect_search_console`, `select_search_console_property`, `sync_search_console`; `integrations/x/disconnect` → `disconnect_x_account` |
 
 The gaps the inventory found on 2026-11-14 are now tools: Undo of I posted
 it (`unmark_reply_posted`), Paste your reply links (`paste_reply_links`) and
@@ -1334,7 +1367,7 @@ exceptions, each a decision:
 | `billing` | `POST /api/create-checkout-session`, `POST /api/create-billing-portal-session` | A payment or cancellation link must not pass through an AI chat (`get_subscription` reads the plan) |
 | `credentials` | `POST /api/integrations/wordpress/connect`, `…/webhook/connect` | A password or a webhook secret must not pass through an AI chat |
 | `device` | `POST /api/business/select` | Which site the browser shows; a key or a connection carries its own site, or names one per call with `site` (`list_businesses`, `whoami`) |
-| `sign_in` | `POST /oauth/register`, `/oauth/authorize/decision`, `/oauth/token`, `/oauth/revoke` | What gives an agent its credential |
+| `sign_in` | `POST /oauth/register`, `/oauth/authorize/decision`, `/oauth/token`, `/oauth/revoke`; `POST /api/integrations/x/connect` | What gives an agent its credential; and X's consent screen, where the person signs in on X: the tokens it yields must not pass through an AI chat (`get_x_posting_account` hands back the link, the same route's GET, which is not a mutating route) |
 | `machine` | the 14 `/api/cron/*`, `POST /api/jobs/tick`, `POST /api/stripe-webhook`, `POST /api/gettrafficfast` | Called by machines, not a screen |
 | `surface` | `POST /api/v1/tools/[name]`, `POST` and `DELETE /api/mcp` | The API surfaces themselves |
 
@@ -1447,8 +1480,11 @@ machine. Public through the middleware's `/.well-known/` prefix.
   sites; no fall-back from a bad key to the cookie.
 - `tests/supabase/owner-scoped.test.ts`: the narrowed service role.
 - `tests/tools/registry.test.ts`: definitions refused at load, unique names,
-  object schemas, paid means spend, only publish_article has the publish
-  scope, every id is owned.
+  object schemas, paid means spend, only publish_article and post_on_x have
+  the publish scope (both refuse without confirm), every id is owned.
+- `tests/tools/x-posting.test.ts`: post_on_x needs publish and confirm,
+  posts only where X allows it, falls back to the composer, posts the
+  account's own post; get_x_posting_account; xPostAllowed on the targets.
 - `tests/tools/runner.test.ts`: every error code, the paywall for API
   callers, a key for site A against site B.
 - `tests/tools/site.test.ts`: the `site` argument by id, name and domain,

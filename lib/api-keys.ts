@@ -29,8 +29,10 @@ const KEY_PATTERN = /^gtf_[A-Za-z0-9_-]{43}$/;
  * What a key may do. `read` lists and reads; `write` changes the account's
  * own data; `spend` starts work that costs money (a model call, or a job
  * that makes one); `publish` puts something on a site in the owner's name.
- * One tool needs `publish`, `publish_article`, which delivers an article to
- * the site's own connected destination; none posts to X or anywhere else.
+ * Two tools need `publish`: `publish_article`, which delivers an article to
+ * the site's own connected destination, and `post_on_x`, which posts on X
+ * from the X account the person connected for the site. Both need
+ * `confirm: true`; nothing posts anywhere else.
  */
 export const API_KEY_SCOPES = ["read", "write", "spend", "publish"] as const;
 export type ApiKeyScope = (typeof API_KEY_SCOPES)[number];

@@ -91,7 +91,8 @@ describe("get_onboarding_status", () => {
     expect(run.ok).toBe(true);
     if (!run.ok) return;
     const steps = run.output.steps as Array<{ key: string; done: boolean }>;
-    expect(steps.map((s) => s.key)).toEqual(ONBOARDING_STEPS.map((s) => s.key));
+    // Connect your X account is a step only where the deployment offers posting on X: not here.
+    expect(steps.map((s) => s.key)).toEqual(ONBOARDING_STEPS.map((s) => s.key).filter((key) => key !== "hasXAccount"));
     expect(Object.fromEntries(steps.map((s) => [s.key, s.done]))).toEqual({
       hasBusiness: true,
       hasAboutYou: true,
@@ -102,6 +103,22 @@ describe("get_onboarding_status", () => {
       hasManualPost: true,
     });
     expect(run.output).toMatchObject({ next: null, complete: true });
+  });
+
+  it("asks to connect the X account GTF posts from where the deployment offers it, until one is", async () => {
+    vi.stubEnv("X_OAUTH_CLIENT_ID", "client-id-for-tests");
+    vi.stubEnv("X_OAUTH_CLIENT_SECRET", "client-secret-for-tests");
+    try {
+      const run = await call("get_onboarding_status");
+      expect(run.ok).toBe(true);
+      if (!run.ok) return;
+      const steps = run.output.steps as Array<{ key: string; done: boolean; href: string }>;
+      expect(steps.map((s) => s.key)).toEqual(ONBOARDING_STEPS.map((s) => s.key));
+      expect(steps.find((s) => s.key === "hasXAccount")).toMatchObject({ done: false, href: "/api/integrations/x/connect" });
+      expect(run.output).toMatchObject({ next: { key: "hasXAccount" }, complete: false });
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
 
