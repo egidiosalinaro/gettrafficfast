@@ -4,36 +4,45 @@ import {
   INLINE_IMAGE_OPTIONS,
   inlineImageAllowance,
   MAX_INLINE_IMAGES,
+  imageStyleChosen,
+  legacyStyleConfigured,
   maxImagesPerArticle,
   MediaSettings,
   parseMediaSettings,
+  withStyleChosen,
 } from "@/lib/media/settings";
 import { composeImagePrompt, resolveImageLook } from "@/lib/media/prompt";
 
 describe("media settings", () => {
-  it("defaults to images and videos on since 2026-11-24; a stored false is kept", () => {
-    expect(DEFAULT_MEDIA_SETTINGS.imagesEnabled).toBe(true);
+  it("has no images switch since 2026-11-24: a stored or sent imagesEnabled is dropped", () => {
+    expect("imagesEnabled" in DEFAULT_MEDIA_SETTINGS).toBe(false);
+    expect("imagesEnabled" in parseMediaSettings({ imagesEnabled: false })).toBe(false);
+    expect(parseMediaSettings({ imagesEnabled: false })).toEqual(DEFAULT_MEDIA_SETTINGS);
+    // The form's strict path accepts it from a page left open, and drops it.
+    const sent = MediaSettings.safeParse({ imagesEnabled: true, style: "illustration" });
+    expect(sent.success && "imagesEnabled" in sent.data).toBe(false);
+  });
+
+  it("keeps videos as an opt-out switch, on by default", () => {
     expect(DEFAULT_MEDIA_SETTINGS.videosEnabled).toBe(true);
-    expect(parseMediaSettings({})).toMatchObject({ imagesEnabled: true, videosEnabled: true });
-    expect(parseMediaSettings({ imagesEnabled: false, videosEnabled: false })).toMatchObject({ imagesEnabled: false, videosEnabled: false });
+    expect(parseMediaSettings({ videosEnabled: false }).videosEnabled).toBe(false);
   });
 
   it("defaults to the featured image only: no in-article images unless asked for", () => {
     expect(DEFAULT_MEDIA_SETTINGS.inlineImagesPerArticle).toBe(0);
     // A business that turned images on before the cap existed has no stored
     // value for it, and gets the default.
-    expect(parseMediaSettings({ imagesEnabled: true }).inlineImagesPerArticle).toBe(0);
+    expect(parseMediaSettings({ style: "photographic" }).inlineImagesPerArticle).toBe(0);
   });
 
   it("keeps an in-article cap the business stored", () => {
-    expect(parseMediaSettings({ imagesEnabled: true, inlineImagesPerArticle: 2 }).inlineImagesPerArticle).toBe(2);
+    expect(parseMediaSettings({ inlineImagesPerArticle: 2 }).inlineImagesPerArticle).toBe(2);
     expect(MediaSettings.safeParse({ inlineImagesPerArticle: MAX_INLINE_IMAGES + 1 }).success).toBe(false);
     expect(MediaSettings.safeParse({ inlineImagesPerArticle: -1 }).success).toBe(false);
   });
 
   it("parses a partial stored object through defaults", () => {
-    const settings = parseMediaSettings({ imagesEnabled: true, style: "claymation" });
-    expect(settings.imagesEnabled).toBe(true);
+    const settings = parseMediaSettings({ style: "claymation" });
     expect(settings.style).toBe("claymation");
     expect(settings.styleInstructions).toBe("");
     expect(settings.brandPalette).toEqual([]);
@@ -53,7 +62,6 @@ describe("media settings", () => {
     });
     expect(settings).toEqual({
       ...DEFAULT_MEDIA_SETTINGS,
-      imagesEnabled: true,
       videosEnabled: true,
       inlineImagesPerArticle: 3,
     });
@@ -63,9 +71,9 @@ describe("media settings", () => {
   });
 
   it("translates a retired style instead of losing every other setting", () => {
-    const settings = parseMediaSettings({ imagesEnabled: true, style: "digital_art" });
+    const settings = parseMediaSettings({ inlineImagesPerArticle: 1, style: "digital_art" });
     expect(settings.style).toBe("render_3d");
-    expect(settings.imagesEnabled).toBe(true);
+    expect(settings.inlineImagesPerArticle).toBe(1);
   });
 
   it("falls back to defaults on corrupt stored values", () => {
@@ -77,6 +85,49 @@ describe("media settings", () => {
   it("rejects invalid palette colors on the strict path", () => {
     const result = MediaSettings.safeParse({ brandPalette: ["red"] });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("the image style chosen", () => {
+  it("is not chosen on a new site: articles wait for it", () => {
+    expect(DEFAULT_MEDIA_SETTINGS).toMatchObject({ styleChosen: false, styleChosenAt: null });
+    expect(imageStyleChosen(parseMediaSettings({}))).toBe(false);
+    expect(imageStyleChosen(parseMediaSettings(null))).toBe(false);
+  });
+
+  it("is marked with the moment it was chosen, by the server", () => {
+    const now = new Date("2026-11-24T10:00:00.000Z");
+    const chosen = withStyleChosen({ ...DEFAULT_MEDIA_SETTINGS, style: "illustration" }, now);
+    expect(chosen).toMatchObject({ style: "illustration", styleChosen: true, styleChosenAt: "2026-11-24T10:00:00.000Z" });
+    expect(imageStyleChosen(parseMediaSettings(chosen))).toBe(true);
+  });
+
+  it("counts a row stored before the field as chosen only when its look was set by the person", () => {
+    // A different style, art direction, or brand colours: chosen, the day not recorded.
+    for (const row of [
+      { style: "claymation" },
+      { style: "digital_art" },
+      { style: "custom", styleInstructions: "Soft watercolour washes." },
+      { style: "photographic", brandPalette: ["#123456"] },
+      { imagesEnabled: true, style: "photographic", styleInstructions: "Muted tones." },
+    ]) {
+      expect(parseMediaSettings(row), JSON.stringify(row)).toMatchObject({ styleChosen: true, styleChosenAt: null });
+    }
+    // Only the defaults (or the old switch): not chosen.
+    for (const row of [
+      {},
+      { imagesEnabled: true, videosEnabled: true },
+      { imagesEnabled: false, videosEnabled: false },
+      { style: "photographic", styleInstructions: "   ", brandPalette: [] },
+    ]) {
+      expect(parseMediaSettings(row).styleChosen, JSON.stringify(row)).toBe(false);
+    }
+    expect(legacyStyleConfigured({ brandPalette: [] })).toBe(false);
+  });
+
+  it("keeps an explicit answer over the rule for old rows", () => {
+    expect(parseMediaSettings({ style: "claymation", styleChosen: false }).styleChosen).toBe(false);
+    expect(parseMediaSettings({ styleChosen: true, styleChosenAt: "2026-11-24T10:00:00.000Z" }).styleChosen).toBe(true);
   });
 });
 
@@ -98,12 +149,11 @@ describe("inlineImageAllowance", () => {
 });
 
 describe("how many images an article gets", () => {
-  it("one image by default, at most four, none when off", () => {
+  it("one image by default, at most four", () => {
     expect(maxImagesPerArticle(DEFAULT_MEDIA_SETTINGS)).toBe(1);
-    expect(maxImagesPerArticle({ imagesEnabled: false, inlineImagesPerArticle: 3 })).toBe(0);
-    expect(maxImagesPerArticle({ imagesEnabled: true, inlineImagesPerArticle: 0 })).toBe(1);
-    expect(maxImagesPerArticle({ imagesEnabled: true, inlineImagesPerArticle: 3 })).toBe(4);
-    expect(maxImagesPerArticle({ imagesEnabled: true, inlineImagesPerArticle: 99 })).toBe(4);
+    expect(maxImagesPerArticle({ inlineImagesPerArticle: 0 })).toBe(1);
+    expect(maxImagesPerArticle({ inlineImagesPerArticle: 3 })).toBe(4);
+    expect(maxImagesPerArticle({ inlineImagesPerArticle: 99 })).toBe(4);
   });
 
   it("the settings screen's options are counts with a label, never a price", () => {

@@ -25,7 +25,13 @@ export type MediaSkipReason =
   /** The provider was called and failed. */
   | "provider_error"
   /** The scene could not be made concrete; nothing was rendered. */
-  | "brief_rejected";
+  | "brief_rejected"
+  /**
+   * The person has not chosen how the site's images look yet
+   * (`media_settings.styleChosen`): nothing was briefed or rendered. Theirs
+   * to do, not the platform's.
+   */
+  | "no_style";
 
 export interface MediaSkip {
   media: MediaKind;
@@ -63,6 +69,8 @@ const IMAGE_MESSAGES: Record<MediaSkipReason, string> = {
     "Some images were not generated: the image service returned an error. The article was written without them; regenerate it to try again.",
   brief_rejected:
     "An image was left out: no concrete, photographable scene could be planned for it, and a generic picture was not worth generating.",
+  no_style:
+    "No images: no image style chosen yet. The article was written without them; choose a style in Settings, Autopilot, Images and video, and the articles written after that get a featured image.",
 };
 
 const VIDEO_MESSAGES: Record<MediaSkipReason, string> = {
@@ -74,6 +82,8 @@ const VIDEO_MESSAGES: Record<MediaSkipReason, string> = {
   provider_error:
     "No video was looked for: the video search returned an error. The article was written without one.",
   brief_rejected: "No video was added.",
+  // Videos never wait for an image style; listed so every reason has its sentence.
+  no_style: "No video was added.",
 };
 
 /** The owner's sentence for a skip. */

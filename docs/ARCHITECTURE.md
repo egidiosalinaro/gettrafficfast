@@ -45,10 +45,12 @@ stage says, and which next action is offered, lives in
 rate when nothing has been probed. After a failed or held article, which
 needs a person first, the next action is the first unfinished step of the Getting started checklist
 (`lib/onboarding.ts`, shared with the corner widget; under it the widget suggests "Connect Claude", marked optional: it never counts toward done nor keeps the checklist open, and `GET /api/onboarding/status` adds `hasClaude`, true with a live API key or a live claude.ai grant): the business, then
-About you (Settings → Voice; replies speak only from it), keywords, the first
-scheduled article, the connected site, the first post added from X
-(a `placement_targets` row with `found_via` `manual`), Autopilot, and article
-images. The corner widget starts collapsed to a pill on every device; while
+About you (Settings → Voice; replies speak only from it), the image style
+(Settings → Autopilot, Images and video; articles go out without images until
+it is chosen, docs/MEDIA.md), keywords, the first scheduled article, the
+connected site, the first post added from X (a `placement_targets` row with
+`found_via` `manual`). Autopilot and images have no step to turn them on
+since 2026-11-24: both are on. The corner widget starts collapsed to a pill on every device; while
 the pill shows it sets `data-getting-started-pill` on `<html>`, and a phone's
 content keeps 3.5rem at the bottom instead of 1rem (`pb-mobile-chrome`,
 `app/globals.css`) so the pill never covers a button.
@@ -610,7 +612,7 @@ pipeline and gates) → SEO/AEO audit, executed by the job runner. The cron and
 
 **Phase 2 — Media.** ✅ *Done.* Provider-agnostic image layer (Google's
 `gemini-*-image` models via the existing key, OpenAI optional) and YouTube video retrieval; per-business
-media settings in Settings → Autopilot → Images and video (`/settings/automation#images`; on by default since 2026-11-24, off per site by choice);
+media settings in Settings → Autopilot → Images and video (`/settings/automation#images`; images on for every site since 2026-11-24, with no switch, once the image style is chosen: articles go out without images until then);
 the image-brief agent decides WHAT each image shows, code composes the brand
 style, providers render, assets land in the platform's own storage bucket and
 `media_assets`; the video-select agent judges relevance with "none" as the

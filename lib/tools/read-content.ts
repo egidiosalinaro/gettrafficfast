@@ -42,7 +42,7 @@ export const getContent = defineTool({
   name: "get_content",
   title: "Get Content",
   description:
-    "Content, the screen whose first view is the calendar of every article (/content; an article opens there at /content?article=<id>), in one read: whether Autopilot is on and what its last run did for this site (and, when it left days empty or skipped the site, why, in words), today's article (title, status in words, why it waits when it does), this week Monday to Sunday (one row a day, null when the day is empty), the next topics Autopilot picks from, in its order (a week at a time, what the week lacks of the mix of comparison, platform how-to and problem pieces first, then by score), with where each came from (autopilot, question asked in a public thread, added by hand, or not recorded for topics older than 2026-11-14) and the kind of search it answers, and the counts behind the screen's links: topics, topics held back for overlapping, groups of overlapping topics, questions people ask not yet added (null while Autopilot adds them on its own), all articles. Days are UTC. Reads the site's own rows: no model is asked.",
+    "Content, the screen whose first view is the calendar of every article (/content; an article opens there at /content?article=<id>), in one read: whether Autopilot is on and what its last run did for this site (and, when it left days empty or skipped the site, why, in words), whether the image style is chosen (imageStyle: until it is, articles go out without images), today's article (title, status in words, why it waits when it does), this week Monday to Sunday (one row a day, null when the day is empty), the next topics Autopilot picks from, in its order (a week at a time, what the week lacks of the mix of comparison, platform how-to and problem pieces first, then by score), with where each came from (autopilot, question asked in a public thread, added by hand, or not recorded for topics older than 2026-11-14) and the kind of search it answers, and the counts behind the screen's links: topics, topics held back for overlapping, groups of overlapping topics, questions people ask not yet added (null while Autopilot adds them on its own), all articles. Days are UTC. Reads the site's own rows: no model is asked.",
   input: z.object({
     topics: z
       .number()
@@ -82,6 +82,13 @@ export const getContent = defineTool({
       })
       .nullable()
       .describe("Null while Autopilot is off for this site. Every site of an account has its own Autopilot setting."),
+    imageStyle: z
+      .object({
+        chosen: z.boolean().describe("Whether the site's image style is chosen. Until it is, articles are written without images."),
+        message: z.string().nullable().describe("While not chosen, the line the Content header shows; null once chosen."),
+        href: z.string().describe("The page where the person chooses it; update_media_settings sets it for them."),
+      })
+      .describe("Images are on for every site once the image style is chosen; until then articles go out without images."),
     todayArticle: ContentArticleView.nullable().describe("Null: nothing is on the calendar today."),
     week: z.array(
       z.object({

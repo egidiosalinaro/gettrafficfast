@@ -55,6 +55,19 @@ describe("get_content", () => {
     expect(out.week.filter((d) => d.article).map((d) => (d.article as { id: string }).id)).toEqual([ART_A2]);
   });
 
+  it("says whether the image style is chosen, and while it is not, that articles go out without images", async () => {
+    // The seed's site chose its style.
+    expect(await call()).toMatchObject({
+      ok: true,
+      output: { imageStyle: { chosen: true, message: null, href: "/settings/automation#images" } },
+    });
+    const site = db.tables.businesses.find((b) => b.id === SITE_A)!;
+    site.media_settings = {};
+    const run = await call();
+    expect(run).toMatchObject({ ok: true, output: { imageStyle: { chosen: false, href: "/settings/automation#images" } } });
+    expect(run.ok && (run.output.imageStyle as { message: string }).message).toMatch(/without images until you choose an image style/);
+  });
+
   it("lists the next topics in Autopilot's order, with where each came from", async () => {
     db.tables.keywords.find((k) => k.id === KW_A4)!.source = "autopilot";
     const run = await call();

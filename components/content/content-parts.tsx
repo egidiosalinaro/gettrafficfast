@@ -28,16 +28,19 @@ const CHIP = "inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-lg bo
 
 /**
  * The title, and once GET /api/content has answered, the Autopilot state:
- * what its last run did, and why it did less when it did (amber). `null`
- * while it loads: the title alone, so the calendar under it never waits.
+ * what its last run did, and why it did less when it did (amber); and, while
+ * the site's image style is not chosen, the line that says articles go out
+ * without images, with the link to choose it. `null` while it loads: the
+ * title alone, so the calendar under it never waits.
  */
 export function ContentHeader({
   view,
 }: {
-  view: (Pick<ContentView, "autopilot" | "site"> & Partial<Pick<ContentView, "autopilotRun">>) | null;
+  view: (Pick<ContentView, "autopilot" | "site"> & Partial<Pick<ContentView, "autopilotRun" | "imageStyle">>) | null;
 }) {
   if (!view) return <h1 className="text-3xl font-bold">Content</h1>;
   const run = view.autopilotRun ?? null;
+  const imageStyle = view.imageStyle && !view.imageStyle.chosen && view.imageStyle.message ? view.imageStyle : null;
   const attention = run?.state === "stalled" || run?.state === "skipped";
   return (
     <div className="flex items-start justify-between gap-3">
@@ -59,6 +62,18 @@ export function ContentHeader({
           >
             {attention ? "Autopilot: " : ""}
             {run.message}
+          </p>
+        )}
+        {imageStyle && (
+          <p
+            role="status"
+            data-testid="image-style-line"
+            className="mt-1 text-sm break-words text-amber-700 dark:text-amber-400"
+          >
+            {imageStyle.message}{" "}
+            <Link href={imageStyle.href} className="font-medium underline underline-offset-2 hover:no-underline">
+              Choose a style
+            </Link>
           </p>
         )}
       </div>

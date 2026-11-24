@@ -8,6 +8,7 @@ reference; the design rationale is in `docs/ARCHITECTURE.md` (Phase 2).
 
 ```
 canonical article (validated, audited)
+  → image style chosen?    no: no image at all, `no_style` recorded on the article (2026-11-24)
   → image pause / provider  nothing is paid, the brief included, when a render cannot happen
   → image-brief agent      WHAT each image shows (scene, alt, caption, slot), what KIND
                            of business it is (physical | digital), from the section text
@@ -162,20 +163,25 @@ florist"), `tests/media/settings-and-prompt.test.ts`.
 
 A skip is a record (`lib/media/skips.ts`): `{ media, reason, count, detail }`,
 with `reason` one of `billing`, `paused`, `not_configured`, `provider_error`,
-`brief_rejected`.
+`brief_rejected`, `no_style` (no image style chosen yet: nothing briefed or
+rendered; `detail` is "no image style chosen yet").
 
 - **Step output**: `skips` on the `enrich` step, with the provider's own
   message in `detail`. For the operator.
 - **Owner**: `canonical.media.skipped`, a list of `{ media, reason, count,
   message }` where `message` is a sentence of ours with no vendor text. The
   calendar's article record already loads `canonical`, so the field is there
-  for the card and the modal; `readSkipNotes(canonical)` reads it. **No
-  calendar component renders it yet.**
+  for the card and the modal; `readSkipNotes(canonical)` reads it. The
+  article modal shows `no_style` ("Written without images: no image style
+  chosen yet", with the link to choose one); the other reasons are not
+  rendered by a calendar component yet. `get_article` answers the list as
+  `mediaSkipped`, in every format.
 - **Operator**: one Sentry event and one email per UTC day per (media,
   reason), for `billing`, `not_configured` and `provider_error`, deduped by
   the `operator_alerts` table the LLM billing alert uses
   (`lib/media/degradation.ts`, keys `media:<media>:<reason>`). A refused scene
-  and a held render are outcomes, not faults, and alert nobody.
+  and a held render are outcomes, not faults, and alert nobody; nor does
+  `no_style`, which is the person's to do.
 - **Billing refusal** (a 402, or a depleted balance under another status):
   image generation is held for an hour by a `provider_pauses` row of kind
   `image`. While it holds, the step pays for no brief and makes no call, and
@@ -188,18 +194,47 @@ with `reason` one of `billing`, `paused`, `not_configured`, `provider_error`,
 
 ## Rules that keep this safe
 
-- **On by default since 2026-11-24** (the owner: product features are on;
-  images are included in the plan since 2026-11-14). `imagesEnabled` and
-  `videosEnabled` default to true (`businesses.media_settings`,
-  tolerant-parsed by `lib/media/settings.ts`): one featured image an article,
-  in-article ones only when the business raises `inlineImagesPerArticle` (0
-  by default), a video only where the platform has a video provider. A
-  business turns them off in Settings → Autopilot → Images and video
-  (`/settings/automation#images`; `/settings/generation` redirects there); a
-  stored `false` is kept. The Getting started checklist has no images step
-  any more. Over the API, `imagesEnabled: true` after an opt-out needs the
-  spend scope and no confirmation. The image provider runs on the
-  deployment's own key (docs/SELF_HOSTING.md).
+- **Images are on for every site, with no switch, once the image style is
+  chosen** (the owner, 2026-11-24: every person who signs up has images
+  active; no button turns them on; the Getting started checklist asks them
+  to choose the look). Until the style is chosen, articles go out
+  **without images** and nothing is spent on them: the `enrich` step
+  records `no_style` on the article instead of briefing or rendering. The
+  person is told so in three places: the Getting started step "Choose your
+  image style" (`hasImageStyle`, `/settings/automation#images`, also the
+  Overview's next action and `get_onboarding_status`), one amber line under
+  Content's title ("Articles go out without images until you choose an image
+  style", with "Choose a style"; `imageStyle` on `GET /api/content` and
+  `get_content`), and the article itself (the modal, `get_article`'s
+  `mediaSkipped`). Articles written before the choice keep no image;
+  regenerating one after it gives it one.
+- **The choice is recorded, not inferred** (`businesses.media_settings`,
+  tolerant-parsed by `lib/media/settings.ts`): `styleChosen` (boolean) and
+  `styleChosenAt` (ISO, when last chosen). Only the server sets them
+  (`withStyleChosen`): saving the images form in Settings
+  (`POST /api/business/media-settings`, whatever the page sent for them) or
+  `update_media_settings` with any of `style`, `styleInstructions` or
+  `brandPalette`, even the current value (the spend scope the first time;
+  the two fields are not in the tool's input). Other fields (videos, images
+  per article, provider) do not choose the style.
+- **Sites from before the field.** A row with no `styleChosen` key counts
+  as chosen when the person had set the look (`legacyStyleConfigured`): a
+  style other than Photography, art direction written, or brand colours
+  picked. Its `styleChosenAt` stays null: the day was not recorded and none
+  is made up. A row with only the defaults, or only the old switch, is not
+  chosen and waits like a new site. No migration: the rule is applied when
+  the row is read, and the first save writes the explicit field.
+- **The old switch is gone.** A stored `imagesEnabled` is ignored, and one
+  sent by a page left open or an older caller is accepted and dropped (the
+  schema strips unknown keys); a stored `imagesEnabled: false` with a chosen
+  style gets images. Images still need the deployment's opt-in
+  (`IMAGES_ENABLED`, below) and stop under the billing pause.
+- **Videos keep their switch**, on by default since 2026-11-24 (a stored
+  `false` is the person's opt-out and is kept), and do not wait for the image
+  style: a video is selected, never generated, and is shown only where the
+  platform has a video provider. In-article images keep their cap
+  (`inlineImagesPerArticle`, 0 by default): they are a count under the
+  images, not a switch, and wait for the style with the featured image.
 - **The business decides the look and how many it gets; the product
   decides the rest.** Aspect ratio (articles are a column of text, so images
   are wide) and quality are product decisions. How many images an article
@@ -279,7 +314,7 @@ shipping the full-size renders would be paid for on every settings page view.
 
 | Where | What |
 | --- | --- |
-| Settings → Autopilot → Images and video | per business: images on/off, **images per article** (featured only, or up to 1–3 in the article, with no price: included in the plan), **style** (four looks or a custom one written by the business), brand colors, videos on/off when the platform can look for videos |
+| Settings → Autopilot → Images and video | per business, no images switch: **style** first (saving the form chooses it, and until then the card says articles go out without images), brand colors, **images per article** (featured only, or up to 1–3 in the article, with no price: included in the plan); the four looks or a custom one written by the business; videos on/off when the platform can look for videos |
 | `IMAGES_ENABLED` | `1` to let the deployment generate images at all (since 2026-11-24). Unset: every render is skipped as not configured, whatever a site's settings say |
 | `IMAGE_PROVIDER` | platform default provider (`imagen` = Google, via `lib/providers/images/google.ts`) |
 | `OPENAI_API_KEY` | enables the `openai` provider |

@@ -190,6 +190,14 @@ describe("operator alerts", () => {
     expect(needsOperator("paused")).toBe(false);
   });
 
+  it("does not alert for no image style chosen: the person's to do, said on the article in their words", async () => {
+    const noStyle: MediaSkip = { media: "images", reason: "no_style", count: 1, detail: "no image style chosen yet" };
+    expect(await alertMediaSkips(supabase(), [noStyle], context)).toEqual([]);
+    expect(sentry.messages).toHaveLength(0);
+    expect(needsOperator("no_style")).toBe(false);
+    expect(mediaSkipMessage(noStyle)).toContain("no image style chosen yet");
+  });
+
   it("keeps Sentry and drops the email when the dedupe table cannot be written", async () => {
     const broken = {
       from: () => ({

@@ -30,8 +30,9 @@ settings, docs/MEDIA.md), which had a page of their own at
 `/settings/generation`; that path redirects to the section. Each half saves
 on its own, to its own route and tool (`update_automation_settings`,
 `update_media_settings`). `/settings/automation#images` links to the
-second half; the Getting started checklist has no Autopilot or images step
-since 2026-11-24 (below).
+second half; the Getting started checklist has no step to turn Autopilot or
+images on since 2026-11-24 (below), and its step "Choose your image style"
+links there (docs/MEDIA.md).
 
 ## Thresholds, not a quota
 
@@ -106,8 +107,10 @@ already on the calendar when generation looks for it.
 The owner's decision: product features are on, the person does not have to
 enable them, and the experience stays simple. `enabled` and `pushPage3`
 default to true (`lib/automation/settings.ts`); `backLinks` already did.
-Images and videos default to on too (docs/MEDIA.md), and so does the weekly
-AI visibility run (docs/AI_VISIBILITY.md).
+Images have no switch at all: they are on for every site once the person
+has chosen the image style, and articles go out without images until then
+(docs/MEDIA.md). Videos default to on too, and so does the weekly AI
+visibility run (docs/AI_VISIBILITY.md).
 
 - **Why Autopilot may be on by default.** Publishing a scheduled article on
   its day was already automatic, through the destination the person
@@ -122,7 +125,9 @@ AI visibility run (docs/AI_VISIBILITY.md).
   rewrites it. The page never asks the person to turn them on.
 - **No more asking.** The Getting started checklist lost its "Turn on
   Autopilot" and "Turn on article images" steps (`lib/onboarding.ts`), and
-  the Overview's next action with them. Over the API,
+  the Overview's next action with them. The same day it gained "Choose your
+  image style", right after About you: what images need from the person is
+  their look, not a switch (docs/MEDIA.md). Over the API,
   `update_automation_settings` no longer answers `confirmation_required` for
   `enabled: true` or `pushPage3: true`: setting one back on after the person
   turned it off still needs the scopes a key must hold for it (spend and

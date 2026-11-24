@@ -193,7 +193,7 @@ describe("provisionReviewerAccount", () => {
     await provisionReviewerAccount({ admin, input: { email: EMAIL }, env: ENV, now: NOW });
     const site = state.businesses[0];
     expect(parseAutomationSettings(site.automation_settings)).toMatchObject({ enabled: false, pushPage3: false, bufferDays: 7 });
-    expect(parseMediaSettings(site.media_settings)).toMatchObject({ imagesEnabled: false, videosEnabled: false });
+    expect(parseMediaSettings(site.media_settings)).toMatchObject({ styleChosen: false, styleChosenAt: null, videosEnabled: false });
     expect(parseAeoSettings(site.aeo_settings).cadence).toBe("off");
     expect(state.resetPasswordForEmail).toHaveBeenCalledTimes(1);
   });

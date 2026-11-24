@@ -29,7 +29,7 @@ import { nextOnboardingStep, type OnboardingStatus } from "@/lib/onboarding";
 const owned = { user_id: "user-1", business_id: "biz-1" };
 const other = { user_id: "user-1", business_id: "biz-2" };
 
-function seed(over: { aboutYou?: string; manual?: boolean } = {}) {
+function seed(over: { aboutYou?: string; manual?: boolean; media?: Record<string, unknown> } = {}) {
   return new FakeSupabase({
     businesses: [
       {
@@ -40,7 +40,7 @@ function seed(over: { aboutYou?: string; manual?: boolean } = {}) {
         niche: null,
         voice_settings: { aboutYou: over.aboutYou ?? "I run Acme." },
         automation_settings: { enabled: false },
-        media_settings: {},
+        media_settings: over.media ?? {},
       },
     ],
     keywords: [
@@ -76,6 +76,7 @@ describe("GET /api/onboarding/status", () => {
         "hasArticles": false,
         "hasBusiness": true,
         "hasClaude": false,
+        "hasImageStyle": false,
         "hasIntegration": false,
         "hasKeywords": true,
         "hasManualPost": false,
@@ -91,11 +92,21 @@ describe("GET /api/onboarding/status", () => {
         "hasArticles": false,
         "hasBusiness": false,
         "hasClaude": false,
+        "hasImageStyle": false,
         "hasIntegration": false,
         "hasKeywords": false,
         "hasManualPost": false,
       }
     `);
+  });
+
+  it("counts the image style once it is chosen, and a site configured before the field as chosen", async () => {
+    m.db = seed({ media: { styleChosen: true, styleChosenAt: "2026-11-24T09:00:00.000Z" } });
+    expect(await (await status()).json()).toMatchObject({ hasImageStyle: true });
+    m.db = seed({ media: { style: "illustration", brandPalette: ["#2a6f97"] } });
+    expect(await (await status()).json()).toMatchObject({ hasImageStyle: true });
+    m.db = seed({ media: { imagesEnabled: true } });
+    expect(await (await status()).json()).toMatchObject({ hasImageStyle: false });
   });
 
   it("counts a manual post and an empty About you", async () => {

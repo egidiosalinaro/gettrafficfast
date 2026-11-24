@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { videoEnrichmentAvailable } from "@/lib/media/availability";
-import { MediaSettings, parseMediaSettings } from "@/lib/media/settings";
+import { MediaSettings, parseMediaSettings, withStyleChosen } from "@/lib/media/settings";
 import { saveMediaSettings } from "@/lib/business/save-settings";
 import { selectedBusinessId } from "@/lib/tenancy";
 
@@ -44,7 +44,9 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => null);
   // Strict here, unlike the tolerant read path: this is our own form, so an
-  // invalid value is a bug to surface, not something to paper over.
+  // invalid value is a bug to surface, not something to paper over. An
+  // `imagesEnabled` sent by a page left open from before 2026-11-24 is an
+  // unknown key: dropped by the schema, never stored.
   const parsed = MediaSettings.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
@@ -58,9 +60,16 @@ export async function POST(request: NextRequest) {
   }
 
   // A site the user has, or "set up your business first": the function the
-  // update_media_settings tool calls (lib/business/save-settings.ts).
+  // update_media_settings tool calls (lib/business/save-settings.ts). Saving
+  // this form is choosing how the images look: from now on articles get
+  // them (docs/MEDIA.md). Whatever the page sent for the choice is ignored.
   const businessId = await selectedBusinessId(supabase, user.id);
-  const saved = await saveMediaSettings({ supabase, userId: user.id, businessId, settings: parsed.data });
+  const saved = await saveMediaSettings({
+    supabase,
+    userId: user.id,
+    businessId,
+    settings: withStyleChosen(parsed.data),
+  });
   if (!saved.ok) {
     return NextResponse.json({ error: saved.error }, { status: saved.status });
   }

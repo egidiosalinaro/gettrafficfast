@@ -150,6 +150,9 @@ function job(articleId: string): JobRow {
 
 const enrich = produceArticleWorkflow.steps.find((step) => step.name === "enrich")!;
 
+/** A site whose owner chose how its images look: images are rendered. */
+const CHOSEN = { style: "photographic", styleChosen: true, styleChosenAt: "2026-11-24T09:00:00.000Z" };
+
 describe("produce-article enrich", () => {
   let db: FakeSupabase;
   let uploads: string[];
@@ -214,7 +217,7 @@ describe("produce-article enrich", () => {
   });
 
   it("renders the hero only by default, as WebP with its size in the markup data", async () => {
-    seed({ imagesEnabled: true, videosEnabled: false });
+    seed({ ...CHOSEN, videosEnabled: false });
     // The model offers an in-article image anyway; the default cap is zero.
     const model = llm({ subject: "physical", hero: HERO, inline: [INLINE] });
     setLlmProvider(model.provider);
@@ -243,7 +246,7 @@ describe("produce-article enrich", () => {
   });
 
   it("renders in-article images when the business set a cap, with width and height on the figure", async () => {
-    seed({ imagesEnabled: true, videosEnabled: false, inlineImagesPerArticle: 2 });
+    seed({ ...CHOSEN, videosEnabled: false, inlineImagesPerArticle: 2 });
     setLlmProvider(llm({ subject: "physical", hero: HERO, inline: [INLINE] }).provider);
     const images = imageProvider(() => picture());
     setImageProvider("imagen", images.provider);
@@ -258,7 +261,7 @@ describe("produce-article enrich", () => {
   });
 
   it("gives a business with nothing physical an editorial illustration, not a photograph", async () => {
-    seed({ imagesEnabled: true, videosEnabled: false, style: "photographic" });
+    seed({ ...CHOSEN, videosEnabled: false, style: "photographic" });
     setLlmProvider(llm({ subject: "digital", hero: HERO, inline: [] }).provider);
     const images = imageProvider(() => picture());
     setImageProvider("imagen", images.provider);
@@ -270,7 +273,7 @@ describe("produce-article enrich", () => {
   });
 
   it("on a billing refusal: the article keeps going, the owner and the operator are told, images pause", async () => {
-    seed({ imagesEnabled: true, videosEnabled: false, inlineImagesPerArticle: 2 });
+    seed({ ...CHOSEN, videosEnabled: false, inlineImagesPerArticle: 2 });
     const model = llm({ subject: "physical", hero: HERO, inline: [INLINE] });
     setLlmProvider(model.provider);
     const images = imageProvider(refuse402);
@@ -315,7 +318,7 @@ describe("produce-article enrich", () => {
   });
 
   it("keeps the images that rendered when a later one fails for another reason", async () => {
-    seed({ imagesEnabled: true, videosEnabled: false, inlineImagesPerArticle: 2 });
+    seed({ ...CHOSEN, videosEnabled: false, inlineImagesPerArticle: 2 });
     setLlmProvider(llm({ subject: "physical", hero: HERO, inline: [INLINE] }).provider);
     const images = imageProvider(async (_request, call) => {
       if (call === 2) throw new ImageProviderError("some-image-model returned no image: safety", "imagen");
@@ -333,7 +336,7 @@ describe("produce-article enrich", () => {
   });
 
   it("does not render a scene the check refused twice, and says which", async () => {
-    seed({ imagesEnabled: true, videosEnabled: false });
+    seed({ ...CHOSEN, videosEnabled: false });
     setLlmProvider(
       llm({
         subject: "digital",
@@ -359,7 +362,9 @@ describe("produce-article enrich", () => {
   });
 
   it("says videos were skipped because no provider is configured, once to the operator", async () => {
-    seed({ imagesEnabled: false, videosEnabled: true });
+    seed({ ...CHOSEN, videosEnabled: true });
+    setLlmProvider(llm({ subject: "physical", hero: HERO, inline: [] }).provider);
+    setImageProvider("imagen", imageProvider(() => picture()).provider);
 
     const first = await run("article-1");
     const second = await run("article-2");
@@ -368,26 +373,52 @@ describe("produce-article enrich", () => {
       expect(output.skips).toEqual([expect.objectContaining({ media: "videos", reason: "not_configured" })]);
     }
     expect(readSkipNotes(stored("article-1"))[0]).toMatchObject({ media: "videos", reason: "not_configured" });
-    expect(stored("article-1").media).toMatchObject({ hero: null, images: [], videos: [] });
+    expect(stored("article-1").media).toMatchObject({ images: [], videos: [] });
     expect(sentry.messages).toEqual(["Video search is not configured, and businesses have videos turned on"]);
     expect(emails.sent).toHaveLength(1);
   });
 
-  it("does nothing, and reports nothing, when the site turned media off", async () => {
-    seed({ imagesEnabled: false, videosEnabled: false });
-    expect(await run("article-1")).toEqual({ skipped: "media disabled for this business" });
-    expect(stored("article-1").media).toBeUndefined();
+  it("writes the article without images while no image style is chosen, and says so on it", async () => {
+    seed({ videosEnabled: false });
+    const model = llm({ subject: "physical", hero: HERO, inline: [] });
+    setLlmProvider(model.provider);
+    const images = imageProvider(() => picture());
+    setImageProvider("imagen", images.provider);
+
+    const output = await run("article-1");
+
+    // Nothing briefed, nothing rendered, nothing paid.
+    expect(model.calls()).toBe(0);
+    expect(images.requests).toHaveLength(0);
+    expect(uploads).toEqual([]);
+    expect(output).toMatchObject({ hero: false, inline: 0, videos: 0 });
+    expect(output.skips).toEqual([
+      expect.objectContaining({ media: "images", reason: "no_style", detail: "no image style chosen yet" }),
+    ]);
+    const notes = readSkipNotes(stored("article-1"));
+    expect(notes).toEqual([expect.objectContaining({ media: "images", reason: "no_style", count: 1 })]);
+    expect(notes[0].message).toContain("no image style chosen yet");
+    expect(stored("article-1").media).toMatchObject({ hero: null, images: [] });
+    // The person's to do, not the operator's.
     expect(sentry.messages).toHaveLength(0);
+    expect(emails.sent).toHaveLength(0);
   });
 
-  it("renders the featured image for a site with nothing stored: images are on by default since 2026-11-24", async () => {
-    seed({});
+  it("ignores an old images switch: a stored imagesEnabled false with a chosen style still renders", async () => {
+    seed({ ...CHOSEN, imagesEnabled: false, videosEnabled: false });
     setLlmProvider(llm({ subject: "physical", hero: HERO, inline: [] }).provider);
     const images = imageProvider(() => picture());
     setImageProvider("imagen", images.provider);
-    const out = (await run("article-1")) as { hero?: boolean; skipped?: string };
-    expect(out.skipped).toBeUndefined();
+    const out = await run("article-1");
     expect(out.hero).toBe(true);
     expect(images.requests).toHaveLength(1);
+  });
+
+  it("renders for a site whose look was configured before the choice was recorded", async () => {
+    seed({ imagesEnabled: true, style: "photographic", brandPalette: ["#2a6f97"], videosEnabled: false });
+    setLlmProvider(llm({ subject: "physical", hero: HERO, inline: [] }).provider);
+    const images = imageProvider(() => picture());
+    setImageProvider("imagen", images.provider);
+    expect((await run("article-1")).hero).toBe(true);
   });
 });

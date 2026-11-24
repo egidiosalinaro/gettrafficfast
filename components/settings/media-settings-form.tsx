@@ -26,6 +26,11 @@ import { ImageStylePreview } from "./image-style-preview";
  * price; what a render costs the platform is the owner's (docs/MEDIA.md).
  * Format and quality stay product decisions.
  *
+ * There is no switch for images (the owner, 2026-11-24): they are on for
+ * every site once the look is chosen, and saving this form is that choice
+ * (the route marks it, `styleChosen`). Until then the card says articles go
+ * out without images.
+ *
  * The videos switch is offered only when the platform can actually look for
  * videos (`videoAvailable` from the API). A switch that does nothing is a
  * promise the product does not keep.
@@ -186,8 +191,14 @@ export function MediaSettingsForm() {
         setMessage({ type: "error", text: data.error || "Failed to save settings" });
         return;
       }
+      const firstChoice = !settings.styleChosen && data.settings?.styleChosen === true;
       setSettings(data.settings);
-      setMessage({ type: "success", text: "Images and video settings saved." });
+      setMessage({
+        type: "success",
+        text: firstChoice
+          ? "Image style saved. The articles written from now on get a featured image."
+          : "Images and video settings saved.",
+      });
       refreshOnboarding();
     } catch (err) {
       setMessage({
@@ -234,113 +245,114 @@ export function MediaSettingsForm() {
       )}
 
       <Card className="p-6 space-y-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <ImageIcon className="h-5 w-5" />
-              <h2 className="text-xl font-semibold">AI Images</h2>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Every article gets one featured image, generated for it and
-              included in your plan. On for every site; untick it and new
-              articles go out without one.
-            </p>
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <ImageIcon className="h-5 w-5" />
+            <h2 className="text-xl font-semibold">AI Images</h2>
           </div>
-          <label className="flex items-center gap-2 text-sm font-medium shrink-0 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={settings.imagesEnabled}
-              onChange={(e) => set("imagesEnabled", e.target.checked)}
-              className="h-4 w-4 accent-primary"
-            />
-            Enabled
-          </label>
+          <p className="text-sm text-muted-foreground">
+            Every article gets one featured image, generated for it in the
+            style you choose here and included in your plan.
+          </p>
         </div>
 
-        {settings.imagesEnabled && (
-          <div className="space-y-6 pt-4 border-t border-border">
-            <InlineImagesChoice
-              value={settings.inlineImagesPerArticle}
-              onChange={(count) => set("inlineImagesPerArticle", count)}
-            />
-
-            <div className="space-y-3">
-              <Label>Image style</Label>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                {IMAGE_STYLES.map((style) => {
-                  const isSelected = settings.style === style.value;
-                  return (
-                    <button
-                      key={style.value}
-                      type="button"
-                      onClick={() => set("style", style.value)}
-                      aria-pressed={isSelected}
-                      className={cn(
-                        // flex-col is load-bearing: a stretched <button> centres
-                        // its own content box, so the cards with shorter
-                        // descriptions were padded above AND below, leaving a
-                        // white band over the thumbnail. As a flex column the
-                        // content starts at the top and the slack goes below.
-                        "flex h-full flex-col overflow-hidden rounded-lg border text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                        isSelected
-                          ? "border-foreground ring-1 ring-foreground"
-                          : "border-border hover:border-foreground/40",
-                        style.value === "custom" && !isSelected && "border-dashed"
-                      )}
-                    >
-                      <div className="aspect-[16/10] w-full overflow-hidden bg-muted">
-                        <ImageStylePreview style={style.value} />
-                      </div>
-                      <div className="p-3">
-                        <div className="text-sm font-medium">{style.label}</div>
-                        <div className="mt-0.5 text-xs leading-snug text-muted-foreground">
-                          {style.description}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Images show real people, places and objects, never text or
-                screens. With Photography, a business that has nothing physical
-                to photograph (software, an online service) gets a clean
-                editorial illustration instead.
-              </p>
-            </div>
-
-            {settings.style === "custom" && (
-              <div className="space-y-2">
-                <Label htmlFor="media-style-instructions">Image instructions</Label>
-                <Textarea
-                  id="media-style-instructions"
-                  value={settings.styleInstructions}
-                  onChange={(e) => set("styleInstructions", e.target.value)}
-                  maxLength={STYLE_INSTRUCTIONS_MAX}
-                  rows={3}
-                  placeholder="Be specific about what you want AND what to avoid. E.g. 'Watercolour painting, soft edges, organic textures, artistic feel. Do NOT create photographs, 3D renders, diagrams or infographics.'"
-                />
-                <div className="flex items-start justify-between gap-4">
-                  <p className="text-xs text-muted-foreground">
-                    Write your own style. Tip: include what to avoid, e.g. &quot;Do NOT
-                    create diagrams.&quot;
-                  </p>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {settings.styleInstructions.length}/{STYLE_INSTRUCTIONS_MAX}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-3">
-              <Label>Brand colors</Label>
-              <BrandPalettePicker
-                value={settings.brandPalette}
-                onChange={(colors) => set("brandPalette", colors)}
-              />
-            </div>
+        {!settings.styleChosen && (
+          <div
+            role="status"
+            data-testid="image-style-not-chosen"
+            className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+          >
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>
+              No image style chosen yet, so articles go out without images.
+              Pick a look below and save: the articles written after that get
+              a featured image.
+            </p>
           </div>
         )}
+
+        <div className="space-y-6 pt-4 border-t border-border">
+          <div className="space-y-3">
+            <Label>Image style</Label>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              {IMAGE_STYLES.map((style) => {
+                const isSelected = settings.style === style.value;
+                return (
+                  <button
+                    key={style.value}
+                    type="button"
+                    onClick={() => set("style", style.value)}
+                    aria-pressed={isSelected}
+                    className={cn(
+                      // flex-col is load-bearing: a stretched <button> centres
+                      // its own content box, so the cards with shorter
+                      // descriptions were padded above AND below, leaving a
+                      // white band over the thumbnail. As a flex column the
+                      // content starts at the top and the slack goes below.
+                      "flex h-full flex-col overflow-hidden rounded-lg border text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      isSelected
+                        ? "border-foreground ring-1 ring-foreground"
+                        : "border-border hover:border-foreground/40",
+                      style.value === "custom" && !isSelected && "border-dashed"
+                    )}
+                  >
+                    <div className="aspect-[16/10] w-full overflow-hidden bg-muted">
+                      <ImageStylePreview style={style.value} />
+                    </div>
+                    <div className="p-3">
+                      <div className="text-sm font-medium">{style.label}</div>
+                      <div className="mt-0.5 text-xs leading-snug text-muted-foreground">
+                        {style.description}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Images show real people, places and objects, never text or
+              screens. With Photography, a business that has nothing physical
+              to photograph (software, an online service) gets a clean
+              editorial illustration instead.
+            </p>
+          </div>
+
+          {settings.style === "custom" && (
+            <div className="space-y-2">
+              <Label htmlFor="media-style-instructions">Image instructions</Label>
+              <Textarea
+                id="media-style-instructions"
+                value={settings.styleInstructions}
+                onChange={(e) => set("styleInstructions", e.target.value)}
+                maxLength={STYLE_INSTRUCTIONS_MAX}
+                rows={3}
+                placeholder="Be specific about what you want AND what to avoid. E.g. 'Watercolour painting, soft edges, organic textures, artistic feel. Do NOT create photographs, 3D renders, diagrams or infographics.'"
+              />
+              <div className="flex items-start justify-between gap-4">
+                <p className="text-xs text-muted-foreground">
+                  Write your own style. Tip: include what to avoid, e.g. &quot;Do NOT
+                  create diagrams.&quot;
+                </p>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {settings.styleInstructions.length}/{STYLE_INSTRUCTIONS_MAX}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <Label>Brand colors</Label>
+            <BrandPalettePicker
+              value={settings.brandPalette}
+              onChange={(colors) => set("brandPalette", colors)}
+            />
+          </div>
+
+          <InlineImagesChoice
+            value={settings.inlineImagesPerArticle}
+            onChange={(count) => set("inlineImagesPerArticle", count)}
+          />
+        </div>
       </Card>
 
       <VideosCard
@@ -355,8 +367,10 @@ export function MediaSettingsForm() {
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             Saving...
           </>
-        ) : (
+        ) : settings.styleChosen ? (
           "Save Changes"
+        ) : (
+          "Save image style"
         )}
       </Button>
     </form>

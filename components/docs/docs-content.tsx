@@ -142,6 +142,11 @@ export function DocsContent({ engines, toolGroups, limits }: DocsContentProps) {
             first-hand facts an article may state.
           </li>
           <li>
+            <Strong>Choose your image style.</Strong> In <Place>Settings → Autopilot</Place>, under Images and video,
+            pick how the images of your articles look and save. Every new article then gets a featured image; until
+            you do, articles go out without images.
+          </li>
+          <li>
             <Strong>Connect Search Console.</Strong> In <Place>Settings → Connections</Place>, sign in with Google and
             pick your property. GTF only reads. The first pull reaches back 90 days.
           </li>
@@ -274,9 +279,11 @@ export function DocsContent({ engines, toolGroups, limits }: DocsContentProps) {
             found, today&apos;s limit for AI work, or no active plan.
           </li>
           <li>
-            <Strong>Images.</Strong> Every new article gets a generated featured image, and a relevant YouTube video
-            when one fits, included in your plan. In <Place>Settings → Autopilot</Place>, under Images and video, pick
-            a look, allow up to three more images in the text, or turn them off.
+            <Strong>Images.</Strong> Every new article gets a generated featured image, included in your plan, once you
+            choose how your images look: in <Place>Settings → Autopilot</Place>, under Images and video, pick a style
+            and save. Until then articles go out without images, and Getting started, Content and the article say so.
+            There you can also add your brand colors, allow up to three more images in the text, and turn off the
+            relevant YouTube video added when one fits.
           </li>
         </Bullets>
 

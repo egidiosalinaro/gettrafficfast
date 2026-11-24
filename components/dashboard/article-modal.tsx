@@ -6,6 +6,7 @@ import {
   Check,
   Copy,
   ExternalLink,
+  ImageOff,
   Plug,
   RotateCcw,
   Send,
@@ -25,6 +26,8 @@ import { Button } from "@/components/ui/button";
 import { articleDocuments, exportArticle } from "@/lib/content/export";
 import { holdReasons, REASON_NOT_RECORDED } from "@/lib/content/hold-reasons";
 import { InlineConfirm } from "@/components/ui/inline-confirm";
+import { IMAGE_STYLE_PATH } from "@/lib/media/settings";
+import { readSkipNotes } from "@/lib/media/skips";
 import { ARTICLE_STATUS_LABEL, Article, regenerateQuestion } from "./article-card";
 import { articleDateLine } from "./calendar-model";
 import { IndexStatusLine } from "./index-status-line";
@@ -171,6 +174,9 @@ export function ArticleModal({
   // Why it was held: the same sentences publish_article answers with
   // (lib/content/hold-reasons.ts), never an empty list.
   const reasons = article.status === "needs_review" ? holdReasons(article) : [];
+  // Written without images because no image style was chosen yet: said here,
+  // in the platform's sentence, with the way to choose one.
+  const noStyle = readSkipNotes(view).find((note) => note.media === "images" && note.reason === "no_style") ?? null;
 
   async function copy(kind: "html" | "markdown") {
     const text = exportArticle(source, kind);
@@ -258,6 +264,23 @@ export function ArticleModal({
         )}
         {article.status === "published" && article.publishedUrl && (
           <ArticlePushPanel key={`push-${article.id}`} articleId={article.id} />
+        )}
+
+        {noStyle && (
+          <div
+            role="status"
+            data-testid="article-no-image-style"
+            className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+          >
+            <ImageOff className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>
+              Written without images: no image style chosen yet.{" "}
+              <Link href={IMAGE_STYLE_PATH} className="font-medium underline underline-offset-2 hover:no-underline">
+                Choose a style
+              </Link>{" "}
+              and the articles written after that get a featured image.
+            </p>
+          </div>
         )}
 
         {publishResult && (

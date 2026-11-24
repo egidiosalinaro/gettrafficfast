@@ -116,7 +116,8 @@ export function readSeed() {
             blog_url: "https://acme.test/blog",
             is_locked: true,
             automation_settings: { enabled: true, bufferDays: 7 },
-            media_settings: { imagesEnabled: false },
+            // The old switch is ignored; the style was chosen on this day.
+            media_settings: { imagesEnabled: false, styleChosen: true, styleChosenAt: "2026-11-01T09:00:00.000Z" },
             aeo_settings: { brandNames: ["Acme"], engines: ["gemini"], cadence: "weekly" },
             voice_settings: { preset: "casual", person: "we", aboutYou: "We build Acme.", instructions: "Never say leverage." },
             updated_at: "2026-11-01T00:00:00.000Z",

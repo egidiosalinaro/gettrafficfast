@@ -3,7 +3,7 @@ import { AutomationSettings } from "@/lib/automation/settings";
 import { businessFieldsRefusal, saveBusiness, type SaveBusinessResult } from "@/lib/business/save";
 import { saveAutomationSettings, saveMediaSettings } from "@/lib/business/save-settings";
 import { DEFAULT_CONTENT_LANGUAGE, isContentLanguage, SUPPORTED_CONTENT_LANGUAGES } from "@/lib/content-language";
-import { MediaSettings, maxImagesPerArticle } from "@/lib/media/settings";
+import { IMAGE_STYLE_FIELDS, MediaSettings, maxImagesPerArticle, withStyleChosen } from "@/lib/media/settings";
 import { analyzeSite } from "@/lib/research/analyze-site";
 import { WebsiteAnalysis } from "@/lib/research/website";
 import { BUSINESS_HEADER } from "@/lib/api-auth";
@@ -28,12 +28,13 @@ import {
  * is stored, then validates the whole with the route's strict schema: an
  * agent that sends `{ enabled: true }` must not reset the rest to defaults.
  *
- * Autopilot, Push page 3 and images are on by default since 2026-11-24
- * (product features are on). Setting one back on after the person turned it
- * off is not asked again; it still needs the scopes a key must hold for what
- * it does (spend, and publish for autopilot). Raising the in-article image
- * cap above what the site has is a choice to spend more: it needs
- * `confirm: true` (AGENTS.md §12).
+ * Autopilot and Push page 3 are on by default since 2026-11-24 (product
+ * features are on). Setting one back on after the person turned it off is
+ * not asked again; it still needs the scopes a key must hold for what it
+ * does (spend, and publish for autopilot). Images have no switch: they start
+ * once the image style is chosen, which a call setting the look does (spend
+ * scope the first time). Raising the in-article image cap above what the
+ * site has is a choice to spend more: it needs `confirm: true` (AGENTS.md §12).
  */
 
 type Row = Record<string, unknown>;
@@ -248,25 +249,36 @@ export const updateAutomationSettings = defineTool({
   },
 });
 
+/**
+ * What `update_media_settings` takes: every media field but the record of
+ * the person's choice (`styleChosen`, `styleChosenAt`), which the server
+ * writes when the look is set. The images switch is gone since 2026-11-24:
+ * an `imagesEnabled` sent by an older caller is an unknown key, dropped.
+ */
+const MEDIA_INPUT_SHAPE = MediaSettings.omit({ styleChosen: true, styleChosenAt: true }).shape;
+
 export const updateMediaSettings = defineTool({
   name: "update_media_settings",
   title: "Change images and video",
   description:
-    "Changes this site's images and video: whether articles get an AI featured image, how many in-article images an article may also get (inlineImagesPerArticle, 0 to 3, 0 unless set; every image is generated for the article, included in the plan), their style (or custom art direction), brand colours, the image provider, and whether articles get YouTube videos. Images and videos are on by default; imagesEnabled: false or videosEnabled: false stops them for articles not yet written. Fields left out stay as they are. Setting images back on needs the spend scope; raising inlineImagesPerArticle on a site that has images on makes every article generated from then on get more generated images: it needs the spend scope and confirm: true.",
-  input: z.object({ ...partialOf(MediaSettings.shape), confirm: Confirm }),
+    "Changes this site's images and video: the image style (style, or custom art direction in styleInstructions), brand colours (brandPalette), how many in-article images an article may also get (inlineImagesPerArticle, 0 to 3, 0 unless set; every image is generated for the article, included in the plan), the image provider, and whether articles get YouTube videos (videosEnabled, on by default). Images are on for every site, with no switch, once the image style is chosen: until then articles go out without images (get_onboarding_status shows the step \"Choose your image style\"). Sending any of style, styleInstructions or brandPalette, even the current value, chooses the style for the person: ask them how their images should look first. The answer's settings.styleChosen says whether it is chosen. Fields left out stay as they are; an old imagesEnabled field is ignored. Raising inlineImagesPerArticle makes every article generated from then on get more generated images: it needs the spend scope and confirm: true.",
+  input: z.object({ ...partialOf(MEDIA_INPUT_SHAPE), confirm: Confirm }),
   output: z.object({ settings: MediaSettings }),
   scope: "write",
   paid: false,
   async handler(ctx, input) {
     const stored = await storedSettings(ctx);
-    const settings = strictSettings(MediaSettings, { ...stored.media, ...changesOf(input) });
-    // Images are on by default: setting them back on is only checked against
-    // what the key may do. Allowing more per article than the site has is a
-    // choice to spend more, and is asked for.
-    const turningOn = !stored.media.imagesEnabled && settings.imagesEnabled;
-    const raisingCap =
-      settings.imagesEnabled && settings.inlineImagesPerArticle > stored.media.inlineImagesPerArticle;
-    if (turningOn) requireScopes(ctx, ["spend"], "Turning images on");
+    const changes = changesOf(input);
+    let settings = strictSettings(MediaSettings, { ...stored.media, ...changes });
+    // Setting the look is choosing it: articles get images from then on.
+    const choosingStyle = IMAGE_STYLE_FIELDS.some((field) => field in changes);
+    if (choosingStyle) {
+      if (!stored.media.styleChosen) requireScopes(ctx, ["spend"], "Choosing the image style, which starts images");
+      settings = withStyleChosen(settings);
+    }
+    // Allowing more per article than the site has is a choice to spend more,
+    // and is asked for.
+    const raisingCap = settings.inlineImagesPerArticle > stored.media.inlineImagesPerArticle;
     if (raisingCap) {
       requireScopes(ctx, ["spend"], "Allowing more images per article");
       requireConfirmation(
@@ -275,8 +287,10 @@ export const updateMediaSettings = defineTool({
           settings.inlineImagesPerArticle > 0
             ? ` and up to ${settings.inlineImagesPerArticle} in-article image(s)`
             : ""
-        }, each one generated for it and included in the plan: at most ${maxImagesPerArticle(settings)} image(s) per article.`,
-        "Ask the person, then send the same call with confirm: true. imagesEnabled: false stops it for articles not yet written."
+        }, each one generated for it and included in the plan: at most ${maxImagesPerArticle(settings)} image(s) per article${
+          settings.styleChosen ? "" : ", once the image style is chosen"
+        }.`,
+        "Ask the person, then send the same call with confirm: true. inlineImagesPerArticle: 0 keeps the featured image only."
       );
     }
     const saved = await saveMediaSettings({ supabase: ctx.client, userId: ctx.userId, businessId: ctx.businessId, settings });

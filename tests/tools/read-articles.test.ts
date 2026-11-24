@@ -104,6 +104,28 @@ describe("get_article", () => {
   });
 });
 
+describe("get_article: the media it was written without", () => {
+  it("says an article went out without images because no image style was chosen yet, in every format", async () => {
+    const row = db.tables.articles.find((a) => a.id === ART_A1)!;
+    const note = {
+      media: "images",
+      reason: "no_style",
+      count: 1,
+      message: "No images: no image style chosen yet. The article was written without them.",
+    };
+    row.canonical = { ...CANONICAL, media: { hero: null, images: [], videos: [], skipped: [note] } };
+    for (const format of ["canonical", "markdown"] as const) {
+      const run = await call("get_article", { articleId: ART_A1, format });
+      expect(run).toMatchObject({ ok: true, output: { mediaSkipped: [note] } });
+    }
+  });
+
+  it("is an empty list when nothing was left out", async () => {
+    expect(await call("get_article", { articleId: ART_A1 })).toMatchObject({ ok: true, output: { mediaSkipped: [] } });
+    expect(await call("get_article", { articleId: ART_A2 })).toMatchObject({ ok: true, output: { mediaSkipped: [] } });
+  });
+});
+
 describe("list_deliveries", () => {
   it("lists the site's publish attempts newest first, failures included, without payloads", async () => {
     const run = await call("list_deliveries");

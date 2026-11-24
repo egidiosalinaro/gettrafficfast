@@ -41,6 +41,7 @@ import {
   IMAGE_ASPECT_RATIO,
   IMAGE_QUALITY,
   inlineImageAllowance,
+  imageStyleChosen,
   parseMediaSettings,
   MediaSettings,
 } from "@/lib/media/settings";
@@ -783,10 +784,6 @@ export const produceArticleWorkflow: Workflow = {
         const production = await loadContext(ctx.supabase, String(ctx.input.articleId));
         const settings = production.mediaSettings;
 
-        if (!settings.imagesEnabled && !settings.videosEnabled) {
-          return { skipped: "media disabled for this business" };
-        }
-
         // Read the CURRENT canonical: the audit step already improved its
         // metadata, and that must not be lost here.
         const { data: row } = await ctx.supabase
@@ -817,10 +814,14 @@ export const produceArticleWorkflow: Workflow = {
         const inline: ArticleImage[] = [];
         const videos: CanonicalVideo[] = [];
 
-        // ── Images — every failure degrades to "fewer images", never to a
-        // failed article. Provider spend is bounded: one hero, plus at most
-        // the business's own cap of in-article renders (0 unless it set one).
-        if (settings.imagesEnabled) {
+        // ── Images — on for every site, once the person has chosen how they
+        // look. Every failure degrades to "fewer images", never to a failed
+        // article. Provider spend is bounded: one hero, plus at most the
+        // business's own cap of in-article renders (0 unless it set one).
+        if (!imageStyleChosen(settings)) {
+          // Nothing is briefed or rendered, and the article says why.
+          skip("images", "no_style", "no image style chosen yet");
+        } else {
           // Nothing is paid for, the brief included, when the render cannot
           // happen: a pause left by a billing refusal, or no provider set up.
           let provider: ReturnType<typeof getImageProvider> | null = null;

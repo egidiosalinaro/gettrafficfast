@@ -170,7 +170,7 @@ export const getOnboardingStatus = defineTool({
   name: "get_onboarding_status",
   title: "Get the setup checklist",
   description:
-    "The Getting started checklist for this site, step by step and in order: the business, About you, keywords, the first article, a connected website, the first post from X, Autopilot and article images (the last two start AI work on their own and stay off until switched on). next is the first step not done; complete when every step is.",
+    "The Getting started checklist for this site, step by step and in order: the business, About you, the image style (hasImageStyle: articles go out without images until it is chosen; update_media_settings with style, styleInstructions or brandPalette chooses it once the person says how their images should look), keywords, the first article, a connected website, the first post from X. Autopilot and images have no step to turn them on: both are on for every site. next is the first step not done, with the page that does it (href); complete when every step is.",
   input: z.object({}),
   output: z.object({
     steps: z.array(StepView),

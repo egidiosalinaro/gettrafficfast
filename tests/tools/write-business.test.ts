@@ -32,6 +32,8 @@ vi.mock("@/lib/llm-billing", async (importOriginal) => ({
 }));
 
 import { runTool } from "@/lib/tools/runner";
+import { TOOLS } from "@/lib/tools/registry";
+import { inputSchemaOf } from "@/lib/tools/schema";
 
 type Scope = "read" | "write" | "spend" | "publish";
 
@@ -225,31 +227,51 @@ describe("update_automation_settings", () => {
 });
 
 describe("update_media_settings", () => {
-  it("changes the style without spending anything; images and videos are on by default", async () => {
+  it("choosing the style marks it chosen, with the time, and needs the spend scope the first time only", async () => {
     const db = seed();
-    const run = await call(db, "update_media_settings", { style: "illustration", brandPalette: ["#112233"] }, ["read", "write"]);
-    expect(run).toMatchObject({
-      ok: true,
-      output: { settings: { imagesEnabled: true, videosEnabled: true, style: "illustration", brandPalette: ["#112233"] } },
-    });
-  });
-
-  it("keeps images off once turned off; back on needs spend and no confirm", async () => {
-    const db = seed();
-    expect(await call(db, "update_media_settings", { imagesEnabled: false }, ["read", "write"])).toMatchObject({
-      ok: true,
-      output: { settings: { imagesEnabled: false } },
-    });
-    expect(await call(db, "update_media_settings", { imagesEnabled: true }, ["read", "write"])).toMatchObject({
+    expect(await call(db, "update_media_settings", { style: "illustration" }, ["read", "write"])).toMatchObject({
       ok: false,
       status: 403,
       error: { code: "forbidden_scope" },
     });
-    expect(site(db).media_settings).toMatchObject({ imagesEnabled: false });
-    expect(await call(db, "update_media_settings", { imagesEnabled: true })).toMatchObject({
+    expect(site(db).media_settings).toBeUndefined();
+
+    const run = await call(db, "update_media_settings", { style: "illustration", brandPalette: ["#112233"] });
+    expect(run).toMatchObject({
       ok: true,
-      output: { settings: { imagesEnabled: true, inlineImagesPerArticle: 0 } },
+      output: { settings: { styleChosen: true, videosEnabled: true, style: "illustration", brandPalette: ["#112233"] } },
     });
+    const stored = site(db).media_settings as { styleChosenAt: string | null };
+    expect(Date.parse(stored.styleChosenAt ?? "")).not.toBeNaN();
+    expect(stored).not.toHaveProperty("imagesEnabled");
+
+    // Changing the look later spends nothing new: no spend scope needed.
+    expect(await call(db, "update_media_settings", { style: "claymation" }, ["read", "write"])).toMatchObject({
+      ok: true,
+      output: { settings: { style: "claymation", styleChosen: true } },
+    });
+  });
+
+  it("brand colours or art direction alone choose the style too; other fields do not", async () => {
+    const db = seed();
+    expect(await call(db, "update_media_settings", { videosEnabled: false }, ["read", "write"])).toMatchObject({
+      ok: true,
+      output: { settings: { videosEnabled: false, styleChosen: false, styleChosenAt: null } },
+    });
+    expect(await call(db, "update_media_settings", { brandPalette: ["#2a6f97"] })).toMatchObject({
+      ok: true,
+      output: { settings: { styleChosen: true, videosEnabled: false } },
+    });
+  });
+
+  it("has no images switch and does not take the choice as input: both are dropped", async () => {
+    const db = seed();
+    const run = await call(db, "update_media_settings", { imagesEnabled: false, styleChosen: true, styleChosenAt: "2026-11-24T09:00:00.000Z" }, ["read", "write"]);
+    expect(run).toMatchObject({ ok: true, output: { settings: { styleChosen: false, styleChosenAt: null } } });
+    expect(JSON.stringify(run)).not.toContain("imagesEnabled");
+    const schema = JSON.stringify(inputSchemaOf(TOOLS.get("update_media_settings")!));
+    expect(schema).not.toContain("imagesEnabled");
+    expect(schema).not.toContain("styleChosen");
   });
 
   it("allowing more images per article on a site that has them on needs spend, then confirm, never a price", async () => {
@@ -266,7 +288,7 @@ describe("update_media_settings", () => {
       status: 409,
       error: {
         code: "confirmation_required",
-        message: expect.stringMatching(/^More images per article: .* up to 2 in-article image\(s\), .* at most 3 image\(s\) per article\.$/),
+        message: expect.stringMatching(/^More images per article: .* up to 2 in-article image\(s\), .* at most 3 image\(s\) per article, once the image style is chosen\.$/),
       },
     });
     if (unconfirmed.ok) throw new Error("expected a refusal");
@@ -279,15 +301,6 @@ describe("update_media_settings", () => {
     });
     // Lowering it spends nothing more.
     expect(await call(db, "update_media_settings", { inlineImagesPerArticle: 1 }, ["read", "write"])).toMatchObject({ ok: true });
-  });
-
-  it("setting the cap while images are off needs nothing", async () => {
-    const db = seed();
-    await call(db, "update_media_settings", { imagesEnabled: false }, ["read", "write"]);
-    expect(await call(db, "update_media_settings", { inlineImagesPerArticle: 3 }, ["read", "write"])).toMatchObject({
-      ok: true,
-      output: { settings: { imagesEnabled: false, inlineImagesPerArticle: 3 } },
-    });
   });
 
   it("refuses a value the screen's schema refuses", async () => {

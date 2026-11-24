@@ -27,6 +27,7 @@ import { ContentHeader, ContentTop, NextTopicsList, TopicLinks, TopicNotices } f
 import ContentPage from "@/app/(app)/content/page";
 import ContentArticlesPage from "@/app/(app)/content/articles/page";
 import type { ContentView } from "@/lib/calendar/content";
+import { IMAGE_STYLE_PATH, NO_IMAGE_STYLE_LINE } from "@/lib/media/settings";
 import { articlePath, CONTENT_PATHS, withQuery } from "@/lib/content-paths";
 import LegacyCalendarPage from "@/app/(app)/dashboard/calendar/page";
 import LegacyKeywordsPage from "@/app/(app)/keywords/page";
@@ -40,6 +41,7 @@ const VIEW: ContentView = {
   site: { name: "Acme", host: "acme.test" },
   autopilot: true,
   autopilotRun: { state: "stalled", message: "5 days of the next 14 have no article: no topic was left to schedule.", lastRun: null },
+  imageStyle: { chosen: true, message: null, href: "/settings/automation#images" },
   todayArticle: null,
   week: [],
   nextTopics: [],
@@ -112,6 +114,27 @@ describe("the top line", () => {
     );
     expect(text(working)).toContain("Last run scheduled 1 article.");
     expect(working).not.toContain('role="status"');
+  });
+
+  it("says articles go out without images until the image style is chosen, with the link to choose it", () => {
+    const waiting = renderToStaticMarkup(
+      <ContentHeader
+        view={{
+          autopilot: true,
+          site: { name: "Acme", host: "acme.test" },
+          imageStyle: { chosen: false, message: NO_IMAGE_STYLE_LINE, href: IMAGE_STYLE_PATH },
+        }}
+      />
+    );
+    expect(waiting).toContain('data-testid="image-style-line"');
+    expect(text(waiting)).toContain("Articles go out without images until you choose an image style.");
+    expect(text(waiting)).toContain("Choose a style");
+    expect(waiting).toContain('href="/settings/automation#images"');
+    const chosen = renderToStaticMarkup(
+      <ContentHeader view={{ autopilot: true, site: { name: "Acme", host: "acme.test" }, imageStyle: VIEW.imageStyle }} />
+    );
+    expect(chosen).not.toContain("image-style-line");
+    expect(text(chosen)).not.toContain("without images");
   });
 });
 

@@ -23,9 +23,10 @@ import { saveDailySpendLimit } from "@/lib/limits/settings";
  *      one for the account;
  *   4. one site, unless it has one: gettrafficfa.st itself, public pages the
  *      pipeline can read without anything being invented. Since 2026-11-24
- *      Autopilot, Push page 3, images and video and the weekly visibility
- *      run are on by default for every site; a demo account is not a
- *      customer, so its site is opted out of each (`REVIEWER_SITE_OPT_OUTS`,
+ *      Autopilot, Push page 3, video and the weekly visibility run are on by
+ *      default for every site, and images once an image style is chosen; a
+ *      demo account is not a customer, so its site is opted out of each, its
+ *      image style left unchosen (`REVIEWER_SITE_OPT_OUTS`,
  *      written on every call, merged onto what is stored). No publishing
  *      destination is connected, so nothing can be written to a real site;
  *   5. a set-password email from Supabase to that address. The owner sets
@@ -51,7 +52,8 @@ export const REVIEWER_SITE = {
  */
 export const REVIEWER_SITE_OPT_OUTS = {
   automation_settings: { enabled: false, pushPage3: false },
-  media_settings: { imagesEnabled: false, videosEnabled: false },
+  // Images have no switch: they wait for an image style, which the demo has not chosen.
+  media_settings: { styleChosen: false, styleChosenAt: null, videosEnabled: false },
   aeo_settings: { cadence: "off" },
 } as const;
 

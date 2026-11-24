@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { imageStyleChosen, parseMediaSettings } from "@/lib/media/settings";
 import { parseVoiceSettings } from "@/lib/voice/settings";
 import { MANUAL_SOURCE } from "@/lib/placements/manual";
 import { buildOnboardingStatus, type OnboardingStatus } from "@/lib/onboarding";
@@ -59,6 +60,7 @@ export function onboardingFrom(settings: OnboardingSettings | null | undefined, 
   return buildOnboardingStatus({
     hasBusiness: true,
     aboutYou: parseVoiceSettings(settings?.voice_settings).aboutYou,
+    imageStyleChosen: imageStyleChosen(parseMediaSettings(settings?.media_settings)),
     ...counts,
   });
 }

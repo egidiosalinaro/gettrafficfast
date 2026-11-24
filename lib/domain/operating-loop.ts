@@ -529,6 +529,12 @@ function onboardingAction(step: OnboardingStep): NextAction {
         "One true sentence in Settings, Voice, About you. Replies are written as someone who uses it, and speak only from what is recorded there.",
       cta: "Tell us about you",
     },
+    hasImageStyle: {
+      title: "Choose how your article images look",
+      description:
+        "Articles get a featured image, included in your plan, once you pick a style. Until then they go out without images.",
+      cta: "Choose a style",
+    },
     hasKeywords: {
       title: "Propose keywords for this site",
       description:

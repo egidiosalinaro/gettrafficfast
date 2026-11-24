@@ -14,15 +14,17 @@ import { MediaSettingsForm } from "@/components/settings/media-settings-form";
  * Autopilot.
  *
  * The page says what it does in plain words, because it publishes on the
- * customer's own site. Since 2026-11-24 Autopilot, Push page 3 and images
- * are on by default: the switches are there to turn them off, and the page
- * never asks the person to turn them on. The buffer is presented as what it
+ * customer's own site. Since 2026-11-24 Autopilot and Push page 3 are on by
+ * default: the switches are there to turn them off, and the page never asks
+ * the person to turn them on. Images have no switch: they start once the
+ * image style is chosen in the half below (the Getting started step
+ * "Choose your image style" links there). The buffer is presented as what it
  * really is: how far ahead the calendar is filled, which is also how long
  * they have to cancel an article before it is written.
  *
  * Images & video (`/settings/generation` until 2026-11-14) is the second
- * half of this page, under `#images`: whether every article Autopilot (or a
- * person) has written also gets images is part of the same choice. Its old
+ * half of this page, under `#images`: how the images of every article
+ * Autopilot (or a person) has written look is part of the same choice. Its old
  * path redirects here (lib/legacy-redirects.ts). The two halves save
  * separately, each to its own route and tool (`update_automation_settings`,
  * `update_media_settings`).
@@ -45,8 +47,8 @@ export default function AutomationPage() {
             Images and video
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Whether articles get generated images and a relevant YouTube video when they are written, and how the
-            images look.
+            How the images generated for every article look, how many an article gets, and whether it also gets a
+            relevant YouTube video.
           </p>
         </div>
         <MediaSettingsForm />

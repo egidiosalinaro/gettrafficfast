@@ -55,12 +55,13 @@ describe("get_business", () => {
           contentLanguage: "en",
           isLocked: true,
           automation: { enabled: true, bufferDays: 7, keywordFloor: 10 },
-          // Images stored off (the person's opt-out); videos not stored: on by default since 2026-11-24.
-          media: { imagesEnabled: false, videosEnabled: true },
+          // No images switch any more: a stored imagesEnabled is dropped. Videos not stored: on by default.
+          media: { styleChosen: true, styleChosenAt: "2026-11-01T09:00:00.000Z", videosEnabled: true },
         },
       },
     });
     expect(JSON.stringify(run)).not.toContain("voice_settings");
+    expect(JSON.stringify(run)).not.toContain("imagesEnabled");
   });
 });
 
@@ -94,6 +95,7 @@ describe("get_onboarding_status", () => {
     expect(Object.fromEntries(steps.map((s) => [s.key, s.done]))).toEqual({
       hasBusiness: true,
       hasAboutYou: true,
+      hasImageStyle: true,
       hasKeywords: true,
       hasArticles: true,
       hasIntegration: true,

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseAutomationSettings } from "@/lib/automation/settings";
+import { IMAGE_STYLE_PATH, NO_IMAGE_STYLE_LINE, imageStyleChosen, parseMediaSettings } from "@/lib/media/settings";
 import { describeAutopilotRun, readAutopilotRun, type AutopilotRunView } from "@/lib/automation/run-status";
 import { businessHostname } from "@/lib/domain/business-display";
 import { countOverlapClusters, loadSiteTopics } from "@/lib/keywords/overlap";
@@ -18,7 +19,8 @@ import {
 
 /**
  * Content (`/content`) for one site, as GET /api/content answers it and
- * `get_content` reads it: the Autopilot state, today's article, the week,
+ * `get_content` reads it: the Autopilot state, whether the image style is
+ * chosen (articles go out without images until it is), today's article, the week,
  * the topics Autopilot picks from next, and the counts behind the links to
  * the rest (topics, overlapping topics, questions people ask). The screen
  * shows the Autopilot state and the topics around its calendar, which reads
@@ -47,6 +49,12 @@ export interface ContentView {
    * while Autopilot is off.
    */
   autopilotRun: AutopilotRunView | null;
+  /**
+   * Whether the site's image style is chosen. Until it is, articles go out
+   * without images, and the header says so in `message`, with the link to
+   * choose it (`href`); null message once chosen.
+   */
+  imageStyle: { chosen: boolean; message: string | null; href: string };
   /** The article on today's calendar day; null when the day is empty. */
   todayArticle: ContentArticle | null;
   /** Monday to Sunday of today's week. */
@@ -90,7 +98,7 @@ export async function loadContentView(
   const days = weekDays(today);
 
   const [business, weekRows, pool, topics] = await Promise.all([
-    supabase.from("businesses").select("name, website_url, automation_settings").eq("id", businessId).maybeSingle(),
+    supabase.from("businesses").select("name, website_url, automation_settings, media_settings").eq("id", businessId).maybeSingle(),
     supabase
       .from("articles")
       .select(
@@ -117,6 +125,7 @@ export async function loadContentView(
 
   const site = (business.data ?? {}) as Row;
   const autopilot = parseAutomationSettings(site.automation_settings).enabled;
+  const styleChosen = imageStyleChosen(parseMediaSettings(site.media_settings));
   const autopilotRun = autopilot ? describeAutopilotRun({ enabled: true, run: await readAutopilotRun(supabase, businessId) }) : null;
 
   // While Autopilot is on it adds the questions itself; reading them here
@@ -168,6 +177,7 @@ export async function loadContentView(
       site: { name: str(site.name), host: businessHostname(str(site.website_url)) },
       autopilot,
       autopilotRun,
+      imageStyle: { chosen: styleChosen, message: styleChosen ? null : NO_IMAGE_STYLE_LINE, href: IMAGE_STYLE_PATH },
       todayArticle: week.find((d) => d.isToday)?.article ?? null,
       week,
       nextTopics: next.topics,

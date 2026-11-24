@@ -43,7 +43,7 @@ function seed() {
         niche: "SEO tools",
         voice_settings: { aboutYou: "I run Acme." },
         automation_settings: { enabled: true },
-        media_settings: {},
+        media_settings: { styleChosen: true, styleChosenAt: "2026-11-01T09:00:00.000Z" },
       },
     ],
     articles: [

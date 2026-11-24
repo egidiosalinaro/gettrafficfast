@@ -17,6 +17,7 @@ function facts(over: Partial<OperatingFacts> = {}): OperatingFacts {
 const ready = buildOnboardingStatus({
   hasBusiness: true,
   aboutYou: "I use it to write our weekly posts.",
+  imageStyleChosen: true,
   keywordCount: 8,
   articleCount: 4,
   integrationCount: 1,
@@ -28,6 +29,7 @@ describe("pickNextAction", () => {
     const status = buildOnboardingStatus({
       hasBusiness: true,
       aboutYou: "I use it to write our weekly posts.",
+      imageStyleChosen: true,
       keywordCount: 0,
       articleCount: 0,
       integrationCount: 0,
@@ -49,6 +51,7 @@ describe("pickNextAction", () => {
     const status = buildOnboardingStatus({
       hasBusiness: true,
       aboutYou: "I use it to write our weekly posts.",
+      imageStyleChosen: true,
       keywordCount: 4,
       articleCount: 1,
       integrationCount: 1,
@@ -66,6 +69,7 @@ describe("pickNextAction", () => {
     const status = buildOnboardingStatus({
       hasBusiness: true,
       aboutYou: "",
+      imageStyleChosen: true,
       keywordCount: 0,
       articleCount: 0,
       integrationCount: 0,
@@ -76,10 +80,26 @@ describe("pickNextAction", () => {
     expect(action?.title).toBeTruthy();
   });
 
+  it("asks for the image style with its own copy and the link to the images settings", () => {
+    const status = buildOnboardingStatus({
+      hasBusiness: true,
+      aboutYou: "I use it for our blog.",
+      imageStyleChosen: false,
+      keywordCount: 3,
+      articleCount: 1,
+      integrationCount: 1,
+      manualPostCount: 1,
+    });
+    const action = pickNextAction(status, facts());
+    expect(action).toMatchObject({ kind: "onboarding", id: "hasImageStyle", href: "/settings/automation#images", cta: "Choose a style" });
+    expect(action?.description).toMatch(/without images/);
+  });
+
   it("asks for the first post from X with its own copy", () => {
     const status = buildOnboardingStatus({
       hasBusiness: true,
       aboutYou: "I use it for our blog.",
+      imageStyleChosen: true,
       keywordCount: 3,
       articleCount: 1,
       integrationCount: 1,
@@ -209,6 +229,7 @@ describe("describeOperatingLoop", () => {
       buildOnboardingStatus({
         hasBusiness: true,
         aboutYou: "I use it to write our weekly posts.",
+        imageStyleChosen: true,
         keywordCount: 5,
         articleCount: 2,
         integrationCount: 0,

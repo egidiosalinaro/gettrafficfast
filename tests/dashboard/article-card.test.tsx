@@ -165,6 +165,54 @@ describe("ArticleModal", () => {
   });
 });
 
+describe("ArticleModal: written without images", () => {
+  const withNotes = (skipped: unknown[]): Article => ({
+    ...published,
+    canonical: {
+      schemaVersion: 1,
+      articleId: "a-1",
+      title: "Best trail shoes",
+      bodyHtml: "<p>Body</p>",
+      headings: [],
+      excerpt: "Body",
+      metaDescription: "Body",
+      wordCount: 1,
+      slug: "best-trail-shoes",
+      keyword: "best trail shoes",
+      language: "en",
+      scheduledDate: null,
+      media: { hero: null, images: [], videos: [], skipped },
+    } as unknown as Article["canonical"],
+  });
+
+  it("says no image style was chosen yet, with the link to choose one", () => {
+    const html = renderToStaticMarkup(
+      <ArticleModal
+        article={withNotes([{ media: "images", reason: "no_style", count: 1, message: "No images: no image style chosen yet." }])}
+        hasIntegration={false}
+        onClose={() => {}}
+      />
+    );
+    expect(html).toContain('data-testid="article-no-image-style"');
+    expect(html.replace(/<[^>]+>/g, "")).toContain("Written without images: no image style chosen yet.");
+    expect(html).toContain('href="/settings/automation#images"');
+  });
+
+  it("says nothing of the kind for an article that was not held back for its style", () => {
+    const other = renderToStaticMarkup(
+      <ArticleModal
+        article={withNotes([{ media: "images", reason: "paused", count: 1, message: "On hold." }])}
+        hasIntegration={false}
+        onClose={() => {}}
+      />
+    );
+    expect(other).not.toContain("article-no-image-style");
+    expect(renderToStaticMarkup(<ArticleModal article={published} hasIntegration={false} onClose={() => {}} />)).not.toContain(
+      "article-no-image-style"
+    );
+  });
+});
+
 describe("articleStatusLabel", () => {
   it("never shows a raw status", () => {
     expect(articleStatusLabel("needs_review")).toBe("Needs review");

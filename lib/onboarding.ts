@@ -1,3 +1,5 @@
+import { IMAGE_STYLE_PATH } from "@/lib/media/settings";
+
 /**
  * Getting started checklist.
  *
@@ -6,14 +8,18 @@
  * someone who uses the product, and with nothing recorded there the drafter
  * refuses to write (lib/placements/workflow.ts, draftPrerequisite). The first
  * post from X is the placements loop's first step, done by a person.
- * Autopilot and article images were the last two steps until 2026-11-24;
- * both are on by default since (docs/AUTOPILOT.md), so there is nothing to
- * turn on and they are not steps any more.
+ * Autopilot and "Turn on article images" were the last two steps until
+ * 2026-11-24; both are on by default since (docs/AUTOPILOT.md), so there is
+ * nothing to turn on. What images still need from the person is their look:
+ * until the image style is chosen (`media_settings.styleChosen`), articles
+ * go out without images, so "Choose your image style" comes right after
+ * About you, before the first article can be written.
  */
 
 export type OnboardingStatus = {
   hasBusiness: boolean;
   hasAboutYou: boolean;
+  hasImageStyle: boolean;
   hasKeywords: boolean;
   hasArticles: boolean;
   hasIntegration: boolean;
@@ -23,6 +29,7 @@ export type OnboardingStatus = {
 export const EMPTY_ONBOARDING_STATUS: OnboardingStatus = {
   hasBusiness: false,
   hasAboutYou: false,
+  hasImageStyle: false,
   hasKeywords: false,
   hasArticles: false,
   hasIntegration: false,
@@ -33,6 +40,8 @@ export function buildOnboardingStatus(input: {
   hasBusiness: boolean;
   /** `parseVoiceSettings(business.voice_settings).aboutYou`. */
   aboutYou: string;
+  /** `imageStyleChosen(parseMediaSettings(business.media_settings))`. */
+  imageStyleChosen: boolean;
   keywordCount: number;
   articleCount: number;
   integrationCount: number;
@@ -43,6 +52,7 @@ export function buildOnboardingStatus(input: {
   return {
     hasBusiness: true,
     hasAboutYou: input.aboutYou.trim().length > 0,
+    hasImageStyle: input.imageStyleChosen,
     hasKeywords: input.keywordCount > 0,
     hasArticles: input.articleCount > 0,
     hasIntegration: input.integrationCount > 0,
@@ -69,6 +79,12 @@ export const ONBOARDING_STEPS = [
     label: "Tell us about you",
     description: "One true sentence on how you use your product. Replies speak only from it.",
     href: "/settings/voice",
+  },
+  {
+    key: "hasImageStyle" as const,
+    label: "Choose your image style",
+    description: "Articles get a featured image once you pick a style. Until then they go out without images.",
+    href: IMAGE_STYLE_PATH,
   },
   {
     key: "hasKeywords" as const,

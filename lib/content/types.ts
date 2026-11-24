@@ -48,10 +48,11 @@ export interface CanonicalMediaSkip {
   media: "images" | "videos";
   /**
    * Why: the account cannot pay, held by the pause that started, no provider
-   * set up, the provider failed, or the scene could not be made concrete.
+   * set up, the provider failed, the scene could not be made concrete, or
+   * the person has not chosen an image style yet (no_style).
    * The same codes as `MediaSkipReason` (lib/media/skips.ts).
    */
-  reason: "billing" | "paused" | "not_configured" | "provider_error" | "brief_rejected";
+  reason: "billing" | "paused" | "not_configured" | "provider_error" | "brief_rejected" | "no_style";
   count: number;
   /** A sentence for the owner. */
   message: string;

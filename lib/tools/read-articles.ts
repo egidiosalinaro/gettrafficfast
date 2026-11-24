@@ -2,6 +2,7 @@ import { z } from "zod";
 import { listCalendarItems, loadArticle } from "@/lib/calendar/read";
 import { exportArticle } from "@/lib/content/export";
 import { ARTICLE_STATES } from "@/lib/domain/lifecycle";
+import { readSkipNotes } from "@/lib/media/skips";
 import { listDeliveries, MAX_DELIVERIES } from "@/lib/integrations/deliveries";
 import { defineTool, ToolError } from "./tool";
 
@@ -81,7 +82,7 @@ export const getArticle = defineTool({
   name: "get_article",
   title: "Get an article",
   description:
-    "One article with its quality report. format canonical (default) answers the structured Canonical Article the publishers receive (title, bodyHtml, headings, excerpt, metaDescription, slug, media); html and markdown answer the article as Copy HTML and Copy Markdown give it (title, hero image, body) in body. canonical is null for an article not written yet, or written before the canonical pipeline (ask for html then).",
+    "One article with its quality report and the media it was written without (mediaSkipped: e.g. no image style chosen yet). format canonical (default) answers the structured Canonical Article the publishers receive (title, bodyHtml, headings, excerpt, metaDescription, slug, media); html and markdown answer the article as Copy HTML and Copy Markdown give it (title, hero image, body) in body. canonical is null for an article not written yet, or written before the canonical pipeline (ask for html then).",
   input: z.object({
     articleId: ArticleId,
     format: z.enum(ARTICLE_FORMATS).default("canonical"),
@@ -95,6 +96,20 @@ export const getArticle = defineTool({
       .describe("format canonical: the Canonical Article. Null for the other formats."),
     body: z.string().nullable().describe("format html or markdown: the whole article. Null for canonical, and when nothing is written yet."),
     qualityReport: QualityReportView.nullable(),
+    mediaSkipped: z
+      .array(
+        z.object({
+          media: z.enum(["images", "videos"]),
+          reason: z
+            .string()
+            .describe(
+              "no_style: no image style chosen yet, so the article was written without images (update_media_settings with a style chooses it; regenerate the article to add them); billing, paused, not_configured, provider_error: the platform's side; brief_rejected: no concrete scene for an image."
+            ),
+          count: z.number(),
+          message: z.string().describe("The sentence the owner reads."),
+        })
+      )
+      .describe("Images or videos the article was meant to get and did not, and why, in any format; empty when nothing was left out."),
   }),
   scope: "read",
   paid: false,
@@ -110,6 +125,7 @@ export const getArticle = defineTool({
       canonical: input.format === "canonical" ? ((canonical as unknown as Record<string, unknown>) ?? null) : null,
       body,
       qualityReport: (qualityReport as unknown as z.input<typeof QualityReportView>) ?? null,
+      mediaSkipped: readSkipNotes(canonical),
     };
   },
 });
