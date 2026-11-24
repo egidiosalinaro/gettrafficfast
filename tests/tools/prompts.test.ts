@@ -74,6 +74,8 @@ describe("prompts/get", () => {
     const text = textOf(await client.getPrompt({ name: "daily_routine", arguments: { timeZone: "Europe/Berlin" } }));
     expect(text).toContain('get_today with timeZone "Europe/Berlin"');
     expect(text).toContain('list_reply_inbox with status "open"');
+    // The screen's order, so the person and Claude are on the same reply (2026-11-24).
+    expect(text).toMatch(/exactly the order list_reply_inbox returns them[\s\S]*Never reorder them by score/);
     expect(text).toMatch(/get_reply_intent_url[\s\S]*post it myself[\s\S]*mark_reply_posted/);
     expect(text).toMatch(/correct_reply_draft with the draftId and that reason/);
     expect(text).toContain("dismiss_reply_target");
