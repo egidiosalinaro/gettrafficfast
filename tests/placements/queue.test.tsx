@@ -324,10 +324,11 @@ describe("the open item, a draft ready", () => {
 
   it("replies where the thread is: X opens its composer, another site is named, a bare page is copy and open", () => {
     expect(replyLabel("x")).toBe("Reply on X");
-    expect(replyLabel("reddit")).toBe("Reply on Reddit");
-    expect(replyLabel("linkedin")).toBe("Reply on LinkedIn");
+    expect(replyLabel("reddit")).toBe("Copy & reply on Reddit");
+    expect(replyLabel("linkedin")).toBe("Copy & reply on LinkedIn");
+    expect(replyLabel("quora")).toBe("Copy & reply on Quora");
     expect(replyLabel("web")).toBe("Copy & open");
-    expect(primaries(item(reddit()))).toEqual(["Reply on Reddit"]);
+    expect(primaries(item(reddit()))).toEqual(["Copy &amp; reply on Reddit"]);
   });
 });
 

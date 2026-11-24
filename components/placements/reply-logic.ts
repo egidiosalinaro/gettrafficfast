@@ -204,9 +204,16 @@ export async function replyThenOpen(io: {
   return "opened";
 }
 
-/** The primary button of a draft: where the reply goes. X opens its own composer; anywhere else the text is copied and the post opened. */
+/**
+ * The primary button of a draft: where the reply goes. X opens its own
+ * composer with the reply typed in; anywhere else the text is copied and the
+ * post opened, and the label says so (2026-11-24): no other site takes a
+ * reply in its link, so the person pastes it there.
+ */
 export function replyLabel(surface: string): string {
-  return surface === "web" ? "Copy & open" : `Reply on ${surfaceLabel(surface)}`;
+  if (surface === "web") return "Copy & open";
+  if (surface === "x") return "Reply on X";
+  return `Copy & reply on ${surfaceLabel(surface)}`;
 }
 
 /** What saving a draft answers: the draft as stored and re-checked, or the server's sentence. */
