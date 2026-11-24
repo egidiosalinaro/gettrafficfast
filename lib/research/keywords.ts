@@ -44,6 +44,34 @@ export interface SuggestionContext {
   businessName?: string;
   /** Products and platforms the site's data names: the only ones a keyword may name. */
   names?: readonly string[];
+  /**
+   * Topics the site already has (its keywords and published titles). The
+   * top-up refuses any suggestion that overlaps one of them
+   * (`freshSuggestions`), so a site with a long history got suggestions that
+   * were all refused, day after day, from a call that was paid for. Listing
+   * them asks for new ground in the same single call; code still checks.
+   */
+  avoid?: readonly string[];
+}
+
+/** How many existing topics the suggestion prompt lists at most: keeps the prompt bounded. */
+export const AVOID_TOPICS_MAX = 80;
+
+/** The "already covered" block of the suggestion prompt; empty when there is nothing to avoid. */
+export function avoidBlock(context: SuggestionContext = {}): string {
+  const seen = new Set<string>();
+  const topics: string[] = [];
+  for (const raw of context.avoid ?? []) {
+    const topic = raw.trim();
+    const key = topic.toLowerCase();
+    if (!topic || seen.has(key)) continue;
+    seen.add(key);
+    topics.push(topic);
+    if (topics.length >= AVOID_TOPICS_MAX) break;
+  }
+  if (topics.length === 0) return "";
+  return `This site already covers the topics below. Suggest only NEW topics: none that repeats one of them, rephrases it or adds a word or two to it.
+${topics.map((t) => `- ${t}`).join("\n")}`;
 }
 
 /**
@@ -91,7 +119,7 @@ ${context}
 Cover: core products and services, how the target audience actually searches, industry terms, long-tail variations, related topics, and local intent where it applies. Mix short-tail and long-tail, and mix informational, commercial and transactional intent.
 
 ${intentMixBlock(named)}
-
+${avoidBlock(named) ? `\n${avoidBlock(named)}\n` : ""}
 ${FIELD_GUIDE}
 
 Write every keyword in ${language}, regardless of the language of the business information.`;

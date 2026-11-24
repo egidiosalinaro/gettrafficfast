@@ -87,7 +87,9 @@ describe("the Autopilot sweep and the mix of searches", () => {
     state.db = seed();
     await call();
     expect(state.calls).toHaveLength(1);
-    expect(state.calls[0][4]).toEqual({ businessName: "Acme", names: ["WordPress", "Jasper"] });
+    expect(state.calls[0][4]).toMatchObject({ businessName: "Acme", names: ["WordPress", "Jasper"] });
+    // And what the site already covers, so the one paid call proposes new ground.
+    expect((state.calls[0][4] as { avoid: string[] }).avoid).toContain("best ai writing tools");
   });
 
   it("buys no comparison of a product the data never named, and says so", async () => {

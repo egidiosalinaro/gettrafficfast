@@ -77,6 +77,27 @@ describe("the top line", () => {
     const off = renderToStaticMarkup(<ContentHeader view={{ autopilot: false, site: { name: "Acme", host: "acme.test" } }} />);
     expect(text(off)).toBe("Content Autopilot off");
   });
+
+  it("says what the last run did, and why it left days empty when it did", () => {
+    const stalled = renderToStaticMarkup(
+      <ContentHeader
+        view={{
+          autopilot: true,
+          site: { name: "Acme", host: "acme.test" },
+          autopilotRun: { state: "stalled", message: "5 days of the next 14 have no article: no topic was left to schedule.", lastRun: null },
+        }}
+      />
+    );
+    expect(text(stalled)).toContain("Autopilot: 5 days of the next 14 have no article: no topic was left to schedule.");
+    expect(stalled).toContain('role="status"');
+    const working = renderToStaticMarkup(
+      <ContentHeader
+        view={{ autopilot: true, site: { name: "Acme", host: "acme.test" }, autopilotRun: { state: "working", message: "Last run scheduled 1 article.", lastRun: null } }}
+      />
+    );
+    expect(text(working)).toContain("Last run scheduled 1 article.");
+    expect(working).not.toContain('role="status"');
+  });
 });
 
 describe("today's article", () => {

@@ -3,6 +3,7 @@ import { loadContentView, NEXT_TOPICS_MAX, NEXT_TOPICS_SHOWN } from "@/lib/calen
 import { CONTENT_STATUSES, WEEKDAYS } from "@/lib/calendar/content-plan";
 import { INTENT_DESCRIPTION, TOPIC_INTENTS } from "@/lib/keywords/intent";
 import { TOPIC_SOURCES } from "@/lib/keywords/source";
+import { AUTOPILOT_REASON_CODES } from "@/lib/automation/run-status";
 import { defineTool } from "./tool";
 
 /**
@@ -38,7 +39,7 @@ export const getContent = defineTool({
   name: "get_content",
   title: "Get Content",
   description:
-    "The Content screen: whether Autopilot is on, today's article (title, status in words, why it waits when it does), this week Monday to Sunday (one row a day, null when the day is empty), the next topics Autopilot picks from, in its order (a week at a time, what the week lacks of the mix of comparison, platform how-to and problem pieces first, then by score), with where each came from (autopilot, question asked in a public thread, added by hand, or not recorded for topics older than 2026-11-14) and the kind of search it answers, and the counts behind the screen's links: topics, topics held back for overlapping, groups of overlapping topics, questions people ask not yet added (null while Autopilot adds them on its own), all articles. Days are UTC. Reads the site's own rows: no model is asked.",
+    "The Content screen: whether Autopilot is on and what its last run did for this site (and, when it left days empty or skipped the site, why, in words), today's article (title, status in words, why it waits when it does), this week Monday to Sunday (one row a day, null when the day is empty), the next topics Autopilot picks from, in its order (a week at a time, what the week lacks of the mix of comparison, platform how-to and problem pieces first, then by score), with where each came from (autopilot, question asked in a public thread, added by hand, or not recorded for topics older than 2026-11-14) and the kind of search it answers, and the counts behind the screen's links: topics, topics held back for overlapping, groups of overlapping topics, questions people ask not yet added (null while Autopilot adds them on its own), all articles. Days are UTC. Reads the site's own rows: no model is asked.",
   input: z.object({
     topics: z
       .number()
@@ -52,6 +53,32 @@ export const getContent = defineTool({
     today: z.string().describe("The UTC day the answer was built for."),
     site: z.object({ name: z.string().nullable(), host: z.string().nullable() }),
     autopilot: z.boolean().describe("Autopilot on: it schedules a topic a day and adds questions people ask (3 a day at most) on its own."),
+    autopilotRun: z
+      .object({
+        state: z
+          .enum(["not_run_yet", "working", "stalled", "skipped"])
+          .describe(
+            "not_run_yet: on, but the daily run (06:00 UTC) has not reached this site since it was turned on; working: the last run did what the calendar needed; stalled: it did less, see message and reasons; skipped: the site was skipped whole (no active plan)."
+          ),
+        message: z.string().describe("The state in one sentence, as the Content screen says it."),
+        lastRun: z
+          .object({
+            at: z.string().describe("When the last run finished for this site (ISO, UTC)."),
+            scheduled: z.number().describe("Articles it put on the calendar."),
+            topicsAdded: z.number().describe("Topics its top-up bought."),
+            questionsAdded: z.number().describe("Questions people ask it added to the pool."),
+            emptyDays: z.number().nullable().describe("Days from tomorrow to bufferDays ahead still without an article after the run; null when the run did not get that far."),
+            bufferDays: z.number(),
+            reasons: z
+              .array(z.object({ code: z.enum(AUTOPILOT_REASON_CODES), message: z.string() }))
+              .describe(
+                "Why it did less than the calendar needed; empty when it did not. no_plan: no active plan, the site was skipped; ai_limit / ai_paused: new topics wait, scheduling went on; pool_overlaps: topics not scheduled because each overlaps one already covered; no_new_topics: the top-up found nothing new; days_empty: no topic left for the empty days; failed: the run stopped with an error and is tried again next run. add_keywords adds topics; schedule_keywords schedules one by hand."
+              ),
+          })
+          .nullable(),
+      })
+      .nullable()
+      .describe("Null while Autopilot is off for this site. Every site of an account has its own Autopilot setting."),
     todayArticle: ContentArticleView.nullable().describe("Null: nothing is on the calendar today."),
     week: z.array(
       z.object({

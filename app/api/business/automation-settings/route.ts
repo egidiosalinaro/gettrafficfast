@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { AutomationSettings, parseAutomationSettings } from "@/lib/automation/settings";
 import { saveAutomationSettings } from "@/lib/business/save-settings";
+import { describeAutopilotRun, readAutopilotRun } from "@/lib/automation/run-status";
 import { NO_BUSINESS_RESPONSE, selectedBusinessId } from "@/lib/tenancy";
 
 export async function GET() {
@@ -19,6 +20,8 @@ export async function GET() {
     return NextResponse.json({
       hasBusiness: false,
       settings: parseAutomationSettings(null),
+      siteName: null,
+      autopilotRun: null,
       availableKeywords: 0,
       scheduledArticles: 0,
     });
@@ -26,7 +29,7 @@ export async function GET() {
 
   const { data: business } = await supabase
     .from("businesses")
-    .select("id, automation_settings")
+    .select("id, name, automation_settings")
     .eq("id", businessId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -47,9 +50,19 @@ export async function GET() {
     .eq("business_id", businessId)
     .gte("scheduled_date", new Date().toISOString().slice(0, 10));
 
+  // Which site this page sets, by name: an account with several sites has
+  // one Autopilot setting per site. And what its last run did, and why it
+  // did less when it did (lib/automation/run-status.ts).
+  const settings = parseAutomationSettings(business?.automation_settings);
+  const autopilotRun = business
+    ? describeAutopilotRun({ enabled: settings.enabled, run: await readAutopilotRun(supabase, businessId) })
+    : null;
+
   return NextResponse.json({
     hasBusiness: Boolean(business),
-    settings: parseAutomationSettings(business?.automation_settings),
+    settings,
+    siteName: (business?.name as string | null | undefined) ?? null,
+    autopilotRun,
     availableKeywords: availableKeywords ?? 0,
     scheduledArticles: scheduledArticles ?? 0,
   });

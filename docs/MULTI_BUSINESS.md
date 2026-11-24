@@ -286,6 +286,17 @@ should mark the excess businesses `suspended` and let the customer choose
 which ones stay active. Deleting the newest by default destroys work the
 customer paid for, on an action they may have taken by accident.
 
+## Autopilot on every site (2026-11-24)
+
+Autopilot is a setting of each site (`businesses.automation_settings`), not
+of the account: Settings → Autopilot names the site it sets. The daily sweep
+works on every site with it on, oldest first, and asks whether the owner
+pays once per owner, so every site of a paying account is swept alike;
+nothing in the plan limits Autopilot to one site. Each run stores what it did
+for the site and why it did less when it did (`businesses.autopilot_run`,
+docs/AUTOPILOT.md "Every site, and every run says what it did"), and the
+site's Content screen and `get_content` say it.
+
 ## What this changes for Search Console
 
 Nothing about *which Google account* — that is already free (see below) — but

@@ -5,6 +5,7 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { AutomationSettings, DEFAULT_AUTOMATION_SETTINGS } from "@/lib/automation/settings";
+import type { AutopilotRunView } from "@/lib/automation/run-status";
 import { refreshOnboarding } from "@/lib/onboarding";
 import { pluralize } from "@/lib/utils";
 import { MediaSettingsForm } from "@/components/settings/media-settings-form";
@@ -56,6 +57,8 @@ function AutopilotSettings() {
   const [settings, setSettings] = useState<AutomationSettings>(DEFAULT_AUTOMATION_SETTINGS);
   const [availableKeywords, setAvailableKeywords] = useState(0);
   const [scheduledArticles, setScheduledArticles] = useState(0);
+  const [siteName, setSiteName] = useState<string | null>(null);
+  const [run, setRun] = useState<AutopilotRunView | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -70,6 +73,8 @@ function AutopilotSettings() {
         setSettings(data.settings);
         setAvailableKeywords(data.availableKeywords ?? 0);
         setScheduledArticles(data.scheduledArticles ?? 0);
+        setSiteName(data.siteName ?? null);
+        setRun(data.autopilotRun ?? null);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not load settings");
       } finally {
@@ -131,8 +136,31 @@ function AutopilotSettings() {
         <p className="mt-1 text-sm text-muted-foreground">
           Keeps the calendar filled so publishing never stops while you are away,
           and tops up your keywords before they run out.
+          {siteName ? ` For ${siteName} only: each of your sites has its own Autopilot setting.` : ""}
         </p>
       </div>
+
+      {run && (
+        <div
+          role="status"
+          className={
+            run.state === "stalled" || run.state === "skipped"
+              ? "rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-100"
+              : "rounded-md border border-foreground/10 p-3 text-sm text-muted-foreground"
+          }
+        >
+          <p>{run.message}</p>
+          {run.lastRun && run.lastRun.reasons.length > 1 && (
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              {run.lastRun.reasons
+                .filter((reason) => reason.message !== run.message)
+                .map((reason) => (
+                  <li key={reason.code}>{reason.message}</li>
+                ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">

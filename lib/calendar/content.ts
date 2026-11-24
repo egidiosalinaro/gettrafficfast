@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseAutomationSettings } from "@/lib/automation/settings";
+import { describeAutopilotRun, readAutopilotRun, type AutopilotRunView } from "@/lib/automation/run-status";
 import { businessHostname } from "@/lib/domain/business-display";
 import { countOverlapClusters, loadSiteTopics } from "@/lib/keywords/overlap";
 import { loadQuestionIdeas } from "@/lib/keywords/read";
@@ -37,6 +38,12 @@ export interface ContentView {
   today: string;
   site: { name: string | null; host: string | null };
   autopilot: boolean;
+  /**
+   * What Autopilot's last run did for this site, and why it did less than
+   * the calendar needed when it did (lib/automation/run-status.ts). Null
+   * while Autopilot is off.
+   */
+  autopilotRun: AutopilotRunView | null;
   /** The article on today's calendar day; null when the day is empty. */
   todayArticle: ContentArticle | null;
   /** Monday to Sunday of today's week. */
@@ -107,6 +114,7 @@ export async function loadContentView(
 
   const site = (business.data ?? {}) as Row;
   const autopilot = parseAutomationSettings(site.automation_settings).enabled;
+  const autopilotRun = autopilot ? describeAutopilotRun({ enabled: true, run: await readAutopilotRun(supabase, businessId) }) : null;
 
   // While Autopilot is on it adds the questions itself; reading them here
   // would only say how many it has not reached yet.
@@ -156,6 +164,7 @@ export async function loadContentView(
       today,
       site: { name: str(site.name), host: businessHostname(str(site.website_url)) },
       autopilot,
+      autopilotRun,
       todayArticle: week.find((d) => d.isToday)?.article ?? null,
       week,
       nextTopics: next.topics,

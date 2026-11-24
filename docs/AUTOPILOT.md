@@ -15,12 +15,14 @@ keyword pool before it runs dry.
 lib/automation/settings.ts       per-business preferences (off by default)
 lib/automation/autopilot.ts      the planning, pure and tested
 lib/automation/questions.ts      questions people ask into the pool, free
+lib/automation/run-status.ts     what the last run did for a site, and why, in words
 app/api/cron/autopilot/          the daily sweep
 app/api/business/automation-settings/   read and write the settings
 app/(app)/settings/automation/   the customer-facing page (Settings → Autopilot)
 ```
 
-Migration: `supabase/migrations/20260828120000_automation_settings.sql`.
+Migrations: `supabase/migrations/20260828120000_automation_settings.sql`;
+`20261124100000_businesses_autopilot_run.sql` (the run record, below).
 
 Since 2026-11-14 Settings → Autopilot has two halves: "Topics and schedule"
 (these settings) and, under `#images`, "Images and video" (the media
@@ -99,6 +101,54 @@ already on the calendar when generation looks for it.
   publishes without asking each time), not what it costs.
   The Getting started checklist lists it, and the images step immediately
   after it, so Autopilot is not left producing bare text.
+
+## Every site, and every run says what it did (2026-11-24)
+
+An owner with two sites, both with Autopilot on, saw the newer one fill
+every day and the older one stay empty for weeks, while its Content screen
+read "Autopilot on". Nothing in the product said why. What the sweep had
+for that site went into its own JSON `notes`, which no customer reads.
+
+Three changes, all in the same sweep:
+
+- **Every site, oldest first.** The sweep reads the businesses ordered by
+  `created_at` and keeps the ones with Autopilot on; the cap of 50 counts
+  those, not rows, and a run that leaves sites for later says how many in
+  `notes`. Before, a bare `limit(50)` over an unordered read could leave a
+  site out of every run without a word. The paid check is still once per
+  owner (`spendingOwners`), so two sites of one account get the same answer.
+- **The run record.** At the end of every run for a site with Autopilot on,
+  the sweep stores `businesses.autopilot_run`: when, how many articles it
+  scheduled, topics it bought, questions it added, the days of the buffer
+  still empty after it, and the reasons it did less than the calendar
+  needed, each as a code and a sentence (`lib/automation/run-status.ts`):
+
+  | code | when |
+  |---|---|
+  | `no_plan` | the account has no active plan: the site was skipped whole |
+  | `ai_limit` | today's AI limit reached: new topics wait, scheduling went on |
+  | `ai_paused` | AI work paused for billing: the same |
+  | `pool_overlaps` | days stay empty and topics in the pool were held back, each overlapping one already covered |
+  | `no_new_topics` | the top-up was paid for and every suggestion overlapped a topic the site has |
+  | `days_empty` | days stay empty and no schedulable topic is left |
+  | `failed` | the run stopped with an error for this site; tried again next run |
+
+  A run with no reason did what the calendar needed. A site with Autopilot
+  off gets no record. The write is the service role's; a failed write is a
+  note, never a failed run. The Content screen's top line, `get_content`
+  (`autopilotRun`) and Settings → Autopilot say it: "not run yet" (with the
+  06:00 UTC time), what the last run did, or, in amber, the reason that
+  explains the empty days first. The readers read the column on its own, so
+  a database without the migration reads as "no run recorded" rather than
+  breaking the screen. Settings → Autopilot also names the site it sets:
+  each site has its own setting.
+- **The top-up is told what the site covers.** A site with a long history
+  (dozens of published articles) got suggestions on its own ground, every one
+  refused by `freshSuggestions`, from a call that was paid for, every day.
+  The one suggestion call now lists the site's published titles and keywords
+  (`avoid`, at most `AVOID_TOPICS_MAX` = 80, `lib/research/keywords.ts`) and
+  asks for new ground. Still one call per site per run; code still checks
+  every suggestion, and when none survives the run says `no_new_topics`.
 
 ## Questions people ask, on their own (2026-11-14)
 
@@ -244,7 +294,19 @@ order kept for a pool with no intents, and `chooseForPool`;
 pins that `pushPage3` defaults to off and needs spend and confirm to turn
 on. `tests/cron/autopilot-intent.test.ts` that the sweep asks once with the
 site's names, buys no comparison of a product the data never named, stores
-intents and no volume for the new kinds, and classifies old rows.
+intents and no volume for the new kinds, and classifies old rows, and
+that the call lists what the site already covers.
+`tests/cron/autopilot-all-sites.test.ts` pins two sites on one account: both
+swept, oldest first; the older one, whose pool all overlaps what it
+published and whose top-up finds nothing new, stores why
+(`no_new_topics`, `pool_overlaps`, `days_empty`) instead of saying nothing,
+and fills once the top-up finds new topics; a site of an account with no
+plan stores `no_plan`; a site with Autopilot off gets no record; a covered
+calendar has no reason. `tests/automation/run-status.test.ts` pins the
+words and the order of the reasons, `tests/research/keywords-avoid.test.ts`
+the bounded list, `tests/tools/read-content.test.ts` and
+`tests/dashboard/content-screen.test.tsx` what `get_content` and the screen
+say.
 
 ## Back-links are not Autopilot
 

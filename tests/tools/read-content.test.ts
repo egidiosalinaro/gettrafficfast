@@ -93,6 +93,39 @@ describe("get_content", () => {
     expect(run.output).toMatchObject({ autopilot: false, questionsWaiting: 1 });
   });
 
+  it("says Autopilot has not run yet for a site with no run recorded, and nothing while it is off", async () => {
+    const run = await call();
+    if (!run.ok) throw new Error(JSON.stringify(run));
+    expect(run.output.autopilotRun).toMatchObject({ state: "not_run_yet", lastRun: null });
+    expect((run.output.autopilotRun as { message: string }).message).toContain("06:00 UTC");
+    db.tables.businesses.find((b) => b.id === SITE_A)!.automation_settings = { enabled: false };
+    const off = await call();
+    expect(off.ok && off.output.autopilotRun).toBeNull();
+  });
+
+  it("says why the last run left days empty, in words and with the reasons", async () => {
+    db.tables.businesses.find((b) => b.id === SITE_A)!.autopilot_run = {
+      at: "2026-11-12T06:00:00.000Z",
+      scheduled: 0,
+      topicsAdded: 0,
+      questionsAdded: 0,
+      emptyDays: 14,
+      bufferDays: 14,
+      reasons: [
+        { code: "pool_overlaps", message: "3 topics in the pool were not scheduled: each overlaps a topic already published or on the calendar." },
+        { code: "no_new_topics", message: "The top-up looked for 10 new topics and found none." },
+        { code: "days_empty", message: "14 days of the next 14 have no article: no topic was left to schedule." },
+      ],
+    };
+    const run = await call();
+    if (!run.ok) throw new Error(JSON.stringify(run));
+    expect(run.output.autopilotRun).toMatchObject({
+      state: "stalled",
+      message: "14 days of the next 14 have no article: no topic was left to schedule.",
+      lastRun: { emptyDays: 14, reasons: [{ code: "pool_overlaps" }, { code: "no_new_topics" }, { code: "days_empty" }] },
+    });
+  });
+
   it("an empty day today is null, never an invented article", async () => {
     db.tables.articles = db.tables.articles.filter((a) => a.id !== ART_A2);
     const run = await call();

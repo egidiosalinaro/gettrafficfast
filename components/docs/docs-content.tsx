@@ -247,6 +247,9 @@ export function DocsContent({ engines, toolGroups, limits }: DocsContentProps) {
             the calendar filled ahead (14 days unless you choose another number) and adds topics when fewer than 10
             are left. That buffer is your review window: an article sits on the calendar for those days before it is
             written, so you can remove it first. With Autopilot on, GTF writes and publishes without asking each time.
+            Each of your sites has its own Autopilot setting. After every daily run, Content says what it did for the
+            site and, when it left days empty, why: topics that all overlap articles you already have, no new topic
+            found, today&apos;s limit for AI work, or no active plan.
           </li>
           <li>
             <Strong>Images.</Strong> Off until you turn them on, in <Place>Settings → Autopilot</Place>, under Images

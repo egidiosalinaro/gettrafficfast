@@ -18,6 +18,8 @@ import { generateKeywordsFromBusiness } from "@/lib/research/keywords";
 import { isCronAuthorized } from "@/lib/cron-auth";
 import { recordLlmBillingRefusal, skipWhileLlmPaused } from "@/lib/llm-billing";
 import { isSpendSkip, logOwnerSkip, spendingOwners } from "@/lib/limits/owners";
+import { autopilotReason, countEmptyDays, type AutopilotRunRecord } from "@/lib/automation/run-status";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * Autopilot.
@@ -54,6 +56,17 @@ import { isSpendSkip, logOwnerSkip, spendingOwners } from "@/lib/limits/owners";
  * topic the site has (lib/keywords/duplicates.ts): two articles on one topic
  * compete with each other. What it left out is in `notes`.
  *
+ * Every site with Autopilot on is swept, oldest first, every one of an
+ * owner's sites alike (2026-11-24). At the end of each site's run the sweep
+ * stores what it did and, when it did less than the calendar needed, why
+ * (`businesses.autopilot_run`, lib/automation/run-status.ts): a pool whose
+ * topics all overlap what the site published, a top-up that found nothing
+ * new, no plan, today's AI limit, an error. The Content screen, get_content
+ * and Settings -> Autopilot say it; before, it reached only this response,
+ * and a site could read "Autopilot on" for weeks while nothing happened.
+ * The top-up's one suggestion call lists the topics the site already
+ * covers, so a site with a long history is not offered them again.
+ *
  * Before scheduling, up to 3 "Questions people ask" a day go into the pool
  * on their own (lib/automation/questions.ts): free, read from threads
  * discovery already stored, and checked against the site's topics like
@@ -73,8 +86,19 @@ import { isSpendSkip, logOwnerSkip, spendingOwners } from "@/lib/limits/owners";
 
 export const maxDuration = 300;
 
-/** Businesses touched per run. The sweep is daily, not a backlog race. */
+/** Sites with Autopilot on swept per run. The sweep is daily, not a backlog race. */
 const MAX_BUSINESSES = 50;
+/** Rows read to find them: every site, Autopilot on or off, oldest first. */
+const BUSINESSES_READ = 1000;
+
+/** Stores a site's run record. A failed write is logged, never fatal: the run itself happened. */
+async function recordRun(supabase: SupabaseClient, businessId: string, record: AutopilotRunRecord, notes: string[]) {
+  const { error } = await supabase.from("businesses").update({ autopilot_run: record }).eq("id", businessId);
+  if (error) {
+    console.error("Autopilot run record not stored:", error.message);
+    notes.push(`${businessId}: run record not stored (${error.message})`);
+  }
+}
 
 async function run(request: NextRequest) {
   if (!isCronAuthorized(request)) {
@@ -84,14 +108,20 @@ async function run(request: NextRequest) {
   const supabase = createAdminClient();
   const today = new Date();
 
-  const { data: businesses, error } = await supabase
+  // Every site, oldest first, and only then the ones with Autopilot on: a
+  // bare limit over an unordered read could leave a site out of every run
+  // without a word, and the cap counts sites the sweep works on, not rows.
+  const { data: rows, error } = await supabase
     .from("businesses")
-    .select("id, user_id, name, niche, description, website_url, content_language, automation_settings")
-    .limit(MAX_BUSINESSES);
+    .select("id, user_id, name, niche, description, website_url, content_language, automation_settings, created_at")
+    .order("created_at", { ascending: true })
+    .limit(BUSINESSES_READ);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+  const enabledSites = (rows ?? []).filter((row) => parseAutomationSettings(row.automation_settings).enabled);
+  const businesses = enabledSites.slice(0, MAX_BUSINESSES);
 
   let scheduled = 0;
   let generated = 0;
@@ -99,22 +129,38 @@ async function run(request: NextRequest) {
   let skippedUnpaid = 0;
   let deferredSpendCap = 0;
   let questionsAdded = 0;
+  let stalled = 0;
   const notes: string[] = [];
+  if (enabledSites.length > MAX_BUSINESSES) {
+    notes.push(`${enabledSites.length - MAX_BUSINESSES} site(s) with Autopilot on left for a later run (cap ${MAX_BUSINESSES})`);
+  }
   let llmPausedUntil = await skipWhileLlmPaused(supabase, "autopilot");
   const owners = spendingOwners(supabase, today);
 
-  for (const business of businesses ?? []) {
+  for (const business of businesses) {
     const settings = parseAutomationSettings(business.automation_settings);
-    if (!settings.enabled) continue;
     active += 1;
 
     const userId = business.user_id as string;
     const businessId = business.id as string;
+    // What this run did for this site, and why it did less when it did.
+    const record: AutopilotRunRecord = {
+      at: today.toISOString(),
+      scheduled: 0,
+      topicsAdded: 0,
+      questionsAdded: 0,
+      emptyDays: null,
+      bufferDays: settings.bufferDays,
+      reasons: [],
+    };
 
     const verdict = await owners.verdict(userId);
     if (verdict !== true && !isSpendSkip(verdict)) {
       skippedUnpaid += 1;
       logOwnerSkip("autopilot", { user_id: userId, business_id: businessId, reason: verdict });
+      record.reasons.push(autopilotReason.noPlan());
+      stalled += 1;
+      await recordRun(supabase, businessId, record, notes);
       continue;
     }
 
@@ -133,6 +179,7 @@ async function run(request: NextRequest) {
     try {
       const asked = await addAskedQuestions({ supabase, userId, businessId, now: today, names });
       questionsAdded += asked.added.length;
+      record.questionsAdded = asked.added.length;
     } catch (err) {
       notes.push(`${business.id}: questions not added (${err instanceof Error ? err.message : String(err)})`);
     }
@@ -208,6 +255,7 @@ async function run(request: NextRequest) {
       const intentById = new Map<string, TopicIntent>(pool.map((k) => [k.id, k.intent]));
       const scheduledIds = new Set<string>();
       let scheduledHere = 0;
+      let boughtHere = 0;
 
       const applyPlan = async (plan: ReturnType<typeof planSchedule>) => {
         for (const item of plan) {
@@ -236,6 +284,7 @@ async function run(request: NextRequest) {
           occupiedIntents.set(item.scheduledDate, intentById.get(item.keywordId) ?? null);
           scheduledIds.add(item.keywordId);
           scheduledHere += 1;
+          record.scheduled = scheduledHere;
         }
       };
 
@@ -260,9 +309,11 @@ async function run(request: NextRequest) {
 
       if (wanted > 0 && llmPausedUntil) {
         notes.push(`${business.id}: keyword generation deferred (LLM billing pause)`);
+        record.reasons.push(autopilotReason.aiPaused());
       } else if (wanted > 0 && verdict !== true) {
         deferredSpendCap += 1;
         notes.push(`${business.id}: keyword generation deferred (daily AI spend limit)`);
+        record.reasons.push(autopilotReason.aiLimit());
         logOwnerSkip("autopilot", { user_id: userId, business_id: businessId, reason: verdict, step: "keywords" });
       } else if (wanted > 0) {
         const suggestions = await generateKeywordsFromBusiness(
@@ -270,7 +321,16 @@ async function run(request: NextRequest) {
           (business.description as string) || undefined,
           (business.website_url as string) || undefined,
           (business.content_language as string) || undefined,
-          { businessName: (business.name as string) || undefined, names }
+          {
+            businessName: (business.name as string) || undefined,
+            names,
+            // What the site already covers: published titles first, then
+            // every keyword it has. Bounded in the prompt (AVOID_TOPICS_MAX).
+            avoid: [
+              ...topics.articles.filter((a) => a.status === "published" && a.title).map((a) => a.title as string),
+              ...topics.keywords.map((k) => k.keyword),
+            ],
+          }
         );
 
         // Held to the site's data: a comparison naming a product nothing
@@ -294,7 +354,12 @@ async function run(request: NextRequest) {
         }
         const fresh = chooseForPool(freshSuggestions(topics, kept), left, wanted);
 
-        if (fresh.length > 0) {
+        if (fresh.length === 0) {
+          // Paid for and nothing bought: the outcome nobody would otherwise
+          // see. Said on the site, not only here.
+          notes.push(`${business.id}: keyword top-up found no new topic (every suggestion overlaps one the site has)`);
+          record.reasons.push(autopilotReason.noNewTopics(wanted));
+        } else {
           const { data: inserted, error: insertError } = await supabase
             .from("keywords")
             .insert(
@@ -315,8 +380,15 @@ async function run(request: NextRequest) {
             )
             .select("id, keyword, intent, opportunity, difficulty, search_volume");
 
+          if (insertError) {
+            // Paid for and not stored: said on the site, the days already
+            // scheduled above stand.
+            notes.push(`${business.id}: keywords not stored (${insertError.message})`);
+            record.reasons.push(autopilotReason.failed());
+          }
           if (!insertError && inserted?.length) {
             generated += inserted.length;
+            boughtHere = inserted.length;
             // Keywords just bought fill days the first pass left empty. A new
             // site with Autopilot on and no pool used to wait until tomorrow
             // for a calendar. Generating first is still refused: a healthy
@@ -349,6 +421,18 @@ async function run(request: NextRequest) {
       }
 
       scheduled += scheduledHere;
+      record.topicsAdded = boughtHere;
+
+      // ── Say why days stay empty, on the site ─────────────────────────────
+      const emptyDays = countEmptyDays(today, settings.bufferDays, occupied);
+      record.emptyDays = emptyDays;
+      const leftToSchedule = available.length + boughtHere - scheduledHere;
+      if (emptyDays > 0 && overlapping.length > 0) {
+        record.reasons.push(autopilotReason.poolOverlaps(overlapping.length, overlapping[0].keyword));
+      }
+      if (emptyDays > 0 && leftToSchedule <= 0) {
+        record.reasons.push(autopilotReason.daysEmpty(emptyDays, settings.bufferDays));
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       notes.push(`${business.id}: ${message}`);
@@ -357,18 +441,24 @@ async function run(request: NextRequest) {
       const refused = await recordLlmBillingRefusal(supabase, err, { source: "cron.autopilot" });
       if (refused) {
         llmPausedUntil = refused.pausedUntil;
-        continue;
+        record.reasons.push(autopilotReason.aiPaused());
+      } else {
+        record.reasons.push(autopilotReason.failed());
+        Sentry.captureException(err, {
+          tags: { stage: "autopilot" },
+          extra: { business_id: business.id },
+        });
       }
-      Sentry.captureException(err, {
-        tags: { stage: "autopilot" },
-        extra: { business_id: business.id },
-      });
     }
+
+    if (record.reasons.length > 0) stalled += 1;
+    await recordRun(supabase, businessId, record, notes);
   }
 
   return NextResponse.json({
-    businesses: businesses?.length ?? 0,
+    businesses: rows?.length ?? 0,
     autopilotOn: active,
+    stalled,
     skippedUnpaid,
     ...(deferredSpendCap ? { keywordsDeferredSpendCap: deferredSpendCap } : {}),
     scheduled,

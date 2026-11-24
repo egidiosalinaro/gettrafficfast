@@ -59,7 +59,13 @@ export function todayLine(article: ContentArticle): string {
   }
 }
 
-export function ContentHeader({ view }: { view: Pick<ContentView, "autopilot" | "site"> }) {
+export function ContentHeader({
+  view,
+}: {
+  view: Pick<ContentView, "autopilot" | "site"> & Partial<Pick<ContentView, "autopilotRun">>;
+}) {
+  const run = view.autopilotRun ?? null;
+  const attention = run?.state === "stalled" || run?.state === "skipped";
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
@@ -67,6 +73,19 @@ export function ContentHeader({ view }: { view: Pick<ContentView, "autopilot" | 
         {view.autopilot && (
           <p className="mt-1 text-sm text-muted-foreground break-words">
             One article a day{view.site.host ? ` for ${view.site.host}` : ""}.
+          </p>
+        )}
+        {run && (
+          <p
+            role={attention ? "status" : undefined}
+            data-testid="autopilot-run"
+            className={cn(
+              "mt-1 text-sm break-words",
+              attention ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"
+            )}
+          >
+            {attention ? "Autopilot: " : ""}
+            {run.message}
           </p>
         )}
       </div>
