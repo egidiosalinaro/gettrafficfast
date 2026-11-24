@@ -211,7 +211,7 @@ describe("produce-article enrich", () => {
   });
 
   it("renders the hero only by default, as WebP with its size in the markup data", async () => {
-    seed({ imagesEnabled: true });
+    seed({ imagesEnabled: true, videosEnabled: false });
     // The model offers an in-article image anyway; the default cap is zero.
     const model = llm({ subject: "physical", hero: HERO, inline: [INLINE] });
     setLlmProvider(model.provider);
@@ -240,7 +240,7 @@ describe("produce-article enrich", () => {
   });
 
   it("renders in-article images when the business set a cap, with width and height on the figure", async () => {
-    seed({ imagesEnabled: true, inlineImagesPerArticle: 2 });
+    seed({ imagesEnabled: true, videosEnabled: false, inlineImagesPerArticle: 2 });
     setLlmProvider(llm({ subject: "physical", hero: HERO, inline: [INLINE] }).provider);
     const images = imageProvider(() => picture());
     setImageProvider("imagen", images.provider);
@@ -255,7 +255,7 @@ describe("produce-article enrich", () => {
   });
 
   it("gives a business with nothing physical an editorial illustration, not a photograph", async () => {
-    seed({ imagesEnabled: true, style: "photographic" });
+    seed({ imagesEnabled: true, videosEnabled: false, style: "photographic" });
     setLlmProvider(llm({ subject: "digital", hero: HERO, inline: [] }).provider);
     const images = imageProvider(() => picture());
     setImageProvider("imagen", images.provider);
@@ -267,7 +267,7 @@ describe("produce-article enrich", () => {
   });
 
   it("on a billing refusal: the article keeps going, the owner and the operator are told, images pause", async () => {
-    seed({ imagesEnabled: true, inlineImagesPerArticle: 2 });
+    seed({ imagesEnabled: true, videosEnabled: false, inlineImagesPerArticle: 2 });
     const model = llm({ subject: "physical", hero: HERO, inline: [INLINE] });
     setLlmProvider(model.provider);
     const images = imageProvider(refuse402);
@@ -312,7 +312,7 @@ describe("produce-article enrich", () => {
   });
 
   it("keeps the images that rendered when a later one fails for another reason", async () => {
-    seed({ imagesEnabled: true, inlineImagesPerArticle: 2 });
+    seed({ imagesEnabled: true, videosEnabled: false, inlineImagesPerArticle: 2 });
     setLlmProvider(llm({ subject: "physical", hero: HERO, inline: [INLINE] }).provider);
     const images = imageProvider(async (_request, call) => {
       if (call === 2) throw new ImageProviderError("some-image-model returned no image: safety", "imagen");
@@ -330,7 +330,7 @@ describe("produce-article enrich", () => {
   });
 
   it("does not render a scene the check refused twice, and says which", async () => {
-    seed({ imagesEnabled: true });
+    seed({ imagesEnabled: true, videosEnabled: false });
     setLlmProvider(
       llm({
         subject: "digital",
@@ -356,7 +356,7 @@ describe("produce-article enrich", () => {
   });
 
   it("says videos were skipped because no provider is configured, once to the operator", async () => {
-    seed({ videosEnabled: true });
+    seed({ imagesEnabled: false, videosEnabled: true });
 
     const first = await run("article-1");
     const second = await run("article-2");
@@ -370,10 +370,21 @@ describe("produce-article enrich", () => {
     expect(emails.sent).toHaveLength(1);
   });
 
-  it("does nothing, and reports nothing, when media is off", async () => {
-    seed({});
+  it("does nothing, and reports nothing, when the site turned media off", async () => {
+    seed({ imagesEnabled: false, videosEnabled: false });
     expect(await run("article-1")).toEqual({ skipped: "media disabled for this business" });
     expect(stored("article-1").media).toBeUndefined();
     expect(sentry.messages).toHaveLength(0);
+  });
+
+  it("renders the featured image for a site with nothing stored: images are on by default since 2026-11-24", async () => {
+    seed({});
+    setLlmProvider(llm({ subject: "physical", hero: HERO, inline: [] }).provider);
+    const images = imageProvider(() => picture());
+    setImageProvider("imagen", images.provider);
+    const out = (await run("article-1")) as { hero?: boolean; skipped?: string };
+    expect(out.skipped).toBeUndefined();
+    expect(out.hero).toBe(true);
+    expect(images.requests).toHaveLength(1);
   });
 });

@@ -200,10 +200,10 @@ Setup, once:
    user id) on Vercel (production).
 3. Settings → Connections → Webhook, with that site selected: Connect.
    The URL is this site's own receiver; the secret is not typed in.
-4. Add keywords and turn on Autopilot (or schedule by hand). Until then the
+4. Add keywords (or let Autopilot add them). Until the first article the
    blog is empty, which is the honest state. Autopilot for this site is the
-   same switch every customer uses: it spends money and publishes, so it is
-   never on by default. Once it is on, the 06:00 UTC sweep fills the calendar
+   same switch every customer uses, on by default since 2026-11-24 (turned
+   off in Settings → Autopilot). While it is on, the 06:00 UTC sweep fills the calendar
    (from tomorrow, never today) and the 08:00 sweep writes and delivers to
    `/api/gettrafficfast`.
 

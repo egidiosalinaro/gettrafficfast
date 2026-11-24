@@ -47,10 +47,11 @@ export function PlacesLine({
   if (!placesFromSources) {
     return (
       <p className={cn("text-muted-foreground", className)}>
-        Cited pages are not sent to Today.{" "}
+        Cited pages are not sent to Today: this site turned it off in{" "}
         <Link href={`${GROWTH_AI_SETTINGS_PATH}#places`} className={`${TOUCH_LINK} font-medium text-foreground underline underline-offset-2`}>
-          Turn it on in Configure
+          Configure
         </Link>
+        .
       </p>
     );
   }

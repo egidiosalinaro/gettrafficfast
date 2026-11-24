@@ -48,7 +48,7 @@ export const MCP_INSTRUCTIONS = [
   `Every tool needs an active plan on the GetTrafficFast account. Without one, every tool call answers with the error code subscription_required: do not retry it, and tell the person plainly that this GetTrafficFast account has no active plan, so its tools are unavailable, and that the account owner can manage the plan at ${BILLING_URL}. Listing tools and prompts works without a plan.`,
   "Tools marked paid also need the spend scope (ticked on the key, or on the consent screen when connecting), and count against daily caps; a key or a connected app may make 60 calls a minute.",
   "draft_reply, run_reply_discovery and generate_article return a jobId; get_job says how it ended.",
-  "A call that would start spending (a visibility run or cadence, autopilot, images) is refused with confirmation_required until it is sent again with confirm: true: ask the person first.",
+  "Autopilot, images, Push page 3 and the weekly visibility run are on by default for every site: never ask the person to turn them on. A call that would start spending now or raise a site's spending (a visibility run, more images per article) is refused with confirmation_required until it is sent again with confirm: true: ask the person first.",
   "Two prompts run the routine: daily_routine (Today, one reply at a time) and weekly_review (Growth and Content); both take an optional site.",
 ].join(" ");
 

@@ -13,8 +13,11 @@ import { z } from "zod";
  * by article, how many the text deserves.
  *
  * Everything is optional in storage and parsed through defaults, so the jsonb
- * column can grow without migrations and old rows never break. Media is OFF
- * by default: generating images costs real money.
+ * column can grow without migrations and old rows never break. Images and
+ * videos are ON by default since 2026-11-24 (the owner: product features are
+ * on; images are included in the plan since 2026-11-14): one featured image
+ * an article, in-article ones only when the business raises the cap. A stored
+ * `false` is the person's opt-out and is kept.
  */
 
 export const IMAGE_STYLES = [
@@ -99,8 +102,8 @@ export const INLINE_IMAGE_OPTIONS = Array.from({ length: MAX_INLINE_IMAGES + 1 }
 }));
 
 export const MediaSettings = z.object({
-  /** Master switch for AI images: the featured image, plus in-article ones if asked for. */
-  imagesEnabled: z.boolean().default(false),
+  /** AI images: the featured image, plus in-article ones if asked for. On unless the person turns it off. */
+  imagesEnabled: z.boolean().default(true),
   /** The most in-article images one article may carry; 0 is the featured image only. */
   inlineImagesPerArticle: z.number().int().min(0).max(MAX_INLINE_IMAGES).default(DEFAULT_INLINE_IMAGES),
   /** Which image provider renders the briefs; empty = platform default. */
@@ -110,8 +113,8 @@ export const MediaSettings = z.object({
   styleInstructions: z.string().max(500).default(""),
   /** Brand colors, hex strings; steer the palette, never override the scene. */
   brandPalette: z.array(z.string().regex(/^#[0-9a-fA-F]{6}$/)).max(6).default([]),
-  /** Master switch for YouTube video enrichment. */
-  videosEnabled: z.boolean().default(false),
+  /** YouTube video enrichment, when the platform has a video provider. On unless the person turns it off. */
+  videosEnabled: z.boolean().default(true),
 });
 
 export type MediaSettings = z.infer<typeof MediaSettings>;

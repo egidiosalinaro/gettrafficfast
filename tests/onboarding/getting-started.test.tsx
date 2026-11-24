@@ -34,8 +34,8 @@ describe("Getting started widget", () => {
 describe("checklist copy", () => {
   it("names settings pages as the menu does, and keeps em dashes out", () => {
     const text = ONBOARDING_STEPS.map((step) => `${step.label} ${step.description}`).join(" ");
-    // Images and video is a section of Autopilot since 2026-11-14.
-    expect(text).toContain("Pick a look in Autopilot, under Images and video.");
+    // Nothing to turn on since 2026-11-24: Autopilot and images are on by default.
+    expect(text).not.toMatch(/turn on/i);
     expect(text).not.toContain("Images & video");
     expect(text).not.toMatch(/\bGeneration\b/);
     expect(text).not.toMatch(/\bPlacements\b/);

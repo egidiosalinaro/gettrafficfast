@@ -56,7 +56,8 @@ What is true since:
   the old `inlineCount` keeps that choice. Image spend per article goes from
   up to four renders (about $0.16) to one (about $0.04). Through the API and
   MCP, raising the cap on a site with images on needs the spend scope and
-  `confirm: true`, like turning images on: spend does not go up by implication.
+  `confirm: true`: spend does not go up by implication. (Turning images on
+  needed it too until 2026-11-24; they are on by default since.)
 - **Stored images are WebP, at most 1600 px wide**, with their measured
   `width`, `height` and `bytes` on `media_assets` and on the canonical image,
   and `width`/`height` on the `<img>`. **Existing images are left as they
@@ -187,11 +188,18 @@ with `reason` one of `billing`, `paused`, `not_configured`, `provider_error`,
 
 ## Rules that keep this safe
 
-- **Off by default.** Media generation has real per-unit cost. A business opts
-  in from Settings → Autopilot → Images and video (`/settings/automation#images`; `/settings/generation` redirects there) (`businesses.media_settings`, tolerant-parsed
-  by `lib/media/settings.ts`). The Getting started checklist has a step for it,
-  after Autopilot, because a calendar that is filling without this switch
-  publishes text-only articles.
+- **On by default since 2026-11-24** (the owner: product features are on;
+  images are included in the plan since 2026-11-14). `imagesEnabled` and
+  `videosEnabled` default to true (`businesses.media_settings`,
+  tolerant-parsed by `lib/media/settings.ts`): one featured image an article,
+  in-article ones only when the business raises `inlineImagesPerArticle` (0
+  by default), a video only where the platform has a video provider. A
+  business turns them off in Settings → Autopilot → Images and video
+  (`/settings/automation#images`; `/settings/generation` redirects there); a
+  stored `false` is kept. The Getting started checklist has no images step
+  any more. Over the API, `imagesEnabled: true` after an opt-out needs the
+  spend scope and no confirmation. The image provider runs on the
+  deployment's own key (docs/SELF_HOSTING.md).
 - **The business decides the look and how many it gets; the product
   decides the rest.** Aspect ratio (articles are a column of text, so images
   are wide) and quality are product decisions. How many images an article

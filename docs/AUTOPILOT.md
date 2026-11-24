@@ -12,7 +12,7 @@ keyword pool before it runs dry.
 ## What exists
 
 ```
-lib/automation/settings.ts       per-business preferences (off by default)
+lib/automation/settings.ts       per-business preferences (on by default since 2026-11-24)
 lib/automation/autopilot.ts      the planning, pure and tested
 lib/automation/questions.ts      questions people ask into the pool, free
 lib/automation/run-status.ts     what the last run did for a site, and why, in words
@@ -29,8 +29,9 @@ Since 2026-11-14 Settings → Autopilot has two halves: "Topics and schedule"
 settings, docs/MEDIA.md), which had a page of their own at
 `/settings/generation`; that path redirects to the section. Each half saves
 on its own, to its own route and tool (`update_automation_settings`,
-`update_media_settings`). The Getting started step "Turn on article images"
-links to `/settings/automation#images`.
+`update_media_settings`). `/settings/automation#images` links to the
+second half; the Getting started checklist has no Autopilot or images step
+since 2026-11-24 (below).
 
 ## Thresholds, not a quota
 
@@ -95,12 +96,39 @@ already on the calendar when generation looks for it.
   "subscription_unreadable"`, a warning): the calendar waits a day rather
   than being filled unverified. When the subscription comes back, the next
   run picks the business up again; nothing is lost but the days in between.
-- **Never on by default.** It spends money and publishes on the customer's own
-  site. It has to be switched on, per business, in Settings → Autopilot
-  (`/settings/automation`). The page says what it does (schedules and
-  publishes without asking each time), not what it costs.
-  The Getting started checklist lists it, and the images step immediately
-  after it, so Autopilot is not left producing bare text.
+- **Never without a destination the person connected.** It schedules; the
+  generation sweep writes, and an article is delivered only to the
+  destination the person connected for the site (WordPress, the webhook).
+  With none, written articles wait on the calendar.
+
+## On by default (2026-11-24)
+
+The owner's decision: product features are on, the person does not have to
+enable them, and the experience stays simple. `enabled` and `pushPage3`
+default to true (`lib/automation/settings.ts`); `backLinks` already did.
+Images and videos default to on too (docs/MEDIA.md), and so does the weekly
+AI visibility run (docs/AI_VISIBILITY.md).
+
+- **Why Autopilot may be on by default.** Publishing a scheduled article on
+  its day was already automatic, through the destination the person
+  connected; Autopilot only keeps that calendar filled. Every article sits
+  on the calendar `bufferDays` ahead (14 by default) and can be removed
+  before it is written. The writing is the platform's cost, inside the
+  owner's paid access and AI limit, and every run keeps its ceilings
+  (`maxSchedulesPerRun`, `maxKeywordsPerRun`).
+- **The switches stay, as opt-outs.** Settings → Autopilot keeps "Keep the
+  calendar filled" and "Push articles stuck on pages 2 to 4", ticked unless
+  the person unticked them; a stored `false` is kept and no data migration
+  rewrites it. The page never asks the person to turn them on.
+- **No more asking.** The Getting started checklist lost its "Turn on
+  Autopilot" and "Turn on article images" steps (`lib/onboarding.ts`), and
+  the Overview's next action with them. Over the API,
+  `update_automation_settings` no longer answers `confirmation_required` for
+  `enabled: true` or `pushPage3: true`: setting one back on after the person
+  turned it off still needs the scopes a key must hold for it (spend and
+  publish; spend), and `confirm` is accepted and not needed.
+- **The directory reviewers' demo site** (`lib/reviewer-account.ts`) is
+  written opted out of each, because it is not a customer.
 
 ## Every site, and every run says what it did (2026-11-24)
 
@@ -278,7 +306,8 @@ so the first topic listed is not always the one tomorrow's run picks.
 
 `tests/automation/autopilot.test.ts` pins the restraint: no past days, no
 double booking, idempotence on a second run, the caps, an empty pool, and the
-settings defaulting to off even when the stored column is malformed.
+settings defaulting to on (Autopilot, Push page 3, back-links) with a stored
+false kept.
 `tests/cron/unpaid-owners.test.ts` pins that a lapsed owner's business gets
 neither keywords nor scheduled days, and is logged.
 `tests/automation/questions.test.ts` pins the question top-up: the cap of 3
@@ -290,9 +319,9 @@ same run, and stores what it buys as `source` "autopilot".
 `tests/keywords/intent.test.ts` pin the mix: an empty week's minimums, the
 day a daily run adds weighed with the booked six, the maxima, the score
 order kept for a pool with no intents, and `chooseForPool`;
-`tests/tools/write-business.test.ts` ("Push page 3 is off by default")
-pins that `pushPage3` defaults to off and needs spend and confirm to turn
-on. `tests/cron/autopilot-intent.test.ts` that the sweep asks once with the
+`tests/tools/write-business.test.ts` pins that `enabled` and `pushPage3`
+default to on, that turning them off is kept, and that turning them back on
+needs the scopes and no confirmation. `tests/cron/autopilot-intent.test.ts` that the sweep asks once with the
 site's names, buys no comparison of a product the data never named, stores
 intents and no volume for the new kinds, and classifies old rows, and
 that the call lists what the site already covers.
@@ -321,12 +350,13 @@ articles to new ones", turns it off.
 ## Push page 3 is not Autopilot either (2026-11-15)
 
 `automation_settings.pushPage3` sits in the same column, form and tool,
-independent of `enabled`, and is **off by default**: it calls a model (one
-fast-tier call per pushed article) and changes published pages, and cost
-never switches itself on. Settings → Autopilot, "Push articles stuck on
-pages 2 to 4", turns it on (the page says it uses AI work, not what it
-costs); through the API, `update_automation_settings` with
-`pushPage3: true` needs the `spend` scope and `confirm: true`. Once a week
+independent of `enabled`, and is **on by default since 2026-11-24** (it was
+off before): one fast-tier model call per pushed article, paid by the
+platform, and its changes reach published pages through the same update
+path the back-link pass already used. Settings → Autopilot, "Push articles
+stuck on pages 2 to 4", turns it off; through the API,
+`update_automation_settings` with `pushPage3: false` stops it, and `true`
+needs the `spend` scope (no confirmation). Once a week
 (`/api/cron/push-articles`, Wednesday 09:40 UTC), for a site whose owner
 pays and is under the spend ceiling, up to 3 articles Google shows at an
 average position of 11 to 40 get one link each from up to 3 of the site's

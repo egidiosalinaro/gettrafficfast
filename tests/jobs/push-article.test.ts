@@ -205,13 +205,13 @@ describe("push-article", () => {
     ]);
   });
 
-  it("a sweep's push stops when the site's switch is off; an on-demand one does not need it", async () => {
-    seed({ settings: {} });
+  it("a sweep's push stops when the site turned the switch off; an on-demand one does not need it", async () => {
+    seed({ settings: { pushPage3: false } });
     await runJob();
     expect(mocks.runAgent).not.toHaveBeenCalled();
     expect(push()).toMatchObject({ status: "skipped", skip_reason: "Push page 3 is off for this site." });
 
-    seed({ settings: {}, origin: "on_demand" });
+    seed({ settings: { pushPage3: false }, origin: "on_demand" });
     await runJob();
     expect(mocks.runAgent).toHaveBeenCalledTimes(1);
   });

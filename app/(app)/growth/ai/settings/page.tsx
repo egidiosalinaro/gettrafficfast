@@ -20,9 +20,9 @@ import {
 /**
  * AI Visibility configuration: the prompt set, what counts as "us", which
  * engines to ask and how often. The page states the size of a run in probes
- * before anything is switched on. Every probe is a paid call, which is why
- * the default cadence is off; the customer reads what a run does, not what it
- * costs us.
+ * per run. The cadence is weekly by default since 2026-11-24 (the probes are
+ * the platform's, the engines the deployment's choice); Off is the person's
+ * opt-out. The customer reads what a run does, not what it costs us.
  */
 
 /** Phones get 44px targets; from md up the controls keep their compact size. */
@@ -547,7 +547,7 @@ export default function VisibilitySettingsPage() {
         <div>
           <h2 className="text-sm font-semibold">Cadence</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Off by default, so prompts are asked only when you press Run now. With the current set a run is{" "}
+            Weekly unless you choose otherwise; Off asks only when you press Run now. With the current set a run is{" "}
             <span className="font-medium text-foreground">{pluralize(probesPerRun, "probe")}</span> (
             {pluralize(Math.min(enabledCount, settings.maxQueriesPerRun), "prompt")} ×{" "}
             {pluralize(activeEngines.length, "engine")}).

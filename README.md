@@ -32,7 +32,7 @@ Perplexity (AEO):
   them, and the sources answer engines lean on.
 - **Write.** Articles planned on a calendar, drafted by agents with
   schema-validated output, held back by quality gates when a fact has no
-  source, and enriched with images and video when you turn that on.
+  source, and enriched with images and video.
 - **Publish.** To WordPress or any site through a signed webhook, or copied
   as HTML or Markdown. Autopilot can do this on a schedule.
 - **Reply.** GTF finds fresh conversations on X and Reddit where your buyers

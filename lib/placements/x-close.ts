@@ -1,86 +1,55 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { canonicalTarget } from "@/lib/providers/discovery/canonical";
-import { X_QUERY_MAX_CHARS, isXApiEnabled, searchWorstCaseUsd, type XApiClient } from "@/lib/providers/x/api";
+import { X_QUERY_MAX_CHARS, type XApiClient } from "@/lib/providers/x/api";
 import { storeTargets } from "./discovery";
 import { saveTargetMedia } from "./media";
 import { referencedFromXApi, saveTargetReferenced } from "./referenced";
 import { savedXHandle } from "./x-handle";
-import { meteredXCall, type MeteredRefusal } from "./x-budget";
+import {
+  X_CLOSE_CALL_WORST_USD,
+  X_CLOSE_QUERIES_PER_RUN,
+  X_CLOSE_RESULTS_PER_QUERY,
+  X_CLOSE_WINDOW_HOURS,
+  meteredXCall,
+  type MeteredRefusal,
+} from "./x-budget";
 import { existingStatusIds, filterXPosts, ownXHandle, xPostAsTarget, xPostMediaState, xQueryFilters, type XSkips } from "./x-search";
 
 /**
- * The close-accounts trial (docs/PLACEMENTS.md, "Close accounts trial",
- * the owner's decision of 2026-11-14).
+ * The close accounts (docs/PLACEMENTS.md, "Close accounts"): part of the
+ * daily X run for every site since 2026-11-24, after a three-day trial on
+ * one site (2026-11-14 to 16) gated by deployment settings that no longer
+ * exist.
  *
- * Before building "Connect X" (OAuth, read-only) for every customer, two
- * days on the owner's site measure what the cheap design returns and costs:
- * watch the ~25 accounts the site replies to most, with one recent search a
- * run, `(from:a OR from:b …) -is:retweet -is:reply lang:<site language>`,
- * filtered on X's side so X returns, and bills, only fresh original posts.
- * The accounts come from the site's own posted X replies (no OAuth): the
- * authors of the threads it answered in the last 30 days.
+ * Watch the accounts a site replies to most, at most 25, with at most two
+ * recent searches a day, `(from:a OR from:b …) -is:retweet -is:reply
+ * lang:<site language>`, filtered on X's side so X returns, and bills, only
+ * fresh original posts. The accounts come from the site's own posted X
+ * replies (no OAuth): the authors of the threads it answered in the last 30
+ * days. A site with none makes no call.
  *
  * What the search returns goes through the daily X search's pipeline
  * (rules, the X pre-filter, the qualifier, drafting) with `found_via` =
- * `x_close`, so it shows in Today like every found post. Each run records
- * its numbers (the `measure` step of the `x-close-trial` job). Off unless
- * the platform lists the site in `X_CLOSE_TRIAL_BUSINESS_IDS`; ends by
- * itself on `X_CLOSE_TRIAL_UNTIL`.
+ * `x_close`, so it shows in Today like every found post. It is the `close`
+ * step of the `x-post-discovery` job (lib/jobs/workflows/x-discovery.ts),
+ * so it shares that job's bounds: the X API on for the deployment, a site
+ * whose owner pays and is under the AI limit, at most once in 20 hours a
+ * site, at most X_MAX_BUSINESSES_PER_RUN sites a run in rotation, and the
+ * monthly X cap before every call.
  */
 
-/** `found_via` of a row the close-accounts trial found. */
+/** `found_via` of a row the close-accounts search found. */
 export const X_CLOSE_SOURCE = "x_close";
 
 /** Posted replies this recent name the close accounts. */
 export const X_CLOSE_LOOKBACK_DAYS = 30;
 /** Accounts watched at most: what about two 512-character searches hold. */
 export const X_CLOSE_MAX_HANDLES = 25;
-/** Fewer than this and the trial says so in its log; it still runs with what it has. */
+/** Fewer than this and the run notes it; it still runs with what it has. */
 export const X_CLOSE_MIN_HANDLES = 5;
-/** Searches a run, at most. */
-export const X_CLOSE_MAX_QUERIES = 2;
-/**
- * `max_results` per search. 25 original posts in three hours from 25
- * accounts is well above what they post; a search that returns exactly 25
- * is recorded as possibly truncated, so the measurement says when the
- * ceiling, not the accounts, set the number.
- */
-export const X_CLOSE_RESULTS_PER_QUERY = 25;
-/** The window a run searches: since the last run, never more than this. */
-export const X_CLOSE_WINDOW_HOURS = 3;
-/** Reserved before each search: 25 posts and, at worst, two referenced each ($0.375). */
-export const X_CLOSE_CALL_WORST_USD = searchWorstCaseUsd(X_CLOSE_RESULTS_PER_QUERY, { references: true });
-
-// ── The gate ────────────────────────────────────────────────────────────────
-
-type Env = Record<string, string | undefined>;
-
-/** The site ids in `X_CLOSE_TRIAL_BUSINESS_IDS` (comma or space separated). */
-export function closeTrialBusinessIds(env: Env = process.env): string[] {
-  return (env.X_CLOSE_TRIAL_BUSINESS_IDS ?? "")
-    .split(/[\s,]+/)
-    .map((id) => id.trim().toLowerCase())
-    .filter((id) => /^[0-9a-f-]{36}$/.test(id));
-}
-
-/**
- * Whether the trial may run for this site now, and if not, why. Needs the
- * site in the list, the platform's X API, and the date before
- * `X_CLOSE_TRIAL_UNTIL` (an ISO date: the trial stops at its first instant,
- * UTC) when that is set. An end date that does not parse stops the trial:
- * a cost must never switch itself on by a typo.
- */
-export function closeTrialGate(businessId: string, now: Date, env: Env = process.env): { ok: true } | { ok: false; reason: string } {
-  if (!closeTrialBusinessIds(env).includes(businessId.toLowerCase())) return { ok: false, reason: "site not in X_CLOSE_TRIAL_BUSINESS_IDS" };
-  if (!isXApiEnabled(env)) return { ok: false, reason: "the X API is not turned on for this deployment" };
-  const until = env.X_CLOSE_TRIAL_UNTIL?.trim();
-  if (until) {
-    const end = Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(until) ? `${until}T00:00:00Z` : until);
-    if (!Number.isFinite(end)) return { ok: false, reason: `X_CLOSE_TRIAL_UNTIL is not a date: ${until.slice(0, 40)}` };
-    if (now.getTime() >= end) return { ok: false, reason: `the trial ended on ${until.slice(0, 40)}` };
-  }
-  return { ok: true };
-}
+/** Searches a run, at most (the bound lives with the X plan, lib/placements/x-budget.ts). */
+export const X_CLOSE_MAX_QUERIES = X_CLOSE_QUERIES_PER_RUN;
+export { X_CLOSE_CALL_WORST_USD, X_CLOSE_RESULTS_PER_QUERY, X_CLOSE_WINDOW_HOURS };
 
 // ── The accounts ────────────────────────────────────────────────────────────
 
@@ -200,15 +169,24 @@ export function buildCloseQueries(handles: string[], language: string, maxQuerie
   return { queries, dropped: valid.slice(i) };
 }
 
-/** Where a run's window starts: the last run's search, never more than three hours back. */
+/** Where a run's window starts: the last run's search, never more than X_CLOSE_WINDOW_HOURS (12) back. */
 export function closeWindowStart(lastSearchedAt: string | null, now: Date): Date {
   const floor = now.getTime() - X_CLOSE_WINDOW_HOURS * 3_600_000;
   const last = lastSearchedAt ? Date.parse(lastSearchedAt) : NaN;
   return new Date(Number.isFinite(last) && last > floor && last < now.getTime() ? last : floor);
 }
 
-/** When the newest earlier trial run of this site searched (its `search` step's `searchedAt`). */
-export async function lastCloseSearchAt(supabase: SupabaseClient, businessId: string, jobType: string, currentJobId: string): Promise<string | null> {
+/**
+ * When the newest earlier run of this site searched its close accounts (the
+ * `searchedAt` of the job type's `step`: `close` of `x-post-discovery`).
+ */
+export async function lastCloseSearchAt(
+  supabase: SupabaseClient,
+  businessId: string,
+  jobType: string,
+  currentJobId: string,
+  step = "close"
+): Promise<string | null> {
   const { data: jobs } = await supabase
     .from("jobs")
     .select("id, created_at")
@@ -218,7 +196,7 @@ export async function lastCloseSearchAt(supabase: SupabaseClient, businessId: st
     .limit(5);
   const ids = ((jobs ?? []) as Array<{ id: string }>).map((j) => j.id).filter((id) => id !== currentJobId);
   if (ids.length === 0) return null;
-  const { data: steps } = await supabase.from("job_steps").select("job_id, output").in("job_id", ids).eq("step", "search").eq("status", "completed");
+  const { data: steps } = await supabase.from("job_steps").select("job_id, output").in("job_id", ids).eq("step", step).eq("status", "completed");
   let newest: string | null = null;
   for (const row of (steps ?? []) as Array<{ output: { searchedAt?: unknown } | null }>) {
     const at = row.output?.searchedAt;
@@ -250,7 +228,7 @@ export interface CloseSearchOutcome {
 }
 
 /**
- * One trial run's searches for one site, each under the monthly cap
+ * One run's close-accounts searches for one site, each under the monthly cap
  * through `meteredXCall`. The authors are the accounts the site replies to,
  * so "an author the owner replied to in the last 7 days" is not a skip here
  * (it is in the daily search); a post already stored, the site's own and a
@@ -330,64 +308,4 @@ export async function searchXCloseAccounts(params: {
     }
   }
   return outcome;
-}
-
-// ── The measurement ─────────────────────────────────────────────────────────
-
-export interface CloseTrialRecord {
-  handlesWatched: number;
-  fewHandles: boolean;
-  queries: number;
-  calls: number;
-  windowStart: string | null;
-  searchedAt: string | null;
-  /** Posts X returned and billed, the referenced ones included. */
-  returned: number;
-  truncated: boolean;
-  stored: number;
-  skipped: XSkips | null;
-  /** Rules rejections, by rule (the shared rules and the X pre-filter). */
-  droppedByRule: Record<string, number>;
-  judged: number | null;
-  qualified: number | null;
-  rejectedByQualifier: number | null;
-  drafted: number | null;
-  /** The estimate settled in the ledger for this run's searches. */
-  costUsd: number;
-  stopped: string | null;
-  skippedReason: string | null;
-}
-
-const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
-
-/**
- * One run's numbers from its steps' outputs. A step that did not run (the
- * run was skipped) reads as null, never 0: not measured is not none. Pure.
- */
-export function closeTrialRecord(outputs: Record<string, unknown>): CloseTrialRecord {
-  const search = (outputs.search ?? {}) as Record<string, unknown>;
-  const rules = (outputs.rules ?? {}) as { byRule?: Record<string, number>; skipped?: string };
-  const qualify = (outputs.qualify ?? null) as { judged?: number; qualified?: number; rejected?: number } | null;
-  const draft = (outputs.draft ?? null) as { started?: number } | null;
-  const skippedReason = typeof search.skipped === "string" ? search.skipped : null;
-  return {
-    handlesWatched: Array.isArray(search.handles) ? search.handles.length : 0,
-    fewHandles: search.fewHandles === true,
-    queries: Array.isArray(search.queries) ? search.queries.length : 0,
-    calls: num(search.calls) ?? 0,
-    windowStart: typeof search.windowStart === "string" ? search.windowStart : null,
-    searchedAt: typeof search.searchedAt === "string" ? search.searchedAt : null,
-    returned: num(search.returned) ?? 0,
-    truncated: search.truncated === true,
-    stored: num(search.stored) ?? 0,
-    skipped: search.skipped && typeof search.skipped === "object" ? (search.skipped as XSkips) : null,
-    droppedByRule: rules.byRule ?? {},
-    judged: qualify ? num(qualify.judged) : null,
-    qualified: qualify ? num(qualify.qualified) : null,
-    rejectedByQualifier: qualify ? num(qualify.rejected) : null,
-    drafted: draft ? num(draft.started) : null,
-    costUsd: num(search.costUsd) ?? 0,
-    stopped: typeof search.stopped === "string" ? search.stopped : null,
-    skippedReason,
-  };
 }

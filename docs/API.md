@@ -119,13 +119,14 @@ key cannot make itself permanent.
 | --- | --- |
 | `read` | list and read |
 | `write` | change the account's own data: edit a draft, mark as posted, skip, snooze, add keywords, schedule, edit settings |
-| `spend` | start work that costs money: a model call, or a job that makes one (drafting, corrections, discovery, suggestions, a visibility run, generating an article), or switch on something that will (a visibility cadence, images, autopilot) |
-| `publish` | put something public in the owner's name: `publish_article` (onto the site's own connected destination), and turning autopilot on (autopilot writes and publishes articles there); no tool posts on X |
+| `spend` | start work that costs money: a model call, or a job that makes one (drafting, corrections, discovery, suggestions, a visibility run, generating an article), or switch back on something that will (a visibility cadence, images, autopilot, Push page 3: on by default, so this is only after the person turned one off) |
+| `publish` | put something public in the owner's name: `publish_article` (onto the site's own connected destination), and turning autopilot back on (autopilot writes and publishes articles there); no tool posts on X |
 
 A tool needs its own scope, plus `spend` when it is paid. A few changes need
 more than their tool's scope for one value of the input only, and the
-handler checks it before anything is written: turning a visibility cadence
-or images on needs `spend`, turning autopilot on needs `spend` and `publish`
+handler checks it before anything is written: turning a visibility cadence,
+images or Push page 3 back on needs `spend`, turning autopilot back on needs
+`spend` and `publish`
 (403 `forbidden_scope` otherwise). A new key gets `read` and `write` unless
 more are ticked: spending and publishing are the person's choice, never a
 default (AGENTS.md §12). A session has every scope its owner has.
@@ -687,9 +688,12 @@ creates what is missing and keeps what is there.
 3. The lowest **daily AI spend ceiling**, $1 (`account_limits`), unless the
    owner already set one for the account.
 4. One **site**: gettrafficfa.st itself (blog and sitemap), public pages the
-   real pipeline can read, nothing invented. Autopilot and Push page 3
-   stay at their defaults, both off (the X features have no per-site
-   switch since 2026-11-24: they follow the platform's `X_API_ENABLED`). **No publishing
+   real pipeline can read, nothing invented. Autopilot, Push page 3, images
+   and video and the weekly visibility run, on by default for customers
+   since 2026-11-24, are written off for this site on every call
+   (`REVIEWER_SITE_OPT_OUTS`): a demo account is not a customer (the X
+   features have no per-site switch: they follow the platform's
+   `X_API_ENABLED`). **No publishing
    destination is connected**, so Publish has nowhere to write: a reviewer
    can grant the Publish scope, and `publish_article` answers
    `prerequisite_missing` (no destination connected). Never connect one on
@@ -1103,14 +1107,14 @@ rest to defaults.
 | `delete_prompt` | write | Delete a prompt; its probes keep their history; destructive |
 | `import_prompts_from_keywords` | write | Import from keywords: the oldest 50, verbatim, free |
 | `suggest_prompts` | write, spend | Suggest prompts: one bounded model call, nothing saved |
-| `update_visibility_settings` | write (spend and confirm to turn a cadence on) | Brand names, domains, engines, cadence, per-run cap, `placesFromSources` (free, on by default since 2026-11-13; `false` stops each run sending its cited pages to Replies); answers with the run plan |
+| `update_visibility_settings` | write (spend to set a cadence back on after off; weekly by default) | Brand names, domains, engines, cadence, per-run cap, `placesFromSources` (free, on by default since 2026-11-13; `false` stops each run sending its cited pages to Replies); answers with the run plan |
 | `run_visibility_check` | write, spend, confirm | Run now: every enabled prompt × engine is one paid probe; `{ runId, jobId, plan, job }` after up to `waitSeconds` |
 | `find_places_from_last_run` | write | Free, no input: the latest finished run's cited sources (answers that did not cite the site) become reply targets, at most 10 new per call, most cited first; a page already in the inbox is linked, never duplicated. Every run already does this as its last step unless `placesFromSources` is off; this is the by-hand form (no button on the screen since 2026-11-13), for a run that finished with it off or for the pages past the cap. Answers `{ runId, candidates, created, linked, deferred, dropped, rejected, targets }`; 409 `prerequisite_missing` with no finished run. Sampled; nothing drafted or sent (docs/AI_VISIBILITY.md, "From sources to Replies") |
 | `create_business` | write | Add a site, locked from the first save; not with a key limited to one site (403 `forbidden_business`) |
 | `update_business` | write | This site's profile; a different name or address on a locked site is 409 `invalid_state` with the reason, never ignored |
 | `analyze_website` | write, spend | Analyse my site: one page (public addresses only, `safeFetch`) and one model call; nothing saved |
-| `update_automation_settings` | write (spend, publish and confirm to turn it on) | Autopilot: on/off, buffer days, keyword floor, per-run ceilings; and `backLinks` (on by default, independent of Autopilot): the back-link pass of docs/KNOWLEDGE.md; and `pushPage3` (off by default, independent of Autopilot; spend and confirm to turn it on): the weekly Push page 3 of docs/LIFECYCLE.md |
-| `update_media_settings` | write (spend and confirm to turn images on, or to allow more per article) | Autopilot → Images and video (`/settings/automation#images`): images on/off, in-article images per article (0 to 3, 0 unless set), style, palette, provider, videos |
+| `update_automation_settings` | write (spend and publish to set autopilot back on; on by default) | Autopilot: on/off, buffer days, keyword floor, per-run ceilings; and `backLinks` (on by default, independent of Autopilot): the back-link pass of docs/KNOWLEDGE.md; and `pushPage3` (on by default since 2026-11-24, independent of Autopilot; spend to set it back on): the weekly Push page 3 of docs/LIFECYCLE.md |
+| `update_media_settings` | write (spend to set images back on, on by default; spend and confirm to allow more per article) | Autopilot → Images and video (`/settings/automation#images`): images on/off, in-article images per article (0 to 3, 0 unless set), style, palette, provider, videos |
 | `update_voice_settings` | write | Voice: preset, person, About you (what replies may say), `articleFacts` (Facts for articles, since 2026-11-12: the only first-hand facts an article may state; articles never read About you), notes, the daily goal, and `xHandle` (since 2026-11-24: the site's X account, the @ optional, 1 to 15 letters, digits or underscores, stored lowercased, null clears it; Settings → Connections → X and Today's "Your X account" save the same field; GTF needs it to find the link of a reply posted on X). The `findPostsOnX` switch is gone (2026-11-24): the X features run for every site when the platform has the X API on; a `findPostsOnX` sent by an old caller is ignored. `confirmedFacts` is written by `confirm_about_you_fact`, best left out; a change to About you drops the confirmations of sentences it no longer has; 409 when the stored value cannot be read and a partial change would replace it with the defaults |
 | `promote_feedback_to_notes` | write | Add a correction note's reason to the notes, once |
 | `add_about_you_fact` | write | It's true: add to About you (since 2026-11-12). `{ fact, draftId? }`: `fact` (up to 300 characters) is one sentence the person confirmed as true, dated ("As of November 12, 2026: …") so the staleness rule asks about it later. It is appended to About you, the existing text kept as it is; `added` false when it was already there. With `draftId` (a draft of this site, else 404 `not_found` and nothing written) the gate judges that draft's text again, unchanged, and `draft` carries the new audit. 409 `invalid_state` "About you is full; edit it in Settings → Voice." when it would pass 2,000 characters (400 until 2026-11-12). Never send a fact the person did not confirm. A failed `verifiable_claims` check lists the sentences it can take in `confirmable` |
@@ -1137,7 +1141,9 @@ which a key does not have (docs/MULTI_BUSINESS.md).
 
 ### Confirmation: nothing starts spending unasked
 
-A call that would switch spending on refuses until it says so. Without
+A call that would start spending now, or raise what a site spends, refuses
+until it says so (what is on by default, Autopilot, images, Push page 3 and
+the weekly visibility run, is not asked again, see below). Without
 `confirm: true` (the default is false) it changes nothing and answers 409
 `confirmation_required`: the message says what it would start and how much
 of it (probes, images, articles), never a price: the plan includes it
@@ -1149,11 +1155,15 @@ question.
 | Call | Needs confirm when | Extra scopes | The message says |
 | --- | --- | --- | --- |
 | `run_visibility_check` | always | (paid: spend) | `This run asks 12 prompts × 2 engines (gemini, perplexity) = 24 probes.` |
-| `update_visibility_settings` | the cadence goes from `off` to `weekly` or `monthly` | spend | the probes per run, and about how many a month |
-| `update_automation_settings` | `enabled` goes from false to true | spend, publish | the buffer, the keyword floor, the per-run ceilings, and that each article is written and published on its day |
-| `update_media_settings` | `imagesEnabled` goes from false to true, or `inlineImagesPerArticle` goes up while images are on | spend | that every article from then on gets a featured image and up to the stated number of in-article images, included in the plan, and the most images one article can get |
+| `update_media_settings` | `inlineImagesPerArticle` goes up while images are on | spend | that every article from then on gets a featured image and up to the stated number of in-article images, included in the plan, and the most images one article can get |
 
 Changing a setting that is already on, or turning one off, needs neither.
+Since 2026-11-24 Autopilot, Push page 3, images and the weekly visibility
+cadence are on by default, so setting one back on after the person turned
+it off asks no confirmation: `update_automation_settings`,
+`update_media_settings` and `update_visibility_settings` check only the
+scopes for it (spend; spend and publish for autopilot), and accept
+`confirm` without needing it.
 The planned probe count is the run's own plan (`planVisibilityRun`,
 `lib/visibility/manage.ts`): the enabled prompts up to `maxQueriesPerRun`,
 times the engines the site chose among the configured ones. A run with no

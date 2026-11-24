@@ -158,9 +158,10 @@ describe("isRunDue", () => {
 });
 
 describe("parseAeoSettings", () => {
-  it("defaults to off and to every configured engine", () => {
+  it("defaults to a weekly run (since 2026-11-24) and to every configured engine; off is kept", () => {
     const settings = parseAeoSettings(null);
-    expect(settings.cadence).toBe("off");
+    expect(settings.cadence).toBe("weekly");
+    expect(parseAeoSettings({ cadence: "off" }).cadence).toBe("off");
     expect(settings.engines).toEqual([]);
   });
 

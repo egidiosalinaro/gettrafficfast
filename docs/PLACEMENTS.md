@@ -47,7 +47,9 @@ Same layering as the rest of the platform:
   every check names itself.
 - **Jobs** (`lib/jobs/workflows/`): `placement-discovery` (queries → one
   step per provider → dates → rules → qualify), `placement-draft` (draft →
-  audit), `x-post-discovery` (daily X search), `x-close-trial` (see below).
+  audit), `x-post-discovery` (daily X search: the site's topics, then its
+  close accounts, see below). `x-close-trial` is a retired type kept only
+  so stored rows stay known; nothing enqueues it.
   All durable and resumable.
 - **Tables**: `placement_targets` (the conversations found and their
   workflow state), `placements` (draft variants with their audit),
@@ -181,8 +183,9 @@ waiting. The verdict names a `topic` and an `intent` for the inbox filters.
 ## The X API (optional, paid)
 
 Connecting X's official API (pay-per-use, app-only Bearer token) enables
-four read-only uses: a daily search for fresh posts on the site's topics,
-the public numbers of the replies a person posted, the followers of the
+five read-only uses: a daily search for fresh posts on the site's topics,
+a daily search of the fresh posts of the accounts the site replies to most
+("Close accounts"), the public numbers of the replies a person posted, the followers of the
 site's own X account, and finding the link of a reply marked as posted.
 Nothing is ever posted on X: a reply is a person's tap on X's web intent.
 
@@ -204,6 +207,7 @@ bound, per site and per run, all under the monthly cap below:
 | Use | Per site | Per run |
 |---|---|---|
 | Daily search (`x-post-discovery`) | at most once in 20 hours, 3 searches of 10 posts | at most 10 sites, the ones searched longest ago first (`rotateSites`), so every site gets its turn |
+| Close accounts (the same job's `close` step) | at most once in 20 hours (the same job), 2 searches of 25 posts over the last 12 hours: at most 50 posts a site a day, and the posts they quote or answer; no call for a site with no reply posted on X in 30 days | the same 10 sites (`X_MAX_BUSINESSES_PER_RUN`), so at most 20 searches a run |
 | Reply numbers | each reply once a day for 14 days | one batched lookup of at most 100 replies |
 | Followers | one user lookup a day | at most 10 sites, read longest ago first |
 | Quoted and replied-to posts | | at most 30 posts |
@@ -222,7 +226,7 @@ sentence, and `update_voice_settings` saves `xHandle`; the `daily_routine`
 prompt asks the person then. It is shown and edited in Settings →
 Connections → X. Validated as X does: 1 to 15 letters, digits or
 underscores, a leading @ dropped, stored lowercased. The daily search and
-the close-accounts trial also leave the saved handle's own posts out.
+the close-accounts search also leave the saved handle's own posts out.
 
 **Costs, as configuration.** Unit prices are constants in
 `lib/providers/x/api.ts` (`X_SEARCH_USD_PER_POST`, `X_LOOKUP_USD_PER_POST`,
@@ -231,8 +235,8 @@ They are estimates from published pricing summaries, not X's own price
 list: check your provider's current pricing and correct the constants if an
 invoice disagrees. `monthlyEstimateUsd` (`lib/placements/x-budget.ts`)
 computes a month's worst case from the constants and the configured limits
-(searches per run, results per search, reply lookups, user lookups, link
-searches).
+(searches per run, close-accounts searches per run, results per search,
+reply lookups, user lookups, link searches).
 
 **The cap: hard, global, per calendar month (UTC).**
 `X_API_MONTHLY_CAP_USD` (default 20). The ledger is `provider_spend`
@@ -377,24 +381,37 @@ never absent.
   apart from the post itself (`referencedPostsRule`); the card nests the
   quoted post like X does.
 
-### Close accounts trial
+### Close accounts
 
-A gated measurement, not a feature: it estimates what watching the
-accounts a site is close to would cost, before any per-customer X OAuth is
-built. Off unless `X_API_ENABLED`, the site's id is in
-`X_CLOSE_TRIAL_BUSINESS_IDS`, and the date is before `X_CLOSE_TRIAL_UNTIL`
-(an ISO date; the trial stops at its first instant).
+Part of every site's daily X run since 2026-11-24 (the owner's decision),
+after a three-day trial on one site (2026-11-14 to 16) that measured what
+it returns and costs. The trial's deployment settings
+(`X_CLOSE_TRIAL_BUSINESS_IDS`, `X_CLOSE_TRIAL_UNTIL`) and its cron
+(`/api/cron/x-close-trial`, every 3 hours) are gone; a stored value of
+either is ignored. There is nothing to turn on: with the X API on for the
+deployment, every site whose owner pays takes part.
 
 - **The accounts** (`closeAccountsFrom`, `loadCloseAccounts`,
   `lib/placements/x-close.ts`): the authors of the threads the site replied
   to on X in the last 30 days, ranked by the number of replies then by the
   most recent, at most 25, never the site's own account. Fewer than 5 is
-  noted in the run (`fewHandles`).
-- **The search**: one recent search a run, `from:` the accounts, filtered
-  on X's side to fresh original posts, since the last run's start
-  (`closeWindowStart`). The rows go through the same rules, qualifier and
-  draft steps as the daily search.
-- Cron `/api/cron/x-close-trial`, every 3 hours during the day.
+  noted in the run (`fewHandles`); none means no call.
+- **The search**: the `close` step of `x-post-discovery`, after the topic
+  search. At most 2 recent searches (`X_CLOSE_QUERIES_PER_RUN`), `from:` the
+  accounts, filtered on X's side to fresh original posts
+  (`-is:retweet -is:reply lang:<language>`), `max_results` 25
+  (`X_CLOSE_RESULTS_PER_QUERY`), since the step last ran for the site, never
+  more than 12 hours back (`closeWindowStart`, `X_CLOSE_WINDOW_HOURS`). Each
+  search goes through `meteredXCall` under the monthly cap. Checkpointed: a
+  resumed job never pays for it twice.
+- **Stored** with `found_via` = `x_close`; the job's `rules`, `qualify` and
+  `draft` steps then take both sources together, under one qualifier budget
+  (30 rows) and one draft ceiling (5 a run). In Today these posts look like
+  any other found on X.
+- **Bounded by the daily job**: once in 20 hours a site, at most 10 sites a
+  run in rotation (`rotateSites`), the owner paying and under the AI limit,
+  the monthly X cap before every call. One log line a run,
+  `event: "x_close"` (accounts, calls, posts returned, stored, estimate).
 
 ## Draft and audit
 
@@ -554,8 +571,7 @@ state says discovery is not searching yet.
 | `PATCH /api/placements/drafts/:id` | edit a draft; the gate runs again |
 | `POST /api/placements/:id/drafts` | "Write your own" |
 | `POST /api/placements/drafts/:id/correct` | Fix it |
-| `/api/cron/x-posts` | daily, `CRON_SECRET`; off unless `X_API_ENABLED`: reply numbers, followers, then one `x-post-discovery` job per paying site (at most 10, searched longest ago first) |
-| `/api/cron/x-close-trial` | every 3 hours during the day, `CRON_SECRET`; off unless `X_API_ENABLED` and the site is in `X_CLOSE_TRIAL_BUSINESS_IDS`, until `X_CLOSE_TRIAL_UNTIL` |
+| `/api/cron/x-posts` | daily, `CRON_SECRET`; off unless `X_API_ENABLED`: reply numbers, followers, then one `x-post-discovery` job per paying site (at most 10, searched longest ago first): the topic search and the close accounts |
 | `/api/cron/x-reply-links` | every 5 minutes, `CRON_SECRET`; off unless `X_API_ENABLED` |
 | `GET /api/placements/reply-stats` | the period on X summed and the followers; stored rows only |
 | `X_API_ENABLED=1` + `X_API_BEARER_TOKEN` | the official X API; `X_API_MONTHLY_CAP_USD` (default 20) is the hard monthly cap |
@@ -584,5 +600,10 @@ function: `applyManualAction` (`actions.ts`), `editDraft` (`edit.ts`),
 `tests/placements/` mirrors `lib/placements/`; the agents' prompts are
 pinned in `tests/agents/placement-*.test.ts`; the X client in
 `tests/providers/x-api.test.ts`; the discovery providers in
-`tests/providers/discovery-*.test.ts`. Every case uses fictional posts,
-handles and sites.
+`tests/providers/discovery-*.test.ts`. `tests/placements/x-close.test.ts`
+pins the close accounts: the `close` step between the topic search and the
+shared steps, any site with no list and no end date, at most 2 searches of
+25 over 12 hours, the window from the last run, no call without replies or
+the X API, the retired trial type doing nothing; `x-budget.test.ts` the
+month's worst case with them. Every case uses fictional posts, handles and
+sites.

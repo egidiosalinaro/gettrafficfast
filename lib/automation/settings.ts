@@ -14,8 +14,17 @@ import { z } from "zod";
  */
 
 export const AutomationSettings = z.object({
-  /** Off unless explicitly turned on: this spends money and publishes. */
-  enabled: z.boolean().default(false),
+  /**
+   * On by default since 2026-11-24 (the owner: product features are on, the
+   * person does not have to enable them). It fills the calendar the person
+   * already had written and delivered on each article's day: publishing of
+   * scheduled articles was already automatic, and nothing is delivered
+   * without a destination the person connected. Every article sits on the
+   * calendar `bufferDays` ahead and can be removed. The platform pays for the
+   * writing, within the owner's paid access and AI limit. False is the
+   * person's opt-out and is kept.
+   */
+  enabled: z.boolean().default(true),
   /** Days of calendar kept filled ahead. Also the window to cancel an article. */
   bufferDays: z.number().int().min(1).max(60).default(14),
   /** Below this many available keywords, generate more. */
@@ -42,10 +51,12 @@ export const AutomationSettings = z.object({
    * best related pages and a meta title and description that hold the
    * search they are shown for. Independent of `enabled`.
    *
-   * Off by default: it calls a model (one fast-tier call per pushed article)
-   * and changes published pages, and cost never switches itself on.
+   * On by default since 2026-11-24: one fast-tier model call per pushed
+   * article, paid by the platform, and its changes go through the same
+   * update path the back-link pass already uses on published articles. False
+   * is the person's opt-out and is kept.
    */
-  pushPage3: z.boolean().default(false),
+  pushPage3: z.boolean().default(true),
 });
 
 export type AutomationSettings = z.infer<typeof AutomationSettings>;
@@ -55,7 +66,8 @@ export const DEFAULT_AUTOMATION_SETTINGS: AutomationSettings =
 
 /**
  * Tolerant read: an unknown or malformed column must never break a page or a
- * sweep, it falls back to the defaults, which are "off".
+ * sweep, it falls back to the defaults. A stored `false` is kept: it is the
+ * person's opt-out.
  */
 export function parseAutomationSettings(value: unknown): AutomationSettings {
   const parsed = AutomationSettings.safeParse(value ?? {});

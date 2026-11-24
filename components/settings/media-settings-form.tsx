@@ -242,8 +242,8 @@ export function MediaSettingsForm() {
             </div>
             <p className="text-sm text-muted-foreground">
               Every article gets one featured image, generated for it and
-              included in your plan. Off until you turn it on; from then on
-              every new article gets its image.
+              included in your plan. On for every site; untick it and new
+              articles go out without one.
             </p>
           </div>
           <label className="flex items-center gap-2 text-sm font-medium shrink-0 cursor-pointer">

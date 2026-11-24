@@ -298,8 +298,8 @@ customer, the measurement starts that day) and **Dismiss**
 inline first ("This uses AI work…"), the `push_article` tool.
 
 **Who pays, and the opt-in.** The weekly sweep runs only for a site with
-`automation_settings.pushPage3` on (off by default; Settings → Autopilot,
-docs/AUTOPILOT.md), an owner who pays (`spendingOwners`: subscription and
+`automation_settings.pushPage3` on (on by default since 2026-11-24, off
+only when the person turned it off; Settings → Autopilot, docs/AUTOPILOT.md), an owner who pays (`spendingOwners`: subscription and
 the account's spend ceiling), and not while the model accounts are paused.
 The job is paid and LLM-bound (`lib/jobs/registry.ts`): the worker checks
 again before it spends, and re-reads the switch for a sweep's push. On
@@ -328,8 +328,8 @@ gains an optional `push` per article (only when the article was pushed).
 
 **What is not verified until the first real run**: how often the agent
 finds a phrase versus adds a sentence, how many titles pass the checks,
-and whether Google moves the pushed articles. The sweep runs only for a
-site whose owner turned the switch on.
+and whether Google moves the pushed articles. The sweep runs for every site
+whose owner did not turn the switch off.
 
 ## Where it shows up
 
@@ -438,5 +438,5 @@ none of them computes a number the others compute differently
   records and skips, on-demand refusals, the answer to a proposal, what
   counts as a change, after-values only once covered),
   `tests/today/also-today-push.test.tsx` (the Today card, the By article
-  line), `tests/tools/write-business.test.ts` (off by default, spend and
-  confirm to turn on).
+  line), `tests/tools/write-business.test.ts` (on by default; off is kept;
+  back on needs spend, no confirm).

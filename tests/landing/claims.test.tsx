@@ -62,7 +62,9 @@ describe("the plan card sells what ships", () => {
     const text = planFeatures(["gemini", "perplexity"]).join(" ");
     expect(text).not.toContain("external");
     expect(text).toContain("900 to 1,500 word brief");
-    expect(text).toContain("Autopilot, when you turn it on");
+    expect(text).toContain("Autopilot: keeps the calendar filled");
+    // On by default since 2026-11-24: nothing to turn on.
+    expect(text).not.toMatch(/when you (turn it on|enable them)/);
   });
 
   it("renders the trial terms without limiting cancellation to the trial", () => {

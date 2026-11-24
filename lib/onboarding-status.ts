@@ -1,6 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseAutomationSettings } from "@/lib/automation/settings";
-import { parseMediaSettings } from "@/lib/media/settings";
 import { parseVoiceSettings } from "@/lib/voice/settings";
 import { MANUAL_SOURCE } from "@/lib/placements/manual";
 import { buildOnboardingStatus, type OnboardingStatus } from "@/lib/onboarding";
@@ -62,8 +60,6 @@ export function onboardingFrom(settings: OnboardingSettings | null | undefined, 
     hasBusiness: true,
     aboutYou: parseVoiceSettings(settings?.voice_settings).aboutYou,
     ...counts,
-    autopilotEnabled: parseAutomationSettings(settings?.automation_settings).enabled,
-    imagesEnabled: parseMediaSettings(settings?.media_settings).imagesEnabled,
   });
 }
 

@@ -53,8 +53,9 @@ export function AISearch({ engines }: { engines: readonly AnswerEngine[] }) {
               <span className="font-medium text-foreground">Content.</span>{" "}
               A page for the prompt you lost, planned against the current
               Google results, checked by quality gates, published to WordPress
-              or your webhook on its day. Autopilot stays off until you turn
-              it on.
+              or your webhook on its day. Autopilot keeps the calendar filled,
+              and every article sits there for days before it is written, so
+              you can remove it.
             </li>
             <li>
               <span className="font-medium text-foreground">Replies.</span>{" "}

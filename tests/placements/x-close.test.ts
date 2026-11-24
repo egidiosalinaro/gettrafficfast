@@ -5,32 +5,35 @@ vi.mock("@/lib/notifications/email", () => ({ operatorEmailAddress: () => null, 
 
 import {
   X_CLOSE_CALL_WORST_USD,
+  X_CLOSE_MAX_QUERIES,
+  X_CLOSE_RESULTS_PER_QUERY,
   X_CLOSE_SOURCE,
+  X_CLOSE_WINDOW_HOURS,
   buildCloseQueries,
   closeAccountsFrom,
-  closeTrialGate,
-  closeTrialRecord,
   closeWindowStart,
   searchXCloseAccounts,
   type PostedReplyRow,
 } from "@/lib/placements/x-close";
-import { runXCloseTrial } from "@/lib/placements/x-close-cron";
 import { xCloseTrialWorkflow } from "@/lib/jobs/workflows/x-close-trial";
-import { isLlmBoundJob } from "@/lib/jobs/registry";
+import { xDiscoveryWorkflow } from "@/lib/jobs/workflows/x-discovery";
+import { isLlmBoundJob, workflowTypes } from "@/lib/jobs/registry";
 import type { StepContext } from "@/lib/jobs/types";
+import { XApiClient } from "@/lib/providers/x/api";
 import { LedgerFake, fakeXClient, xPost } from "./x-fake";
 
 /**
- * The close-accounts trial: the accounts come from the site's own posted
- * replies, the searches are `from:` ORs under 512 characters, at most two a
- * run, it runs only for a listed site before the end date, and each run
- * leaves one record of what it returned, dropped, qualified and cost.
+ * The close accounts, permanent since 2026-11-24: the accounts come from
+ * the site's own posted replies, the searches are `from:` ORs under 512
+ * characters, at most two a run of 25 posts each over 12 hours, and they
+ * are the `close` step of every site's daily X job, with no list of sites
+ * and no end date.
  */
 
 const NOW = new Date("2026-11-14T15:00:00.000Z");
 const SITE = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const USER = "11111111-1111-4111-8111-111111111111";
-const ENV = { X_CLOSE_TRIAL_BUSINESS_IDS: SITE, X_API_ENABLED: "1", X_API_BEARER_TOKEN: "t", X_CLOSE_TRIAL_UNTIL: "2026-11-17" };
+const ENV = { X_API_ENABLED: "1", X_API_BEARER_TOKEN: "t" };
 
 let quiet: Array<ReturnType<typeof vi.spyOn>>;
 let env: NodeJS.ProcessEnv;
@@ -110,24 +113,21 @@ describe("buildCloseQueries", () => {
   });
 });
 
-describe("closeTrialGate", () => {
-  it("runs only for a listed site with the X API on, before the end date", () => {
-    expect(closeTrialGate(SITE, NOW, ENV)).toEqual({ ok: true });
-    expect(closeTrialGate("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", NOW, ENV).ok).toBe(false);
-    expect(closeTrialGate(SITE, NOW, { ...ENV, X_API_ENABLED: "" }).ok).toBe(false);
-    expect(closeTrialGate(SITE, new Date("2026-11-17T00:00:00.000Z"), ENV)).toEqual({ ok: false, reason: "the trial ended on 2026-11-17" });
-    expect(closeTrialGate(SITE, new Date("2026-11-16T21:00:00.000Z"), ENV).ok).toBe(true);
-    expect(closeTrialGate(SITE, NOW, { ...ENV, X_CLOSE_TRIAL_UNTIL: "soon" }).ok).toBe(false);
-    expect(closeTrialGate(SITE, NOW, { ...ENV, X_CLOSE_TRIAL_UNTIL: undefined }).ok).toBe(true);
-    expect(closeTrialGate(SITE, NOW, { ...ENV, X_CLOSE_TRIAL_BUSINESS_IDS: undefined }).ok).toBe(false);
+describe("closeWindowStart", () => {
+  it("starts at the last run's search, never more than 12 hours back", () => {
+    expect(X_CLOSE_WINDOW_HOURS).toBe(12);
+    expect(closeWindowStart(null, NOW).toISOString()).toBe("2026-11-14T03:00:00.000Z");
+    expect(closeWindowStart("2026-11-14T13:30:00.000Z", NOW).toISOString()).toBe("2026-11-14T13:30:00.000Z");
+    expect(closeWindowStart("2026-11-13T15:00:00.000Z", NOW).toISOString()).toBe("2026-11-14T03:00:00.000Z");
   });
 });
 
-describe("closeWindowStart", () => {
-  it("starts at the last run's search, never more than three hours back", () => {
-    expect(closeWindowStart(null, NOW).toISOString()).toBe("2026-11-14T12:00:00.000Z");
-    expect(closeWindowStart("2026-11-14T13:30:00.000Z", NOW).toISOString()).toBe("2026-11-14T13:30:00.000Z");
-    expect(closeWindowStart("2026-11-13T21:00:00.000Z", NOW).toISOString()).toBe("2026-11-14T12:00:00.000Z");
+describe("the bounds", () => {
+  it("two searches of 25 posts a site a run, 50 handles never more than two queries", () => {
+    expect(X_CLOSE_MAX_QUERIES).toBe(2);
+    expect(X_CLOSE_RESULTS_PER_QUERY).toBe(25);
+    const handles = Array.from({ length: 60 }, (_, i) => `account_${i}`);
+    expect(buildCloseQueries(handles, "en").queries.length).toBeLessThanOrEqual(X_CLOSE_MAX_QUERIES);
   });
 });
 
@@ -174,71 +174,80 @@ describe("searchXCloseAccounts", () => {
   });
 });
 
-describe("the trial job", () => {
-  const step = (name: string) => xCloseTrialWorkflow.steps.find((s) => s.name === name)!;
-  const ctx = (db: LedgerFake, outputs: Record<string, unknown> = {}): StepContext => ({
-    job: { id: "job-1", user_id: USER, article_id: null, type: "x-close-trial", input: { businessId: SITE }, status: "running", current_step: null, attempts: 1, max_attempts: 2, last_error: null },
+describe("the close step of the daily X job", () => {
+  const step = (name: string) => xDiscoveryWorkflow.steps.find((s) => s.name === name)!;
+  const ctx = (db: LedgerFake, jobId = "job-1"): StepContext => ({
+    job: { id: jobId, user_id: USER, article_id: null, type: "x-post-discovery", input: { businessId: SITE }, status: "running", current_step: null, attempts: 1, max_attempts: 2, last_error: null },
     supabase: db as never,
     input: { businessId: SITE },
-    outputs,
+    outputs: {},
   });
 
-  it("is model-bound, and its steps are the daily search's plus a measure", () => {
-    expect(isLlmBoundJob("x-close-trial")).toBe(true);
-    expect(xCloseTrialWorkflow.steps.map((s) => s.name)).toEqual(["search", "rules", "qualify", "draft", "measure"]);
+  it("runs between the topic search and the shared rules, qualifier and drafts", () => {
+    expect(xDiscoveryWorkflow.steps.map((s) => s.name)).toEqual(["search", "close", "rules", "qualify", "draft"]);
+    expect(isLlmBoundJob("x-post-discovery")).toBe(true);
   });
 
-  it("searches nothing for a site not in the trial, or after it ended", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-    Object.assign(process.env, { ...ENV, X_CLOSE_TRIAL_BUSINESS_IDS: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" });
-    expect(await step("search").run(ctx(seed()))).toEqual({ skipped: "site not in X_CLOSE_TRIAL_BUSINESS_IDS" });
-    Object.assign(process.env, { ...ENV, X_CLOSE_TRIAL_UNTIL: "2026-01-01" });
-    expect(await step("search").run(ctx(seed()))).toEqual({ skipped: "the trial ended on 2026-01-01" });
-    expect(fetchSpy).not.toHaveBeenCalled();
-    fetchSpy.mockRestore();
+  it("searches any site's close accounts with the X API on: no list of sites, no end date", async () => {
+    Object.assign(process.env, ENV);
+    delete process.env.X_CLOSE_TRIAL_BUSINESS_IDS;
+    delete process.env.X_CLOSE_TRIAL_UNTIL;
+    const searchRecent = vi
+      .spyOn(XApiClient.prototype, "searchRecent")
+      .mockResolvedValue({ posts: [xPost("300", { handle: "pat_builds" })], missingIds: [], billedPosts: 1, costUsd: 0.005 });
+    const db = seed();
+    const out = (await step("close").run(ctx(db))) as { calls: number; stored: number; windowStart: string };
+    expect(searchRecent).toHaveBeenCalledTimes(1);
+    expect((searchRecent.mock.calls[0] as unknown as [{ query: string; maxResults: number }])[0]).toMatchObject({
+      query: "(from:pat_builds OR from:hank_ships) lang:en -is:retweet -is:reply",
+      maxResults: 25,
+    });
+    expect(out).toMatchObject({ calls: 1, stored: 1 });
+    expect(db.tables.placement_targets.filter((r) => r.found_via === X_CLOSE_SOURCE).map((r) => r.external_id)).toEqual(["status:300"]);
+    const line = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.map((c) => String(c[0])).find((l) => l.includes('"x_close"'));
+    expect(JSON.parse(line!)).toMatchObject({ event: "x_close", business_id: SITE, calls: 1, stored: 1 });
+    searchRecent.mockRestore();
   });
 
-  it("measures a run in one record and one log line", async () => {
-    const outputs = {
-      search: { handles: ["a", "b"], fewHandles: true, queries: ["q"], calls: 1, returned: 7, truncated: false, stored: 6, skipped: { duplicate: 1, recentAuthor: 0, crowded: 0, own: 0, empty: 0 }, costUsd: 0.035, stopped: null, windowStart: "w", searchedAt: "s" },
-      rules: { considered: 6, rejected: 3, byRule: { x_promo: 2, x_link_share: 1 } },
-      qualify: { judged: 3, qualified: 1, rejected: 2, undecided: 0 },
-      draft: { started: 1 },
-    };
-    const record = await step("measure").run(ctx(seed(), outputs));
-    expect(record).toMatchObject({ handlesWatched: 2, queries: 1, returned: 7, stored: 6, droppedByRule: { x_promo: 2, x_link_share: 1 }, qualified: 1, rejectedByQualifier: 2, drafted: 1, costUsd: 0.035 });
-    const line = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.map((c) => String(c[0])).find((l) => l.includes("x_close_trial"));
-    expect(JSON.parse(line!)).toMatchObject({ event: "x_close_trial", business_id: SITE, returned: 7 });
+  it("starts where the site's last daily run searched its close accounts", async () => {
+    Object.assign(process.env, ENV);
+    const searchRecent = vi.spyOn(XApiClient.prototype, "searchRecent").mockResolvedValue({ posts: [], missingIds: [], billedPosts: 0, costUsd: 0 });
+    const last = new Date(Date.now() - 5 * 3_600_000).toISOString();
+    const db = seed({
+      jobs: [{ id: "job-0", business_id: SITE, type: "x-post-discovery", created_at: last }],
+      job_steps: [{ job_id: "job-0", step: "close", status: "completed", output: { searchedAt: last } }],
+    });
+    await step("close").run(ctx(db));
+    const startTime = (searchRecent.mock.calls[0] as unknown as [{ startTime: Date }])[0].startTime;
+    expect(startTime.toISOString()).toBe(last);
+    searchRecent.mockRestore();
   });
 
-  it("records a skipped run as not measured, never as zero judged", () => {
-    const record = closeTrialRecord({ search: { skipped: "site not in X_CLOSE_TRIAL_BUSINESS_IDS" }, rules: { considered: 0, rejected: 0 } });
-    expect(record).toMatchObject({ skippedReason: "site not in X_CLOSE_TRIAL_BUSINESS_IDS", returned: 0, skipped: null, judged: null, qualified: null, drafted: null });
+  it("makes no call for a site with no reply posted on X, and none without the X API", async () => {
+    Object.assign(process.env, ENV);
+    const searchRecent = vi.spyOn(XApiClient.prototype, "searchRecent");
+    const empty = seed({ placement_targets: [] });
+    expect(await step("close").run(ctx(empty))).toMatchObject({ handles: [], calls: 0 });
+    delete process.env.X_API_ENABLED;
+    expect(await step("close").run(ctx(seed()))).toEqual({ skipped: "the X API is not turned on for this deployment" });
+    expect(searchRecent).not.toHaveBeenCalled();
+    searchRecent.mockRestore();
   });
 });
 
-describe("runXCloseTrial", () => {
-  it("does nothing without a listed site", async () => {
-    const db = seed();
-    expect(await runXCloseTrial({ admin: db as never, now: NOW, env: {} })).toMatchObject({ skipped: "no site in X_CLOSE_TRIAL_BUSINESS_IDS", enqueued: [] });
-    expect(db.tables.jobs).toEqual([]);
-  });
-
-  it("enqueues a listed site whose stored Find posts on X says off: the switch is gone", async () => {
-    Object.assign(process.env, ENV);
-    const db = seed({ subscriptions: [{ user_id: USER, status: "active", current_period_end: null }], agent_runs: [] });
-    db.tables.businesses[0].voice_settings = { findPostsOnX: false };
-    const out = await runXCloseTrial({ admin: db as never, now: NOW, env: ENV });
-    expect(out.skippedSites).toEqual([]);
-    expect(out.enqueued).toEqual([SITE]);
-  });
-
-  it("does not enqueue after the end date", async () => {
-    Object.assign(process.env, ENV);
-    const db = seed();
-    const out = await runXCloseTrial({ admin: db as never, now: new Date("2026-11-17T06:00:00.000Z"), env: ENV });
-    expect(out.enqueued).toEqual([]);
-    expect(out.skippedSites[0].reason).toBe("the trial ended on 2026-11-17");
-    expect(db.tables.jobs).toEqual([]);
+describe("the retired trial job type", () => {
+  it("stays registered so a stored row is known, does nothing, and is not model-bound", async () => {
+    expect(workflowTypes()).toContain("x-close-trial");
+    expect(isLlmBoundJob("x-close-trial")).toBe(false);
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const out = await xCloseTrialWorkflow.steps[0].run({
+      job: { id: "old", user_id: USER, article_id: null, type: "x-close-trial", input: { businessId: SITE }, status: "running", current_step: null, attempts: 1, max_attempts: 2, last_error: null },
+      supabase: seed() as never,
+      input: { businessId: SITE },
+      outputs: {},
+    });
+    expect(out).toMatchObject({ skipped: expect.stringContaining("daily X run") });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
   });
 });

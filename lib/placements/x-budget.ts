@@ -77,6 +77,26 @@ export const X_SEARCH_RUN_WORST_USD = roundUsd(X_SEARCH_QUERIES_PER_RUN * X_SEAR
 export const X_SEARCH_RUN_REFERENCED_WORST_USD = roundUsd(X_SEARCH_QUERIES_PER_RUN * (X_SEARCH_CALL_WORST_USD - X_SEARCH_POSTS_WORST_USD));
 
 /**
+ * The close accounts (lib/placements/x-close.ts): part of the same daily
+ * run since 2026-11-24, for every site. At most 2 searches a site a run,
+ * `max_results` 25 each, over the posts of the last 12 hours, so a site
+ * costs at most 50 posts (and the posts they quote or answer) a day. A site
+ * with no reply posted on X in the last 30 days has no close accounts and
+ * makes no call.
+ */
+export const X_CLOSE_QUERIES_PER_RUN = 2;
+/** `max_results` per close-accounts search. */
+export const X_CLOSE_RESULTS_PER_QUERY = 25;
+/** The window a close-accounts search covers, at most: the daily search's own. */
+export const X_CLOSE_WINDOW_HOURS = X_SEARCH_WINDOW_HOURS;
+/** The posts one close-accounts search finds, at worst. */
+export const X_CLOSE_POSTS_WORST_USD = searchWorstCaseUsd(X_CLOSE_RESULTS_PER_QUERY);
+/** Reserved before each close-accounts search: 25 posts and, at worst, two referenced each. */
+export const X_CLOSE_CALL_WORST_USD = searchWorstCaseUsd(X_CLOSE_RESULTS_PER_QUERY, { references: true });
+/** The posts one site's close-accounts searches find in a day, at worst. */
+export const X_CLOSE_RUN_WORST_USD = roundUsd(X_CLOSE_QUERIES_PER_RUN * X_CLOSE_POSTS_WORST_USD);
+
+/**
  * Open X posts of the last days with nothing known of what they quote or
  * answer (stored before 2026-11-14, or found by the web search), read again
  * per daily run through one batched lookup. At most this many a run.
@@ -100,8 +120,8 @@ export const X_ACCOUNT_CALL_WORST_USD = userLookupWorstCaseUsd();
 export const X_ACCOUNT_RUN_WORST_USD = roundUsd(X_ACCOUNT_MAX_SITES_PER_RUN * X_ACCOUNT_CALL_WORST_USD);
 
 /**
- * The month as planned, for the docs and the report: search at its worst
- * every day for each business, the numbers of `repliesPerDay` replies, each
+ * The month as planned, for the docs and the report: search and the close
+ * accounts at their worst every day for each business, the numbers of `repliesPerDay` replies, each
  * read on every day of its 14-day window, and each business's own account
  * read once a day.
  */
@@ -118,6 +138,7 @@ export function monthlyEstimateUsd(params: {
   referencedPerPost?: number;
 }): {
   searchUsd: number;
+  closeUsd: number;
   referencedUsd: number;
   metricsUsd: number;
   accountUsd: number;
@@ -126,12 +147,20 @@ export function monthlyEstimateUsd(params: {
   const days = params.days ?? 30;
   const businesses = params.businesses ?? 1;
   const searchUsd = roundUsd(days * businesses * X_SEARCH_RUN_WORST_USD);
+  const closeUsd = roundUsd(days * businesses * X_CLOSE_RUN_WORST_USD);
   const perPost = Math.min(X_REFERENCED_PER_POST_MAX, Math.max(0, params.referencedPerPost ?? 0));
-  const referencedUsd = roundUsd(searchUsd * perPost);
+  const referencedUsd = roundUsd((searchUsd + closeUsd) * perPost);
   const inWindow = Math.min(X_METRICS_MAX_IDS_PER_RUN, params.repliesPerDay * X_METRICS_WINDOW_DAYS);
   const metricsUsd = roundUsd(days * lookupWorstCaseUsd(inWindow));
   const accountUsd = roundUsd(days * Math.min(businesses, X_ACCOUNT_MAX_SITES_PER_RUN) * X_ACCOUNT_CALL_WORST_USD);
-  return { searchUsd, referencedUsd, metricsUsd, accountUsd, totalUsd: roundUsd(searchUsd + referencedUsd + metricsUsd + accountUsd) };
+  return {
+    searchUsd,
+    closeUsd,
+    referencedUsd,
+    metricsUsd,
+    accountUsd,
+    totalUsd: roundUsd(searchUsd + closeUsd + referencedUsd + metricsUsd + accountUsd),
+  };
 }
 
 // ── What a person reads ─────────────────────────────────────────────────────

@@ -171,121 +171,97 @@ describe("analyze_website", () => {
 });
 
 describe("update_automation_settings", () => {
-  it("changes a field and keeps the rest; autopilot stays off", async () => {
+  it("changes a field and keeps the rest; autopilot is on by default", async () => {
     const db = seed();
     site(db).automation_settings = { bufferDays: 21 };
     const run = await call(db, "update_automation_settings", { keywordFloor: 5 }, ["read", "write"]);
-    expect(run).toMatchObject({ ok: true, output: { settings: { enabled: false, bufferDays: 21, keywordFloor: 5 } } });
-    expect(site(db).automation_settings).toMatchObject({ enabled: false, bufferDays: 21, keywordFloor: 5 });
+    expect(run).toMatchObject({ ok: true, output: { settings: { enabled: true, pushPage3: true, bufferDays: 21, keywordFloor: 5 } } });
+    expect(site(db).automation_settings).toMatchObject({ enabled: true, bufferDays: 21, keywordFloor: 5 });
   });
 
-  it("turning it on needs spend and publish, then confirm; nothing is written before", async () => {
+  it("keeps a stored opt-out; turning it off needs nothing, back on needs spend and publish and no confirm", async () => {
     const db = seed();
-    expect(await call(db, "update_automation_settings", { enabled: true, confirm: true }, ["read", "write", "spend"])).toMatchObject({
+    expect(await call(db, "update_automation_settings", { enabled: false }, ["read", "write"])).toMatchObject({
+      ok: true,
+      output: { settings: { enabled: false } },
+    });
+    expect(await call(db, "update_automation_settings", { bufferDays: 9 }, ["read", "write"])).toMatchObject({
+      ok: true,
+      output: { settings: { enabled: false, bufferDays: 9 } },
+    });
+    expect(await call(db, "update_automation_settings", { enabled: true }, ["read", "write", "spend"])).toMatchObject({
       ok: false,
       status: 403,
       error: { code: "forbidden_scope", message: "Turning autopilot on needs a key with the publish scope." },
     });
-    expect(await call(db, "update_automation_settings", { enabled: true, confirm: true }, ["read", "write"])).toMatchObject({
-      ok: false,
-      status: 403,
-      error: { message: "Turning autopilot on needs a key with the spend and publish scopes." },
+    expect(site(db).automation_settings).toMatchObject({ enabled: false });
+    // Not asked again: on is the default, confirm is not needed.
+    expect(await call(db, "update_automation_settings", { enabled: true }, ["read", "write", "spend", "publish"])).toMatchObject({
+      ok: true,
+      output: { settings: { enabled: true } },
     });
-    const unconfirmed = await call(db, "update_automation_settings", { enabled: true }, ["read", "write", "spend", "publish"]);
-    expect(unconfirmed).toMatchObject({
-      ok: false,
-      status: 409,
-      error: { code: "confirmation_required", message: expect.stringMatching(/^Autopilot on: every day it keeps 14 days/) },
-    });
-    expect(site(db).automation_settings).toBeUndefined();
-
-    const confirmed = await call(db, "update_automation_settings", { enabled: true, confirm: true }, ["read", "write", "spend", "publish"]);
-    expect(confirmed).toMatchObject({ ok: true, output: { settings: { enabled: true } } });
-    expect(site(db).automation_settings).toMatchObject({ enabled: true });
-
-    // Turning it off needs neither.
-    expect(await call(db, "update_automation_settings", { enabled: false }, ["read", "write"])).toMatchObject({ ok: true });
   });
 
-  it("Push page 3 is off by default; turning it on needs spend, then confirm", async () => {
+  it("Push page 3 is on by default; off is kept, and back on needs spend and no confirm", async () => {
     const db = seed();
     expect(await call(db, "update_automation_settings", { bufferDays: 10 }, ["read", "write"])).toMatchObject({
       ok: true,
+      output: { settings: { pushPage3: true } },
+    });
+    expect(await call(db, "update_automation_settings", { pushPage3: false }, ["read", "write"])).toMatchObject({
+      ok: true,
       output: { settings: { pushPage3: false } },
     });
-    expect(await call(db, "update_automation_settings", { pushPage3: true, confirm: true }, ["read", "write"])).toMatchObject({
+    expect(await call(db, "update_automation_settings", { pushPage3: true }, ["read", "write"])).toMatchObject({
       ok: false,
       status: 403,
       error: { code: "forbidden_scope" },
     });
     expect(await call(db, "update_automation_settings", { pushPage3: true }, ["read", "write", "spend"])).toMatchObject({
-      ok: false,
-      status: 409,
-      error: { code: "confirmation_required", message: expect.stringMatching(/^Push page 3 on: once a week, up to 3 published articles/) },
-    });
-    expect(await call(db, "update_automation_settings", { pushPage3: true, confirm: true }, ["read", "write", "spend"])).toMatchObject({
       ok: true,
-      output: { settings: { pushPage3: true, enabled: false } },
+      output: { settings: { pushPage3: true } },
     });
   });
 });
 
 describe("update_media_settings", () => {
-  it("changes the style without spending anything", async () => {
+  it("changes the style without spending anything; images and videos are on by default", async () => {
     const db = seed();
     const run = await call(db, "update_media_settings", { style: "illustration", brandPalette: ["#112233"] }, ["read", "write"]);
-    expect(run).toMatchObject({ ok: true, output: { settings: { imagesEnabled: false, style: "illustration", brandPalette: ["#112233"] } } });
+    expect(run).toMatchObject({
+      ok: true,
+      output: { settings: { imagesEnabled: true, videosEnabled: true, style: "illustration", brandPalette: ["#112233"] } },
+    });
   });
 
-  it("turning images on needs spend, then confirm", async () => {
+  it("keeps images off once turned off; back on needs spend and no confirm", async () => {
     const db = seed();
-    expect(await call(db, "update_media_settings", { imagesEnabled: true, confirm: true }, ["read", "write"])).toMatchObject({
+    expect(await call(db, "update_media_settings", { imagesEnabled: false }, ["read", "write"])).toMatchObject({
+      ok: true,
+      output: { settings: { imagesEnabled: false } },
+    });
+    expect(await call(db, "update_media_settings", { imagesEnabled: true }, ["read", "write"])).toMatchObject({
       ok: false,
       status: 403,
       error: { code: "forbidden_scope" },
     });
+    expect(site(db).media_settings).toMatchObject({ imagesEnabled: false });
     expect(await call(db, "update_media_settings", { imagesEnabled: true })).toMatchObject({
-      ok: false,
-      status: 409,
-      error: { code: "confirmation_required", message: expect.stringMatching(/included in the plan/) },
-    });
-    expect(site(db).media_settings).toBeUndefined();
-    expect(await call(db, "update_media_settings", { imagesEnabled: true, confirm: true })).toMatchObject({
-      ok: true,
-      output: { settings: { imagesEnabled: true, style: "photographic" } },
-    });
-  });
-
-  it("turns images on with the featured image only, and says how many an article gets, never a price", async () => {
-    const db = seed();
-    const unconfirmed = await call(db, "update_media_settings", { imagesEnabled: true });
-    expect(unconfirmed).toMatchObject({
-      ok: false,
-      status: 409,
-      error: {
-        message: expect.stringMatching(
-          /^Images on: every article this site generates from now on gets an AI featured image, each one generated for it and included in the plan: at most 1 image\(s\) per article\.$/
-        ),
-      },
-    });
-    if (unconfirmed.ok) throw new Error("expected a refusal");
-    expect(JSON.stringify(unconfirmed.error)).not.toMatch(/\$|usd|cost|price/i);
-    expect(await call(db, "update_media_settings", { imagesEnabled: true, confirm: true })).toMatchObject({
       ok: true,
       output: { settings: { imagesEnabled: true, inlineImagesPerArticle: 0 } },
     });
   });
 
-  it("allowing more images per article on a site that has them on needs spend, then confirm", async () => {
+  it("allowing more images per article on a site that has them on needs spend, then confirm, never a price", async () => {
     const db = seed();
-    await call(db, "update_media_settings", { imagesEnabled: true, confirm: true });
 
     expect(await call(db, "update_media_settings", { inlineImagesPerArticle: 2, confirm: true }, ["read", "write"])).toMatchObject({
       ok: false,
       status: 403,
       error: { code: "forbidden_scope" },
     });
-    expect(await call(db, "update_media_settings", { inlineImagesPerArticle: 2 })).toMatchObject({
+    const unconfirmed = await call(db, "update_media_settings", { inlineImagesPerArticle: 2 });
+    expect(unconfirmed).toMatchObject({
       ok: false,
       status: 409,
       error: {
@@ -293,18 +269,21 @@ describe("update_media_settings", () => {
         message: expect.stringMatching(/^More images per article: .* up to 2 in-article image\(s\), .* at most 3 image\(s\) per article\.$/),
       },
     });
-    expect(site(db).media_settings).toMatchObject({ inlineImagesPerArticle: 0 });
+    if (unconfirmed.ok) throw new Error("expected a refusal");
+    expect(JSON.stringify(unconfirmed.error)).not.toMatch(/\$|usd|cost|price/i);
+    expect(site(db).media_settings).toBeUndefined();
 
     expect(await call(db, "update_media_settings", { inlineImagesPerArticle: 2, confirm: true })).toMatchObject({
       ok: true,
       output: { settings: { inlineImagesPerArticle: 2 } },
     });
-    // Lowering it, or setting it while images are off, spends nothing more.
+    // Lowering it spends nothing more.
     expect(await call(db, "update_media_settings", { inlineImagesPerArticle: 1 }, ["read", "write"])).toMatchObject({ ok: true });
   });
 
-  it("setting the cap while images stay off needs nothing", async () => {
+  it("setting the cap while images are off needs nothing", async () => {
     const db = seed();
+    await call(db, "update_media_settings", { imagesEnabled: false }, ["read", "write"]);
     expect(await call(db, "update_media_settings", { inlineImagesPerArticle: 3 }, ["read", "write"])).toMatchObject({
       ok: true,
       output: { settings: { imagesEnabled: false, inlineImagesPerArticle: 3 } },

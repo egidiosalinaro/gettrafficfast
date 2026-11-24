@@ -91,8 +91,8 @@ describe("Images and video, folded into Autopilot", () => {
     expect(source("next.config.ts")).toContain("LEGACY_REDIRECTS");
   });
 
-  it("sends the checklist's images step to the section", () => {
-    expect(ONBOARDING_STEPS.find((step) => step.key === "hasImages")?.href).toBe("/settings/automation#images");
+  it("has no checklist step for images: they are on by default", () => {
+    expect(ONBOARDING_STEPS.map((step) => step.href)).not.toContain("/settings/automation#images");
   });
 });
 

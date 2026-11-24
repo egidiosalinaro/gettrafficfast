@@ -212,10 +212,14 @@ describe("Autopilot and near-duplicate topics", () => {
 });
 
 describe("parseAutomationSettings", () => {
-  it("is off by default, and off for a malformed column", () => {
-    expect(parseAutomationSettings(undefined).enabled).toBe(false);
-    expect(parseAutomationSettings({ enabled: "yes" }).enabled).toBe(false);
+  it("is on by default since 2026-11-24, Push page 3 and back-links too; a stored false is the person's opt-out and is kept", () => {
+    expect(parseAutomationSettings(undefined)).toMatchObject({ enabled: true, pushPage3: true, backLinks: true });
+    expect(parseAutomationSettings({})).toMatchObject({ enabled: true, pushPage3: true });
+    expect(parseAutomationSettings({ enabled: "yes" }).enabled).toBe(true);
     expect(parseAutomationSettings(null).bufferDays).toBe(14);
+    expect(parseAutomationSettings({ enabled: false, pushPage3: false })).toMatchObject({ enabled: false, pushPage3: false });
+    // The ceilings that bound a run do not move with the default.
+    expect(parseAutomationSettings(null)).toMatchObject({ maxKeywordsPerRun: 10, maxSchedulesPerRun: 14 });
   });
 
   it("keeps what a valid column says", () => {

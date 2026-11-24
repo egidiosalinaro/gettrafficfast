@@ -142,6 +142,21 @@ describe("draft", () => {
     expect(drafts.every((j) => j.priority === 0)).toBe(true);
   });
 
+  it("drafts the close accounts' finds with the topic search's, under the one ceiling of five", async () => {
+    const rows = [
+      found("t1", 90),
+      found("c1", 95, { found_via: "x_close" }),
+      found("t2", 80),
+      found("c2", 85, { found_via: "x_close" }),
+      found("t3", 70),
+      found("c3", 75, { found_via: "x_close" }),
+    ];
+    const db = new LedgerFake({ businesses: [business({ aboutYou: "I built it." })], placement_targets: rows, placements: [], jobs: [] });
+    expect(await step("draft").run(ctx(db))).toEqual({ started: X_AUTO_DRAFTS_PER_RUN });
+    const drafted = db.tables.jobs.filter((j) => j.type === "placement-draft").map((j) => (j.input as { targetId: string }).targetId);
+    expect(drafted).toEqual(["c1", "t1", "c2", "t2", "c3"]);
+  });
+
   it("stops at the daily draft cap", async () => {
     const recent = new Date(Date.now() - 3_600_000).toISOString();
     const db = new LedgerFake({

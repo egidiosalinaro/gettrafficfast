@@ -265,8 +265,8 @@ reply inbox narrowed to cited rows, `?source=ai_visibility`). The count is
 every open row that rests on a sampled citation (`countCitedPlaces`,
 `lib/visibility/read.ts`, `places.open`), whichever run sent it. No places,
 or a count that could not be read, is no line, never "0". With the setting
-off the line is "Cited pages are not sent to Today. Turn it on in Configure"
-(`PlacesLine`, `components/visibility/places-line.tsx`). On the evidence
+off the line is "Cited pages are not sent to Today: this site turned it off
+in Configure", a statement, not a request to turn it on (`PlacesLine`, `components/visibility/places-line.tsx`). On the evidence
 page each answer says how many of its pages are places, and marks them. The inbox
 card says "Cited in a sampled AI answer for: “<prompt>” (<engine>)".
 Sampled, per engine, and never that the engine "reads" the page: one answer
@@ -317,14 +317,23 @@ runs) are not on a screen any more; their numbers stay on the API
 | Where | What |
 | --- | --- |
 | `/growth/ai/settings` | queries, brand names, extra domains, engines, cadence, cap. Suggest prompts proposes 8–12 founder-style questions from the profile; they enter the set only after the owner picks. |
-| `/api/cron/probe-visibility` | daily (05:30 UTC), `CRON_SECRET`; starts runs whose cadence is due, for owners who pay only (`hasPaidAccess`; the others are logged as `cron.unpaid_skipped`, docs/AGENT_RUNTIME.md) |
-| cadence | `off` (default), `weekly`, `monthly`; due is measured from the last run's *start* |
+| `/api/cron/probe-visibility` | daily (05:30 UTC), `CRON_SECRET`; reads the sites oldest first (500 at most), starts runs whose cadence is due, at most 50 a day, for owners who pay only (`hasPaidAccess`; the others are logged as `cron.unpaid_skipped`, docs/AGENT_RUNTIME.md); a due site that never had a prompt or a run gets its set from its keywords first |
+| cadence | `weekly` (default since 2026-11-24), `monthly`, `off`; due is measured from the last run's *start* |
 | engines | the configured ones the business selected; empty means all configured |
 | `MAX_QUERIES_PER_RUN` | 60; the per-business cap defaults to 30 |
 | `placesFromSources` | on (default since 2026-11-13): each run ends by sending its cited places to Replies, at most 10 new ones, free (above); off: the run skips it |
 
-Cadence is off by default because every probe is a paid call and a key
-existing is not consent to spend. "Run now" always works. "Import from
+Cadence is weekly by default since 2026-11-24 (it was off): the owner's
+decision that product features are on. The probes are the platform's cost,
+and the deployment's own opt-in still decides whether anything is asked: an
+engine exists only when its env settings switch it on (docs/CITATIONS.md),
+so with none nothing runs. A run asks at most `maxQueriesPerRun` prompts (30
+by default) of each engine; the scheduler starts at most 50 runs a day.
+`off` is the person's opt-out and is kept. A site that never had a prompt
+nor a run gets its set from its own keywords the first time it is due
+(`importPromptsFromKeywords`, the oldest 50, free, no model: the same as
+"Import from keywords"); a site that emptied its set after a run is left
+empty. "Run now" always works. "Import from
 keywords" seeds the set verbatim, free, with no model rewriting. "Suggest
 prompts" is the optional rewrite: one model call from the business profile,
 shown for review, not inserted until the owner picks. A query they did not
@@ -336,15 +345,19 @@ Over the API (docs/API.md), the two calls that spend say what they will
 spend first: `run_visibility_check` answers `confirmation_required` with the
 planned probes (enabled prompts up to the per-run cap, times the engines the
 site chose among the configured ones: `planVisibilityRun`) until it is sent
-with `confirm: true`, and `update_visibility_settings` turning a cadence on
-needs the `spend` scope and the same confirmation, with the probes per run
-and per month.
+with `confirm: true`. `update_visibility_settings` setting a cadence back
+on after `off` needs the `spend` scope and no confirmation (it is the
+default); it answers the run plan.
 
 ## Tests
 
 - `tests/visibility/verdict.test.ts` — invalid ≠ not cited; subdomain yes,
   lookalike no; mention apart from citation; ambiguous brands not counted;
-  competitors never invented; cadence due rule; tolerant settings.
+  competitors never invented; cadence due rule; tolerant settings; weekly
+  by default, off kept.
+- `tests/cron/probe-visibility-defaults.test.ts` — a site with nothing
+  stored runs weekly, off is never touched, a never-set-up site is seeded
+  from its keywords, an emptied one is not, at most 50 starts a day.
 - `tests/visibility/summary.test.ts` — null rates over nothing; invalid and
   error excluded from the rate and counted in coverage; per-engine, never
   averaged; comparison refused across different query sets, engines or a

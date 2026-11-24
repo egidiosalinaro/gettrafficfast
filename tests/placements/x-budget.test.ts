@@ -17,6 +17,8 @@ import {
   X_SEARCH_RUN_WORST_USD,
   meteredXCall,
   monthlyEstimateUsd,
+  X_CLOSE_CALL_WORST_USD,
+  X_CLOSE_RUN_WORST_USD,
   readXApiStatus,
   xCapReachedLine,
   xSearchNotice,
@@ -56,10 +58,13 @@ describe("the plan", () => {
     expect(X_METRICS_RUN_WORST_USD).toBe(0.5);
     expect(X_ACCOUNT_CALL_WORST_USD).toBe(0.01);
     expect(X_ACCOUNT_RUN_WORST_USD).toBe(0.1);
-    expect(monthlyEstimateUsd({ repliesPerDay: 3 })).toEqual({ searchUsd: 4.5, referencedUsd: 0, metricsUsd: 6.3, accountUsd: 0.3, totalUsd: 11.1 });
-    // Every found post quoting one post: +$4.50; the worst (quoting and answering): +$9.
-    expect(monthlyEstimateUsd({ repliesPerDay: 3, referencedPerPost: 1 })).toMatchObject({ referencedUsd: 4.5, totalUsd: 15.6 });
-    expect(monthlyEstimateUsd({ repliesPerDay: 3, referencedPerPost: 5 }).referencedUsd).toBe(9);
+    // The close accounts (since 2026-11-24 part of the daily run): two searches of 25 a site a day.
+    expect(X_CLOSE_CALL_WORST_USD).toBe(0.375);
+    expect(X_CLOSE_RUN_WORST_USD).toBe(0.25);
+    expect(monthlyEstimateUsd({ repliesPerDay: 3 })).toEqual({ searchUsd: 4.5, closeUsd: 7.5, referencedUsd: 0, metricsUsd: 6.3, accountUsd: 0.3, totalUsd: 18.6 });
+    // Every found post quoting one post: +$12; the worst (quoting and answering): +$24.
+    expect(monthlyEstimateUsd({ repliesPerDay: 3, referencedPerPost: 1 })).toMatchObject({ referencedUsd: 12, totalUsd: 30.6 });
+    expect(monthlyEstimateUsd({ repliesPerDay: 3, referencedPerPost: 5 }).referencedUsd).toBe(24);
     expect(monthlyEstimateUsd({ repliesPerDay: 0 })).toMatchObject({ metricsUsd: 0 });
     // The followers are read for 10 sites a run at most: $3 a month whatever the number of sites.
     expect(monthlyEstimateUsd({ repliesPerDay: 0, businesses: 25 }).accountUsd).toBe(3);

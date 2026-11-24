@@ -10,7 +10,8 @@ import { customerData } from "./support";
  * paid and writes nothing; and the two calls that switch spending on say
  * what they will cost before they do: run_visibility_check answers
  * confirmation_required with the planned probes (prompts × engines) and runs
- * nothing, and turning a cadence on needs the spend scope and confirm.
+ * nothing; the cadence is weekly by default since 2026-11-24, off is kept,
+ * and setting it back on needs the spend scope and no confirm.
  */
 
 const mocks = vi.hoisted(() => ({
@@ -214,36 +215,29 @@ describe("update_visibility_settings", () => {
     const run = await call(db, "update_visibility_settings", { domains: ["blog.acme.test"] });
     expect(run).toMatchObject({
       ok: true,
-      output: { settings: { brandNames: ["Acme"], domains: ["blog.acme.test"], maxQueriesPerRun: 12, cadence: "off" } },
+      output: { settings: { brandNames: ["Acme"], domains: ["blog.acme.test"], maxQueriesPerRun: 12, cadence: "weekly" } },
     });
     expect(aeoSettings(db)).toMatchObject({ brandNames: ["Acme"], domains: ["blog.acme.test"], maxQueriesPerRun: 12 });
   });
 
-  it("turning a cadence on needs the spend scope, then confirm, and says what it will ask, never a price", async () => {
+  it("the cadence is weekly by default; off is kept, and back on needs the spend scope, not a confirm", async () => {
     const db = seed();
-    expect(await call(db, "update_visibility_settings", { cadence: "weekly", confirm: true }, ["read", "write"])).toMatchObject({
+    expect(await call(db, "update_visibility_settings", { cadence: "off" }, ["read", "write"])).toMatchObject({
+      ok: true,
+      output: { settings: { cadence: "off" } },
+    });
+    expect(aeoSettings(db)).toMatchObject({ cadence: "off" });
+    expect(await call(db, "update_visibility_settings", { cadence: "weekly" }, ["read", "write"])).toMatchObject({
       ok: false,
       status: 403,
       error: { code: "forbidden_scope" },
     });
-    const unconfirmed = await call(db, "update_visibility_settings", { cadence: "weekly" });
-    expect(unconfirmed).toMatchObject({
-      ok: false,
-      status: 409,
-      error: {
-        code: "confirmation_required",
-        message: "A weekly cadence starts runs on a schedule: each run asks 1 prompt × 2 engines (gemini, perplexity) = 2 probes, about 8 a month.",
-      },
-    });
-    expect(aeoSettings(db)).toEqual({});
-
-    const confirmed = await call(db, "update_visibility_settings", { cadence: "weekly", confirm: true });
-    expect(confirmed).toMatchObject({ ok: true, output: { settings: { cadence: "weekly" }, plan: { probes: 2 } } });
+    expect(aeoSettings(db)).toMatchObject({ cadence: "off" });
+    const back = await call(db, "update_visibility_settings", { cadence: "weekly" });
+    expect(back).toMatchObject({ ok: true, output: { settings: { cadence: "weekly" }, plan: { probes: 2 } } });
     expect(aeoSettings(db)).toMatchObject({ cadence: "weekly" });
-
-    // Already on: changing it, or turning it off, needs no confirmation.
+    // Already on: changing it needs nothing more.
     expect(await call(db, "update_visibility_settings", { cadence: "monthly" }, ["read", "write"])).toMatchObject({ ok: true });
-    expect(await call(db, "update_visibility_settings", { cadence: "off" }, ["read", "write"])).toMatchObject({ ok: true });
   });
 
   it("refuses a value the screen's schema refuses", async () => {

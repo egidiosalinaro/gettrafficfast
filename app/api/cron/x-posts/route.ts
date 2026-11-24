@@ -9,7 +9,7 @@ import { runXDaily } from "@/lib/placements/x-daily";
  * the X API"): reads the numbers of the replies posted on X in the last 14
  * days (one batched call) and the followers of each site's own account (one
  * user lookup a site, once a day), then enqueues one search job per site
- * whose owner pays (at most 10 a run, the sites searched longest ago first;
+ * (the site's topics and the accounts it replies to most) whose owner pays (at most 10 a run, the sites searched longest ago first;
  * every site takes part since 2026-11-24). Off unless the platform set
  * X_API_ENABLED=1 and X_API_BEARER_TOKEN; every call to X is checked
  * against the monthly cap (X_API_MONTHLY_CAP_USD, default $20) before it is

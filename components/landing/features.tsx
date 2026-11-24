@@ -44,10 +44,10 @@ export function Features() {
         <div className="p-6 rounded-lg border bg-card">
           <h3 className="text-xl font-semibold mb-3">Auto images and video</h3>
           <p className="text-foreground/70 text-sm">
-            With media enabled, images are generated for the article&rsquo;s own
-            sections and stored on the platform, and a relevant YouTube video is
-            selected when one genuinely fits. Off by default, because it costs
-            money per article.
+            Every article gets a featured image generated for it and stored on
+            the platform, more in its sections if you allow them, and a
+            relevant YouTube video when one genuinely fits. Included in the
+            plan; each site can turn them off.
           </p>
         </div>
 

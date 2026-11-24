@@ -55,7 +55,8 @@ describe("get_business", () => {
           contentLanguage: "en",
           isLocked: true,
           automation: { enabled: true, bufferDays: 7, keywordFloor: 10 },
-          media: { imagesEnabled: false, videosEnabled: false },
+          // Images stored off (the person's opt-out); videos not stored: on by default since 2026-11-24.
+          media: { imagesEnabled: false, videosEnabled: true },
         },
       },
     });
@@ -97,10 +98,8 @@ describe("get_onboarding_status", () => {
       hasArticles: true,
       hasIntegration: true,
       hasManualPost: true,
-      hasAutomation: true,
-      hasImages: false,
     });
-    expect(run.output).toMatchObject({ next: { key: "hasImages", href: "/settings/automation#images" }, complete: false });
+    expect(run.output).toMatchObject({ next: null, complete: true });
   });
 });
 

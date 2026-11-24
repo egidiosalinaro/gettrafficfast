@@ -74,10 +74,8 @@ describe("GET /api/onboarding/status", () => {
       {
         "hasAboutYou": true,
         "hasArticles": false,
-        "hasAutomation": false,
         "hasBusiness": true,
         "hasClaude": false,
-        "hasImages": false,
         "hasIntegration": false,
         "hasKeywords": true,
         "hasManualPost": false,
@@ -91,10 +89,8 @@ describe("GET /api/onboarding/status", () => {
       {
         "hasAboutYou": false,
         "hasArticles": false,
-        "hasAutomation": false,
         "hasBusiness": false,
         "hasClaude": false,
-        "hasImages": false,
         "hasIntegration": false,
         "hasKeywords": false,
         "hasManualPost": false,

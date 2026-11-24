@@ -142,7 +142,6 @@ export const ROUTE_PARITY: Readonly<Record<string, ParityEntry>> = {
   "POST /api/cron/prune-tool-calls": CRON,
   "POST /api/cron/refresh-articles": CRON,
   "POST /api/cron/x-posts": CRON,
-  "POST /api/cron/x-close-trial": CRON,
   "POST /api/cron/x-reply-links": CRON,
   "POST /api/v1/tools/[name]": { except: "surface" },
   "POST /api/mcp": { except: "surface" },

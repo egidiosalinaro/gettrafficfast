@@ -24,9 +24,9 @@ const BASE_FEATURES = [
   "One article a day from your calendar, planned against the current Google results",
   "Written to a 900 to 1,500 word brief, for your business and in your language",
   "Internal links to your earlier articles, placed automatically",
-  "AI images and relevant YouTube videos, when you enable them",
+  "An AI featured image for every article, and a relevant YouTube video when one fits",
   "Auto-publishing to WordPress, or to any platform via webhook",
-  "Autopilot, when you turn it on: keeps the calendar filled so no day goes empty",
+  "Autopilot: keeps the calendar filled so no day goes empty",
   "Reply drafts for posts on X, Reddit and LinkedIn, in your voice. You post them yourself.",
 ];
 
@@ -121,8 +121,8 @@ export function PlanCard({
             <h4 className="font-semibold mb-2">One article a day</h4>
             <p className="text-sm text-foreground/70">
               Planned against the current Google results, written to your
-              business context, with internal links in place and images when
-              you turn them on.
+              business context, with internal links in place and a generated
+              featured image.
             </p>
           </div>
           <div>

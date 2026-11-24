@@ -14,8 +14,9 @@ import { backfillReferencedPosts, type ReferencedBackfillOutcome } from "./x-ref
  * The daily X run (`/api/cron/x-posts`), whole: which sites take part, the
  * numbers of their posted replies (read here, one batched call), the
  * followers of each site's own account (one user lookup a site, read here),
- * and one search job per site (run by the worker: search, rules, qualify,
- * draft).
+ * and one search job per site (run by the worker: search, the close
+ * accounts' search, rules, qualify, draft; the close accounts are part of
+ * every site's run since 2026-11-24, docs/PLACEMENTS.md "Close accounts").
  *
  * Every site takes part when the platform has the X API on (`X_API_ENABLED`
  * and a token): there is no per-site switch since 2026-11-24. Its owner must

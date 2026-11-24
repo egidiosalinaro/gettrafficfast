@@ -610,7 +610,7 @@ pipeline and gates) → SEO/AEO audit, executed by the job runner. The cron and
 
 **Phase 2 — Media.** ✅ *Done.* Provider-agnostic image layer (Google's
 `gemini-*-image` models via the existing key, OpenAI optional) and YouTube video retrieval; per-business
-media settings in Settings → Autopilot → Images and video (`/settings/automation#images`; off by default — media costs money);
+media settings in Settings → Autopilot → Images and video (`/settings/automation#images`; on by default since 2026-11-24, off per site by choice);
 the image-brief agent decides WHAT each image shows, code composes the brand
 style, providers render, assets land in the platform's own storage bucket and
 `media_assets`; the video-select agent judges relevance with "none" as the
@@ -682,8 +682,8 @@ customer stopped scheduling by hand: keywords only reached the calendar
 manually, so six keywords meant six days and then silence. A daily sweep now
 keeps the calendar filled `bufferDays` ahead and tops up the keyword pool below
 a floor, both threshold-driven so cost tracks the buffer rather than the time
-the customer has been away, and off by default because it spends money and
-publishes on their site. See `docs/AUTOPILOT.md`.
+the customer has been away. Off by default until 2026-11-24, on by default
+since (the owner's decision; the person turns it off). See `docs/AUTOPILOT.md`.
 
 **Phase 6 — MCP.** 🔨 *Started (November 2026).* Expose the tool registry. It
 was deliberately late: exposing a capability surface that is still moving

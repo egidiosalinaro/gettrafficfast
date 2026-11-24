@@ -21,8 +21,6 @@ const ready = buildOnboardingStatus({
   articleCount: 4,
   integrationCount: 1,
   manualPostCount: 1,
-  autopilotEnabled: true,
-  imagesEnabled: true,
 });
 
 describe("pickNextAction", () => {
@@ -34,8 +32,6 @@ describe("pickNextAction", () => {
       articleCount: 0,
       integrationCount: 0,
       manualPostCount: 1,
-      autopilotEnabled: false,
-      imagesEnabled: false,
     });
     const action = pickNextAction(status, facts());
     expect(action?.id).toBe("hasKeywords");
@@ -57,8 +53,6 @@ describe("pickNextAction", () => {
       articleCount: 1,
       integrationCount: 1,
       manualPostCount: 1,
-      autopilotEnabled: false,
-      imagesEnabled: false,
     });
     const action = pickNextAction(status, facts({ needsReviewCount: 1 }));
     expect(action?.id).toBe("needs_review");
@@ -76,8 +70,6 @@ describe("pickNextAction", () => {
       articleCount: 0,
       integrationCount: 0,
       manualPostCount: 0,
-      autopilotEnabled: false,
-      imagesEnabled: false,
     });
     const action = pickNextAction(status, facts());
     expect(action).toMatchObject({ kind: "onboarding", id: "hasAboutYou", href: "/settings/voice", cta: "Tell us about you" });
@@ -92,8 +84,6 @@ describe("pickNextAction", () => {
       articleCount: 1,
       integrationCount: 1,
       manualPostCount: 0,
-      autopilotEnabled: false,
-      imagesEnabled: false,
     });
     const action = pickNextAction(status, facts());
     expect(action).toMatchObject({ kind: "onboarding", id: "hasManualPost", href: "/today", title: "Add your first post from X" });
@@ -223,8 +213,6 @@ describe("describeOperatingLoop", () => {
         articleCount: 2,
         integrationCount: 0,
         manualPostCount: 1,
-        autopilotEnabled: false,
-        imagesEnabled: false,
       }),
       facts({
         keywordCount: 5,

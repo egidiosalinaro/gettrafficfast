@@ -11,9 +11,11 @@ import {
 import { composeImagePrompt, resolveImageLook } from "@/lib/media/prompt";
 
 describe("media settings", () => {
-  it("defaults to everything off", () => {
-    expect(DEFAULT_MEDIA_SETTINGS.imagesEnabled).toBe(false);
-    expect(DEFAULT_MEDIA_SETTINGS.videosEnabled).toBe(false);
+  it("defaults to images and videos on since 2026-11-24; a stored false is kept", () => {
+    expect(DEFAULT_MEDIA_SETTINGS.imagesEnabled).toBe(true);
+    expect(DEFAULT_MEDIA_SETTINGS.videosEnabled).toBe(true);
+    expect(parseMediaSettings({})).toMatchObject({ imagesEnabled: true, videosEnabled: true });
+    expect(parseMediaSettings({ imagesEnabled: false, videosEnabled: false })).toMatchObject({ imagesEnabled: false, videosEnabled: false });
   });
 
   it("defaults to the featured image only: no in-article images unless asked for", () => {
@@ -96,8 +98,9 @@ describe("inlineImageAllowance", () => {
 });
 
 describe("how many images an article gets", () => {
-  it("one image by default once images are on, at most four, none when off", () => {
-    expect(maxImagesPerArticle(DEFAULT_MEDIA_SETTINGS)).toBe(0);
+  it("one image by default, at most four, none when off", () => {
+    expect(maxImagesPerArticle(DEFAULT_MEDIA_SETTINGS)).toBe(1);
+    expect(maxImagesPerArticle({ imagesEnabled: false, inlineImagesPerArticle: 3 })).toBe(0);
     expect(maxImagesPerArticle({ imagesEnabled: true, inlineImagesPerArticle: 0 })).toBe(1);
     expect(maxImagesPerArticle({ imagesEnabled: true, inlineImagesPerArticle: 3 })).toBe(4);
     expect(maxImagesPerArticle({ imagesEnabled: true, inlineImagesPerArticle: 99 })).toBe(4);

@@ -7,7 +7,7 @@ import { PLACEMENT_DRAFT, placementDraftWorkflow } from "./workflows/placement-d
 import { searchConsoleIngestWorkflow } from "./workflows/search-console-ingest";
 import { BACKLINK_ARTICLE, backlinkArticleWorkflow } from "./workflows/backlink-article";
 import { X_DISCOVERY, xDiscoveryWorkflow } from "./workflows/x-discovery";
-import { X_CLOSE_TRIAL, xCloseTrialWorkflow } from "./workflows/x-close-trial";
+import { xCloseTrialWorkflow } from "./workflows/x-close-trial";
 import { PUSH_ARTICLE, pushArticleWorkflow } from "./workflows/push-article";
 
 /**
@@ -51,10 +51,11 @@ export function workflowTypes(): string[] {
  * (docs/KNOWLEDGE.md): it waits out a pause, the older articles lose nothing.
  * The daily X search is here for the same reason as discovery: its searches
  * are paid, and only worth paying for when the qualifier can judge them;
- * so is the close-accounts trial (`x-close-trial`), the same pipeline.
+ * its `close` step searches the accounts the site replies to most. The
+ * retired `x-close-trial` type does nothing and is not here.
  * Push page 3 (`push-article`) asks the model for a title and links.
  */
-const LLM_BOUND = new Set<string>([PRODUCE_ARTICLE, REFRESH_ARTICLE, PLACEMENT_DISCOVERY, PLACEMENT_DRAFT, BACKLINK_ARTICLE, X_DISCOVERY, X_CLOSE_TRIAL, PUSH_ARTICLE]);
+const LLM_BOUND = new Set<string>([PRODUCE_ARTICLE, REFRESH_ARTICLE, PLACEMENT_DISCOVERY, PLACEMENT_DRAFT, BACKLINK_ARTICLE, X_DISCOVERY, PUSH_ARTICLE]);
 
 export function isLlmBoundJob(type: string): boolean {
   return LLM_BOUND.has(type);

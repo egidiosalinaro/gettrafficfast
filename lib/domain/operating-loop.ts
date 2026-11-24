@@ -553,18 +553,6 @@ function onboardingAction(step: OnboardingStep): NextAction {
         "Paste the link of a fresh post worth answering. A reply is drafted from it; nothing goes out until you post it yourself.",
       cta: "Add a post",
     },
-    hasAutomation: {
-      title: "Turn on Autopilot when you want the calendar kept filled",
-      description:
-        "Off by default: it writes and publishes on your site on its own. Threshold-based, not a quota for every day you are away.",
-      cta: "Open Autopilot",
-    },
-    hasImages: {
-      title: "Turn on article images if you want more than plain text",
-      description:
-        "Off by default. Once on, every new article gets its own generated image, included in your plan. Pick a look in Autopilot, under Images and video.",
-      cta: "Open images",
-    },
   };
 
   const text = copy[step.key];

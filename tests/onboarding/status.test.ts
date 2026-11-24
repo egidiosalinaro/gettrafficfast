@@ -16,40 +16,15 @@ describe("buildOnboardingStatus", () => {
         articleCount: 2,
         integrationCount: 1,
         manualPostCount: 1,
-        autopilotEnabled: true,
-        imagesEnabled: true,
       })
     ).toEqual(EMPTY_ONBOARDING_STATUS);
   });
 
-  it("marks Autopilot and images only when those switches are on", () => {
-    const status = buildOnboardingStatus({
-      hasBusiness: true,
-      aboutYou: "I use it to write our weekly posts.",
-      keywordCount: 1,
-      articleCount: 1,
-      integrationCount: 1,
-      manualPostCount: 1,
-      autopilotEnabled: true,
-      imagesEnabled: false,
-    });
-    expect(status.hasAutomation).toBe(true);
-    expect(status.hasImages).toBe(false);
-  });
-
-  it("does not treat a scheduled article as images being on", () => {
-    const status = buildOnboardingStatus({
-      hasBusiness: true,
-      aboutYou: "I use it to write our weekly posts.",
-      keywordCount: 3,
-      articleCount: 14,
-      integrationCount: 1,
-      manualPostCount: 1,
-      autopilotEnabled: true,
-      imagesEnabled: false,
-    });
-    expect(status.hasArticles).toBe(true);
-    expect(status.hasImages).toBe(false);
+  it("has no step to turn Autopilot or images on: both are on by default since 2026-11-24", () => {
+    const keys = ONBOARDING_STEPS.map((step) => step.key as string);
+    expect(keys).not.toContain("hasAutomation");
+    expect(keys).not.toContain("hasImages");
+    expect(ONBOARDING_STEPS.map((step) => step.label).join(" ")).not.toMatch(/turn on/i);
   });
 });
 
@@ -61,8 +36,6 @@ describe("About you and the first post from X", () => {
     articleCount: 0,
     integrationCount: 0,
     manualPostCount: 0,
-    autopilotEnabled: false,
-    imagesEnabled: false,
   };
 
   it("counts About you only when it says something", () => {
@@ -124,8 +97,6 @@ describe("nextOnboardingStep", () => {
         hasArticles: true,
         hasIntegration: true,
         hasManualPost: true,
-        hasAutomation: true,
-        hasImages: true,
       })
     ).toBeNull();
   });

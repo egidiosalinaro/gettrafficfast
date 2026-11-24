@@ -160,8 +160,8 @@ that do, and the owner can type any). So the screen does not claim "without
 naming you" for the block; it says the asks come from the articles' keywords
 and the questions the owner chose, and the evidence page shows every
 question as it was asked. Counting only the prompt asks would
-show "not asked" for a site whose owner left the cadence off (the default:
-it spends money) while the weekly sweep asks every week, and the block would
+show "not asked" for a site whose owner turned the cadence off (weekly is
+the default since 2026-11-24) while the weekly sweep asks every week, and the block would
 say less than the platform knows. Counting both is honest on three
 conditions, which the code keeps:
 

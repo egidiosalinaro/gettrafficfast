@@ -22,10 +22,12 @@ import { saveDailySpendLimit } from "@/lib/limits/settings";
  *   3. the lowest daily AI spend ceiling ($1), unless the owner already set
  *      one for the account;
  *   4. one site, unless it has one: gettrafficfa.st itself, public pages the
- *      pipeline can read without anything being invented. Autopilot, Find
- *      posts on X and Push page 3 stay at their defaults, which are off, and
- *      no publishing destination is connected, so nothing can be written to
- *      a real site;
+ *      pipeline can read without anything being invented. Since 2026-11-24
+ *      Autopilot, Push page 3, images and video and the weekly visibility
+ *      run are on by default for every site; a demo account is not a
+ *      customer, so its site is opted out of each (`REVIEWER_SITE_OPT_OUTS`,
+ *      written on every call, merged onto what is stored). No publishing
+ *      destination is connected, so nothing can be written to a real site;
  *   5. a set-password email from Supabase to that address. The owner sets
  *      the password himself from the email: no password is ever chosen,
  *      returned or logged here.
@@ -41,6 +43,17 @@ export const REVIEWER_SITE = {
     "Demo site for the MCP directory reviewers' account. It reads gettrafficfa.st's public pages; nothing is published from this account.",
   contentLanguage: "en" as const,
 };
+
+/**
+ * What the demo site does not do on its own: the per-site switches that are
+ * on by default for customers, turned off. The reviewer can still try each
+ * by hand.
+ */
+export const REVIEWER_SITE_OPT_OUTS = {
+  automation_settings: { enabled: false, pushPage3: false },
+  media_settings: { imagesEnabled: false, videosEnabled: false },
+  aeo_settings: { cadence: "off" },
+} as const;
 
 /** Where the set-password email's link lands, through the confirm route (an allowed redirect). */
 export const SET_PASSWORD_REDIRECT = `${SITE_URL}/auth/confirm?next=${encodeURIComponent(SET_PASSWORD_PATH)}`;
@@ -129,6 +142,25 @@ async function ensureSite(admin: SupabaseClient, userId: string, now: Date): Pro
   return { id: (saved.business.id as string | undefined) ?? null, created: true };
 }
 
+/** The demo site's opt-outs merged onto its stored settings. Idempotent. */
+async function quietSite(admin: SupabaseClient, siteId: string | null): Promise<void> {
+  if (!siteId) return;
+  const { data } = await admin
+    .from("businesses")
+    .select("automation_settings, media_settings, aeo_settings")
+    .eq("id", siteId)
+    .maybeSingle();
+  const stored = (data ?? {}) as Record<string, unknown>;
+  const merged = Object.fromEntries(
+    Object.entries(REVIEWER_SITE_OPT_OUTS).map(([column, outs]) => {
+      const current = stored[column];
+      return [column, { ...(current && typeof current === "object" ? current : {}), ...outs }];
+    })
+  );
+  const { error } = await admin.from("businesses").update(merged).eq("id", siteId);
+  if (error) throw new Error(`site settings: ${error.message}`);
+}
+
 async function requestPasswordEmail(admin: SupabaseClient, email: string): Promise<ReviewerAccountResult["passwordEmail"]> {
   const { error } = await admin.auth.resetPasswordForEmail(email, { redirectTo: SET_PASSWORD_REDIRECT });
   return { requested: !error, error: error ? error.message : null };
@@ -161,6 +193,7 @@ export async function provisionReviewerAccount(params: {
     const plan = await ensureCompPlan(params.admin, user.id, now);
     const ceiling = await ensureCeiling(params.admin, user.id, now);
     const site = await ensureSite(params.admin, user.id, now);
+    await quietSite(params.admin, site.id);
     const passwordEmail = await requestPasswordEmail(params.admin, email);
     return {
       ok: true,

@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { provisionReviewerAccount, REVIEWER_SITE, SET_PASSWORD_REDIRECT } from "@/lib/reviewer-account";
+import { provisionReviewerAccount, REVIEWER_SITE, REVIEWER_SITE_OPT_OUTS, SET_PASSWORD_REDIRECT } from "@/lib/reviewer-account";
+import { parseAutomationSettings } from "@/lib/automation/settings";
+import { parseMediaSettings } from "@/lib/media/settings";
+import { parseAeoSettings } from "@/lib/visibility/settings";
 import { describeOutcome } from "@/components/owner/reviewer-account-panel";
 
 /**
@@ -46,7 +49,7 @@ function fakeAdmin(seed: Partial<State> = {}): { admin: SupabaseClient; state: S
 
   function query(table: string) {
     const filters: Record<string, unknown> = {};
-    let op: "select" | "insert" | "upsert" = "select";
+    let op: "select" | "insert" | "upsert" | "update" = "select";
     let payload: Record<string, unknown> | null = null;
     const rows = () => (state as unknown as Record<string, Array<Record<string, unknown>>>)[table === "account_limits" ? "limits" : table];
     const matching = () =>
@@ -55,6 +58,10 @@ function fakeAdmin(seed: Partial<State> = {}): { admin: SupabaseClient; state: S
       );
     const write = () => {
       if (!payload) return;
+      if (op === "update") {
+        for (const row of matching()) Object.assign(row, payload);
+        return;
+      }
       if (op === "upsert") {
         const list = rows();
         const at = list.findIndex((row) => row.user_id === payload!.user_id);
@@ -72,6 +79,7 @@ function fakeAdmin(seed: Partial<State> = {}): { admin: SupabaseClient; state: S
       limit: () => builder,
       insert: (row: Record<string, unknown>) => ((op = "insert"), (payload = row), builder),
       upsert: (row: Record<string, unknown>) => ((op = "upsert"), (payload = row), builder),
+      update: (row: Record<string, unknown>) => ((op = "update"), (payload = row), builder),
       maybeSingle: async () => ({ data: matching()[0] ?? null, error: null }),
       single: async () => {
         write();
@@ -173,6 +181,20 @@ describe("provisionReviewerAccount", () => {
     expect(state.createUser).not.toHaveBeenCalled();
     expect(state.subscriptions).toHaveLength(1);
     expect(state.businesses).toHaveLength(1);
+    expect(state.businesses[0]).toMatchObject(REVIEWER_SITE_OPT_OUTS);
+  });
+
+  it("opts the demo site out of what is on by default for customers, keeping its other settings", async () => {
+    const { admin, state } = fakeAdmin({
+      users: [{ id: "user-9", email: EMAIL }],
+      subscriptions: [{ id: "s1", user_id: "user-9", status: "active", source: "comp" }],
+      businesses: [{ id: "site-9", user_id: "user-9", name: "Existing", automation_settings: { bufferDays: 7 }, media_settings: {}, aeo_settings: null }],
+    });
+    await provisionReviewerAccount({ admin, input: { email: EMAIL }, env: ENV, now: NOW });
+    const site = state.businesses[0];
+    expect(parseAutomationSettings(site.automation_settings)).toMatchObject({ enabled: false, pushPage3: false, bufferDays: 7 });
+    expect(parseMediaSettings(site.media_settings)).toMatchObject({ imagesEnabled: false, videosEnabled: false });
+    expect(parseAeoSettings(site.aeo_settings).cadence).toBe("off");
     expect(state.resetPasswordForEmail).toHaveBeenCalledTimes(1);
   });
 

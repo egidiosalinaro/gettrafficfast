@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { EMPTY_ONBOARDING_STATUS } from "@/lib/onboarding";
+import { parseAutomationSettings } from "@/lib/automation/settings";
 import { ONBOARDING_BUSINESS_COLUMNS, countOnboarding, onboardingFrom } from "@/lib/onboarding-status";
 import {
   citationRatesByEngine,
@@ -176,7 +177,7 @@ export async function loadHomeSnapshot(supabase: SupabaseClient, businessId: str
     failedCount: byStatus.failed,
     publishedCount: byStatus.published,
     hasIntegration: counts.integrationCount > 0,
-    autopilotEnabled: onboarding.hasAutomation,
+    autopilotEnabled: parseAutomationSettings((business.data as { automation_settings?: unknown } | null)?.automation_settings).enabled,
     citationsByEngine,
     rankMeasured: totals.rankMeasured,
     ranking: totals.ranking,

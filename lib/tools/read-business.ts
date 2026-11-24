@@ -60,7 +60,7 @@ export const getBusiness = defineTool({
   name: "get_business",
   title: "Get the site",
   description:
-    "The site the tools act on, as Settings shows it: name, website, niche, description, sitemap and blog links, content language, whether the URL is locked, Autopilot (off by default: it writes and publishes on its own) and Images & video.",
+    "The site the tools act on, as Settings shows it: name, website, niche, description, sitemap and blog links, content language, whether the URL is locked, Autopilot (on by default: it keeps the calendar filled, and articles are written and published on their day; enabled false is the person's opt-out) and Images & video (on by default).",
   input: z.object({}),
   output: z.object({
     business: z.object({

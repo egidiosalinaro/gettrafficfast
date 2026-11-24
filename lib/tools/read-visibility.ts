@@ -309,7 +309,7 @@ export const getVisibilitySettings = defineTool({
   name: "get_visibility_settings",
   title: "Get visibility settings",
   description:
-    "Settings → AI Visibility: what counts as this site (domains and brand names), which engines a run asks (empty = every configured one), how often runs happen (off by default: no run starts until it is switched on), and the most prompts a run asks.",
+    "Settings → AI Visibility: what counts as this site (domains and brand names), which engines a run asks (empty = every configured one), how often runs happen (weekly by default; off only when the person chose it), and the most prompts a run asks.",
   input: z.object({}),
   output: z.object({
     settings: AeoSettings,

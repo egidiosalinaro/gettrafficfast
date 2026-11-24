@@ -487,14 +487,7 @@ describe("GET /api/home", () => {
           "website_url": "https://acme.test",
         },
         "loop": {
-          "nextAction": {
-            "cta": "Open images",
-            "description": "Off by default. Once on, every new article gets its own generated image, included in your plan. Pick a look in Autopilot, under Images and video.",
-            "href": "/settings/automation#images",
-            "id": "hasImages",
-            "kind": "onboarding",
-            "title": "Turn on article images if you want more than plain text",
-          },
+          "nextAction": null,
           "replies": {
             "detail": "Drafted and ready for you to post. 1 posted in the last 7 days.",
             "href": "/today",

@@ -28,9 +28,12 @@ import {
  * is stored, then validates the whole with the route's strict schema: an
  * agent that sends `{ enabled: true }` must not reset the rest to defaults.
  *
- * Turning autopilot or images on starts spending, and autopilot publishes in
- * the owner's name: each needs the extra scopes and `confirm: true`, checked
- * before anything is written (AGENTS.md §12).
+ * Autopilot, Push page 3 and images are on by default since 2026-11-24
+ * (product features are on). Setting one back on after the person turned it
+ * off is not asked again; it still needs the scopes a key must hold for what
+ * it does (spend, and publish for autopilot). Raising the in-article image
+ * cap above what the site has is a choice to spend more: it needs
+ * `confirm: true` (AGENTS.md §12).
  */
 
 type Row = Record<string, unknown>;
@@ -227,7 +230,7 @@ export const updateAutomationSettings = defineTool({
   name: "update_automation_settings",
   title: "Change autopilot",
   description:
-    "Changes this site's autopilot: whether it runs, how many days of calendar it keeps filled (also the window to cancel an article), the keyword floor that triggers new keyword research, and the per-run ceilings; and backLinks (on by default, independent of autopilot): when an article is published, up to 3 older related articles get one link to it and are delivered again; and pushPage3 (off by default, independent of autopilot): once a week, up to 3 articles Google shows at positions 11 to 40 get a link from the site's best related pages and a tighter meta title and description around their main Search Console query (one model call each; turning it on needs the spend scope and confirm: true). Fields left out stay as they are. Turning autopilot on means articles are researched, written and published to the site's destination without anyone asking: it needs the spend and publish scopes and confirm: true.",
+    "Changes this site's autopilot: whether it runs, how many days of calendar it keeps filled (also the window to cancel an article), the keyword floor that triggers new keyword research, and the per-run ceilings; and backLinks (on by default, independent of autopilot): when an article is published, up to 3 older related articles get one link to it and are delivered again; and pushPage3 (on by default, independent of autopilot): once a week, up to 3 articles Google shows at positions 11 to 40 get a link from the site's best related pages and a tighter meta title and description around their main Search Console query (one model call each). Autopilot is on by default: it keeps the calendar filled, and each scheduled article is written and delivered to the site's connected destination on its day; enabled: false stops it. Fields left out stay as they are. Setting autopilot back on needs the spend and publish scopes, pushPage3 the spend scope; confirm is accepted and not needed.",
   input: z.object({ ...partialOf(AutomationSettings.shape), confirm: Confirm }),
   output: z.object({ settings: AutomationSettings }),
   scope: "write",
@@ -235,22 +238,10 @@ export const updateAutomationSettings = defineTool({
   async handler(ctx, input) {
     const stored = await storedSettings(ctx);
     const settings = strictSettings(AutomationSettings, { ...stored.automation, ...changesOf(input) });
-    if (!stored.automation.enabled && settings.enabled) {
-      requireScopes(ctx, ["spend", "publish"], "Turning autopilot on");
-      requireConfirmation(
-        input.confirm,
-        `Autopilot on: every day it keeps ${settings.bufferDays} days of this site's calendar filled (up to ${settings.maxSchedulesPerRun} articles a run), researches up to ${settings.maxKeywordsPerRun} new keywords when fewer than ${settings.keywordFloor} are left, and each scheduled article is written (model calls) and published to the site's connected destination on its day.`,
-        "Ask the person, then send the same call with confirm: true. An article can be removed from the calendar until its day; enabled: false stops autopilot."
-      );
-    }
-    if (!stored.automation.pushPage3 && settings.pushPage3) {
-      requireScopes(ctx, ["spend"], "Turning Push page 3 on");
-      requireConfirmation(
-        input.confirm,
-        "Push page 3 on: once a week, up to 3 published articles that Google shows at positions 11 to 40 get one link each from up to 3 of the site's best related pages and a new meta title and description around the search they are shown for (one model call per article); where the site takes updates they are delivered, otherwise they wait for the person in Today.",
-        "Ask the person, then send the same call with confirm: true. pushPage3: false stops it."
-      );
-    }
+    // On by default: setting one back on is not asked again, only checked
+    // against what the key may do.
+    if (!stored.automation.enabled && settings.enabled) requireScopes(ctx, ["spend", "publish"], "Turning autopilot on");
+    if (!stored.automation.pushPage3 && settings.pushPage3) requireScopes(ctx, ["spend"], "Turning Push page 3 on");
     const saved = await saveAutomationSettings({ supabase: ctx.client, userId: ctx.userId, businessId: ctx.businessId, settings });
     if (!saved.ok) throw libRefusal(saved);
     return { settings: saved.settings };
@@ -261,7 +252,7 @@ export const updateMediaSettings = defineTool({
   name: "update_media_settings",
   title: "Change images and video",
   description:
-    "Changes this site's images and video: whether articles get an AI featured image, how many in-article images an article may also get (inlineImagesPerArticle, 0 to 3, 0 unless set; every image is generated for the article, included in the plan), their style (or custom art direction), brand colours, the image provider, and whether articles get YouTube videos. Fields left out stay as they are. Turning images on, or raising inlineImagesPerArticle on a site that has them on, makes every article generated from then on get more generated images: it needs the spend scope and confirm: true.",
+    "Changes this site's images and video: whether articles get an AI featured image, how many in-article images an article may also get (inlineImagesPerArticle, 0 to 3, 0 unless set; every image is generated for the article, included in the plan), their style (or custom art direction), brand colours, the image provider, and whether articles get YouTube videos. Images and videos are on by default; imagesEnabled: false or videosEnabled: false stops them for articles not yet written. Fields left out stay as they are. Setting images back on needs the spend scope; raising inlineImagesPerArticle on a site that has images on makes every article generated from then on get more generated images: it needs the spend scope and confirm: true.",
   input: z.object({ ...partialOf(MediaSettings.shape), confirm: Confirm }),
   output: z.object({ settings: MediaSettings }),
   scope: "write",
@@ -269,16 +260,18 @@ export const updateMediaSettings = defineTool({
   async handler(ctx, input) {
     const stored = await storedSettings(ctx);
     const settings = strictSettings(MediaSettings, { ...stored.media, ...changesOf(input) });
-    // AI work goes up in two ways: images go on, or a site with images on
-    // allows more of them per article. Both are asked for; neither is implied.
+    // Images are on by default: setting them back on is only checked against
+    // what the key may do. Allowing more per article than the site has is a
+    // choice to spend more, and is asked for.
     const turningOn = !stored.media.imagesEnabled && settings.imagesEnabled;
     const raisingCap =
       settings.imagesEnabled && settings.inlineImagesPerArticle > stored.media.inlineImagesPerArticle;
-    if (turningOn || raisingCap) {
-      requireScopes(ctx, ["spend"], turningOn ? "Turning images on" : "Allowing more images per article");
+    if (turningOn) requireScopes(ctx, ["spend"], "Turning images on");
+    if (raisingCap) {
+      requireScopes(ctx, ["spend"], "Allowing more images per article");
       requireConfirmation(
         input.confirm,
-        `${turningOn ? "Images on" : "More images per article"}: every article this site generates from now on gets an AI featured image${
+        `More images per article: every article this site generates from now on gets an AI featured image${
           settings.inlineImagesPerArticle > 0
             ? ` and up to ${settings.inlineImagesPerArticle} in-article image(s)`
             : ""

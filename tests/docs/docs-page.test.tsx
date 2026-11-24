@@ -151,11 +151,15 @@ describe("what the docs say", () => {
     expect(shown).toContain("Neither GTF nor Claude ever posts.");
   });
 
-  it("says what never happens: no posting, no product or link in a reply, no AI work started unasked", () => {
+  it("says what never happens: no posting, no product or link in a reply, no check or extra spend started unasked", () => {
     const shown = text(render());
     expect(shown).toContain("GTF never posts for you.");
     expect(shown).toContain("A reply names no product and carries no link.");
-    expect(shown).toContain("Start AI work without asking you.");
+    expect(shown).toContain("Start a check of the AI answer engines without asking you");
+    // On by default since 2026-11-24: nothing to turn on.
+    expect(shown).toContain("Autopilot, images and the weekly check are already on.");
+    expect(shown).toContain("Autopilot is on for every site, with nothing to turn on.");
+    expect(shown).not.toMatch(/off until you turn/i);
   });
 
   it("tells a customer how to be readable by AI answer engines, without promising a citation", () => {

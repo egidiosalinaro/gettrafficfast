@@ -30,7 +30,9 @@ describe("the places line", () => {
 
   it("points to Configure when the setting is off", () => {
     const off = html({ placesFromSources: false, count: 0 });
-    expect(off).toContain("Cited pages are not sent to Today.");
+    expect(off).toContain("Cited pages are not sent to Today: this site turned it off in");
+    // It says what is so; it does not ask anyone to turn anything on.
+    expect(off).not.toMatch(/turn it on/i);
     expect(off).toContain('href="/growth/ai/settings#places"');
     // Places sent earlier, or by hand, are still said, even with it off.
     expect(html({ placesFromSources: false, count: 2 })).toContain("2 pages the answers cited are in Today");

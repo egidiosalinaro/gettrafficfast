@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCitationProviders } from "@/lib/providers/citations/registry";
 import { isRunDue, parseAeoSettings } from "@/lib/visibility/settings";
 import { hasActiveRun, startRun } from "@/lib/visibility/store";
+import { importPromptsFromKeywords } from "@/lib/visibility/manage";
 import { isCronAuthorized } from "@/lib/cron-auth";
 import { isSpendSkip, logOwnerSkip, spendingOwners } from "@/lib/limits/owners";
 
@@ -12,8 +13,21 @@ import { isSpendSkip, logOwnerSkip, spendingOwners } from "@/lib/limits/owners";
  *
  * Runs daily and starts a run for every business whose cadence says one is
  * due. It starts runs, it does not execute them: the probes are paid calls
- * done by the job worker, a few at a time, resumable. A business with cadence
- * `off` (the default) is never touched; it can still run by hand.
+ * done by the job worker, a few at a time, resumable. The cadence is weekly
+ * by default since 2026-11-24; a business that chose `off` is never touched
+ * (it can still run by hand). Nothing runs without an engine the deployment
+ * configured.
+ *
+ * Bounded: the businesses are read oldest first (at most 500), and at most
+ * MAX_STARTS runs are started a day, each asking at most the site's
+ * `maxQueriesPerRun` prompts (30 by default) of each engine. A site past the
+ * day's starts is due again tomorrow.
+ *
+ * A due site that has never had a prompt or a run gets its prompt set from
+ * its own keywords first (`importPromptsFromKeywords`: free, no model, the
+ * oldest 50, the same as the screen's Import), so the weekly run has
+ * something to ask without anyone setting it up. A site that emptied its set
+ * after a run is left empty.
  *
  * A due business whose owner does not pay (`hasPaidAccess`) is skipped and
  * logged: its schedule waits for the subscription to come back.
@@ -21,8 +35,10 @@ import { isSpendSkip, logOwnerSkip, spendingOwners } from "@/lib/limits/owners";
 
 export const maxDuration = 60;
 
-/** Businesses considered per day. A scheduler, not a backlog race. */
-const MAX_BUSINESSES = 50;
+/** Businesses read per day, oldest first. */
+const MAX_BUSINESSES = 500;
+/** Runs started per day at most. A scheduler, not a backlog race. */
+const MAX_STARTS = 50;
 
 async function run(request: NextRequest) {
   if (!isCronAuthorized(request)) {
@@ -37,6 +53,7 @@ async function run(request: NextRequest) {
   const { data: businesses, error } = await supabase
     .from("businesses")
     .select("id, user_id, aeo_settings")
+    .order("created_at", { ascending: true })
     .limit(MAX_BUSINESSES);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -48,7 +65,12 @@ async function run(request: NextRequest) {
   const notes: string[] = [];
   const owners = spendingOwners(supabase, now);
 
+  let seeded = 0;
   for (const business of businesses ?? []) {
+    if (started >= MAX_STARTS) {
+      notes.push(`stopped at ${MAX_STARTS} runs started; the rest are due tomorrow`);
+      break;
+    }
     const settings = parseAeoSettings(business.aeo_settings);
     if (settings.cadence === "off") continue;
     const businessId = business.id as string;
@@ -77,11 +99,24 @@ async function run(request: NextRequest) {
 
       // Nothing to ask means nothing to bill: a due schedule over an empty
       // set is skipped, not failed.
-      const { count } = await supabase
+      let { count } = await supabase
         .from("aeo_queries")
         .select("id", { count: "exact", head: true })
         .eq("business_id", businessId)
         .eq("enabled", true);
+      if ((count ?? 0) === 0 && !last) {
+        const { count: stored } = await supabase
+          .from("aeo_queries")
+          .select("id", { count: "exact", head: true })
+          .eq("business_id", businessId);
+        if ((stored ?? 0) === 0) {
+          const imported = await importPromptsFromKeywords({ supabase, userId: business.user_id as string, businessId });
+          if (imported.ok && imported.added > 0) {
+            seeded += 1;
+            count = imported.added;
+          }
+        }
+      }
       if ((count ?? 0) === 0) continue;
 
       await startRun({
@@ -107,6 +142,7 @@ async function run(request: NextRequest) {
     skippedUnpaid,
     skippedSpendCap,
     started,
+    seeded,
     notes: notes.slice(0, 10),
   });
 }

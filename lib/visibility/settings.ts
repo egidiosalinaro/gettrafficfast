@@ -38,8 +38,14 @@ export const AeoSettings = z.object({
   domains: z.array(z.string().trim().min(1).max(253)).max(10).default([]),
   /** Engines to ask. Empty means every engine the platform has configured. */
   engines: z.array(z.string().trim().min(1).max(40)).max(10).default([]),
-  /** Off by default: every run is paid, and the key existing is not consent. */
-  cadence: z.enum(AEO_CADENCES).default("off"),
+  /**
+   * Weekly by default since 2026-11-24 (the owner: product features are on).
+   * The probes are the platform's: which engines exist is the deployment's
+   * own opt-in (an engine is configured only by its env settings,
+   * docs/CITATIONS.md), so with none nothing is asked. "off" is the person's
+   * opt-out and is kept; "monthly" asks less.
+   */
+  cadence: z.enum(AEO_CADENCES).default("weekly"),
   maxQueriesPerRun: z.number().int().min(1).max(MAX_QUERIES_PER_RUN).default(30),
   /**
    * After each run, pages the answers cited where the site was not cited
@@ -59,8 +65,8 @@ export type AeoSettings = z.infer<typeof AeoSettings>;
 export const DEFAULT_AEO_SETTINGS: AeoSettings = AeoSettings.parse({});
 
 /**
- * Tolerant read: a malformed column falls back to the defaults, under which
- * nothing paid runs (cadence off) and only the free places step is on.
+ * Tolerant read: a malformed column falls back to the defaults (a weekly
+ * run, the places step on).
  */
 export function parseAeoSettings(value: unknown): AeoSettings {
   const parsed = AeoSettings.safeParse(value ?? {});

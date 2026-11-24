@@ -243,8 +243,8 @@ describe("the run's own last step", () => {
     expect(parseAeoSettings({ cadence: "weekly" }).placesFromSources).toBe(true);
     // The owner's own choice is not overridden.
     expect(parseAeoSettings({ placesFromSources: false }).placesFromSources).toBe(false);
-    // Cost stays off: the default turns on nothing that pays.
-    expect(parseAeoSettings({}).cadence).toBe("off");
+    // The weekly run is on by default too since 2026-11-24.
+    expect(parseAeoSettings({}).cadence).toBe("weekly");
   });
 
   it("with the setting off, creates nothing and asks nothing", async () => {

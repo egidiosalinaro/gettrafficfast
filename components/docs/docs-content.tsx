@@ -165,13 +165,14 @@ export function DocsContent({ engines, toolGroups, limits }: DocsContentProps) {
               LinkedIn, GitHub, Hacker News, Quora, Stack Exchange and similar) and judges which are worth answering.
             </li>
             <li>
-              <Strong>Every day, 13:20.</Strong> Looks for fresh posts on X and drafts replies to up to five of the
-              best. Every site takes part; when there are many, the sites take turns, so yours may be searched every
+              <Strong>Every day, 13:20.</Strong> Looks for fresh posts on X about your topics, and for the new posts
+              of the accounts you reply to most there, and drafts replies to up to five of the best. Every site takes
+              part, with nothing to turn on; when there are many, the sites take turns, so yours may be searched every
               other day.
             </li>
             <li>
-              <Strong>Every day, 06:00.</Strong> With Autopilot on, keeps the calendar filled ahead and adds topics
-              when they run low.
+              <Strong>Every day, 06:00.</Strong> Autopilot keeps the calendar filled ahead and adds topics when they
+              run low.
             </li>
             <li>
               <Strong>Every day, 08:00.</Strong> Writes the article of the day, checks it, and publishes it to your
@@ -181,7 +182,13 @@ export function DocsContent({ engines, toolGroups, limits }: DocsContentProps) {
               <Strong>Every day.</Strong> Reads Search Console, and the public numbers of your replies on X.
             </li>
             <li>
-              <Strong>Weekly or monthly, if you choose.</Strong> Asks the AI answer engines your questions.
+              <Strong>Every week.</Strong> Asks the AI answer engines your questions. The first time, if you have no
+              questions yet, GTF takes them from your topics. Choose monthly, or off, in Growth → AI answers →
+              Configure.
+            </li>
+            <li>
+              <Strong>Every week, Wednesday.</Strong> With Search Console connected, pushes up to three articles Google shows on pages 2 to 4: a
+              link from your best related pages and a tighter search title and description.
             </li>
           </Bullets>
         </Sub>
@@ -257,18 +264,19 @@ export function DocsContent({ engines, toolGroups, limits }: DocsContentProps) {
             both scheduled.
           </li>
           <li>
-            <Strong>Autopilot</Strong> is off until you turn it on in <Place>Settings → Autopilot</Place>. It keeps
-            the calendar filled ahead (14 days unless you choose another number) and adds topics when fewer than 10
-            are left. That buffer is your review window: an article sits on the calendar for those days before it is
-            written, so you can remove it first. With Autopilot on, GTF writes and publishes without asking each time.
-            Each of your sites has its own Autopilot setting. After every daily run, Content says what it did for the
+            <Strong>Autopilot</Strong> is on for every site, with nothing to turn on. It keeps the calendar filled
+            ahead (14 days unless you choose another number) and adds topics when fewer than 10 are left. That buffer
+            is your review window: an article sits on the calendar for those days before it is written, so you can
+            remove it first. GTF writes and publishes to your connected site without asking each time; with no site
+            connected, nothing is published. Each of your sites has its own Autopilot setting, and{" "}
+            <Place>Settings → Autopilot</Place> turns it off. After every daily run, Content says what it did for the
             site and, when it left days empty, why: topics that all overlap articles you already have, no new topic
             found, today&apos;s limit for AI work, or no active plan.
           </li>
           <li>
-            <Strong>Images.</Strong> Off until you turn them on, in <Place>Settings → Autopilot</Place>, under Images
-            and video: a generated featured image for every new article, and up to three more in the text if you
-            choose.
+            <Strong>Images.</Strong> Every new article gets a generated featured image, and a relevant YouTube video
+            when one fits, included in your plan. In <Place>Settings → Autopilot</Place>, under Images and video, pick
+            a look, allow up to three more images in the text, or turn them off.
           </li>
         </Bullets>
 
@@ -389,7 +397,7 @@ export function DocsContent({ engines, toolGroups, limits }: DocsContentProps) {
             <li>An answer that could not be read is left out, not counted as &ldquo;not cited&rdquo;.</li>
             <li>Not measured means GTF has not asked yet. 0 means it asked and you were not cited.</li>
             <li>Two runs are compared only when they asked the same questions of the same engines.</li>
-            <li>Runs are off until you choose weekly or monthly, or tap Run now.</li>
+            <li>Runs are weekly unless you choose monthly or off; Run now asks at once.</li>
             <li>The pages the answers cited instead of you can become places to reply, in Today.</li>
           </Bullets>
           <P>
@@ -503,8 +511,8 @@ export function DocsContent({ engines, toolGroups, limits }: DocsContentProps) {
             <li>Create or revoke keys. Only you can, signed in.</li>
             <li>Connect WordPress or a webhook: a password or a secret never passes through a chat.</li>
             <li>
-              Start AI work without asking you. Turning on Autopilot, images or scheduled AI checks, and running a
-              check now, wait for your yes.
+              Start a check of the AI answer engines without asking you, or allow more images per article: those
+              wait for your yes. Autopilot, images and the weekly check are already on.
             </li>
           </Bullets>
         </Callout>

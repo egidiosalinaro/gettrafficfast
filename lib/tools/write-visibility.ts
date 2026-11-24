@@ -32,11 +32,12 @@ import {
  * AI Visibility's writes as tools (`/growth/ai`, `/growth/ai/settings`). Each handler calls the
  * function the screen's route calls (lib/visibility/manage.ts).
  *
- * Two of them switch spending on, and say so before they do: a run asks
- * every prompt of the set to every engine, each a paid probe, and a cadence
- * does that on a schedule. Both answer `confirmation_required` with the
- * number of probes until they are sent again with `confirm: true`
- * (AGENTS.md §12: cost never switches itself on).
+ * A run asks every prompt of the set to every engine, each a paid probe:
+ * `run_visibility_check` answers `confirmation_required` with the number of
+ * probes until it is sent again with `confirm: true`. The cadence is weekly
+ * by default since 2026-11-24 (product features are on; the engines are the
+ * deployment's own opt-in), so setting one back on after turning it off is
+ * not asked again: it needs the spend scope, nothing more.
  */
 
 const PromptId = z.string().uuid().describe("A prompt's id, from the site's prompt set.");
@@ -195,13 +196,11 @@ export const suggestPromptsTool = defineTool({
 
 // ── Settings and runs ────────────────────────────────────────────────────────
 
-const RUNS_PER_MONTH = { weekly: 4, monthly: 1 } as const;
-
 export const updateVisibilitySettings = defineTool({
   name: "update_visibility_settings",
   title: "Change visibility settings",
   description:
-    "Changes this site's AI Visibility settings: brand names and extra domains that count as the site being cited, which engines to ask (empty: every configured one), the cadence (off, weekly, monthly), the most prompts a run asks, and placesFromSources (after each run, pages the answers cited where the site was not become reply targets; on by default, no model, nothing drafted). Fields left out stay as they are. Turning a cadence on schedules runs that ask the engines on their own: it needs the spend scope and confirm: true, and without confirm answers confirmation_required with the probes per run.",
+    "Changes this site's AI Visibility settings: brand names and extra domains that count as the site being cited, which engines to ask (empty: every configured one), the cadence (off, weekly, monthly), the most prompts a run asks, and placesFromSources (after each run, pages the answers cited where the site was not become reply targets; on by default, no model, nothing drafted). The cadence is weekly unless the person chose otherwise; off stops the scheduled runs. Fields left out stay as they are. Setting a cadence back on after off needs the spend scope; plan says what each run asks. confirm is accepted and not needed.",
   input: z.object({ ...partialOf(AeoSettings.shape), confirm: Confirm }),
   output: z.object({ settings: AeoSettings, plan: Plan }),
   scope: "write",
@@ -213,12 +212,6 @@ export const updateVisibilitySettings = defineTool({
 
     if (stored.cadence === "off" && settings.cadence !== "off") {
       requireScopes(ctx, ["spend"], "Turning on scheduled visibility runs");
-      const perMonth = plan.probes * RUNS_PER_MONTH[settings.cadence];
-      requireConfirmation(
-        input.confirm,
-        `A ${settings.cadence} cadence starts runs on a schedule: each run asks ${probesSentence(plan)}, about ${perMonth} a month.`,
-        "Ask the person, then send the same call with confirm: true. cadence: off stops it."
-      );
     }
 
     const saved = await saveAeoSettings({ supabase: ctx.client, userId: ctx.userId, businessId: ctx.businessId, settings });

@@ -13,10 +13,12 @@ import { MediaSettingsForm } from "@/components/settings/media-settings-form";
 /**
  * Autopilot.
  *
- * The page says what it will do in plain words, because the setting spends
- * money and publishes on the customer's own site. The buffer is presented as
- * what it really is: how far ahead the calendar is filled, which is also how
- * long they have to cancel an article before it is written.
+ * The page says what it does in plain words, because it publishes on the
+ * customer's own site. Since 2026-11-24 Autopilot, Push page 3 and images
+ * are on by default: the switches are there to turn them off, and the page
+ * never asks the person to turn them on. The buffer is presented as what it
+ * really is: how far ahead the calendar is filled, which is also how long
+ * they have to cancel an article before it is written.
  *
  * Images & video (`/settings/generation` until 2026-11-14) is the second
  * half of this page, under `#images`: whether every article Autopilot (or a
@@ -84,8 +86,7 @@ function AutopilotSettings() {
     load();
   }, []);
 
-  // Arriving at #images (the checklist's "Turn on article images", the old
-  // /settings/generation): scroll there once this half has its height. The
+  // Arriving at #images (a link to the section, the old /settings/generation): scroll there once this half has its height. The
   // phone's scrolling area starts every page at its top, so the browser's own
   // jump to the anchor does not hold.
   useEffect(() => {
@@ -177,10 +178,11 @@ function AutopilotSettings() {
             className="mt-1 h-4 w-4"
           />
           <span>
-            <span className="text-sm font-medium">Turn autopilot on</span>
+            <span className="text-sm font-medium">Keep the calendar filled</span>
             <span className="mt-1 block text-xs text-muted-foreground">
-              Off by default. When on, the platform schedules articles and
-              publishes them on your site without asking each time.
+              On for every site. GetTrafficFast schedules articles and publishes
+              them on your site on their day, without asking each time. Untick it
+              to schedule every article yourself.
             </span>
           </span>
         </label>
@@ -257,7 +259,7 @@ function AutopilotSettings() {
           <span>
             <span className="text-sm font-medium">Push articles stuck on pages 2 to 4</span>
             <span className="mt-1 block text-xs text-muted-foreground">
-              Off by default, with or without autopilot; it uses AI work. Once a week, up to 3 articles
+              On for every site, with or without autopilot. Once a week, up to 3 articles
               that Google shows at positions 11 to 40 (Search Console needed) get a link from your best
               related pages, with the search they are shown for as the link text, and a tighter search
               title and description. The headline and the address stay. If your site takes updates,
@@ -275,7 +277,7 @@ function AutopilotSettings() {
           {availableKeywords} keyword{availableKeywords === 1 ? "" : "s"} unused.
           {settings.enabled
             ? " Autopilot runs every morning."
-            : " Autopilot is off, so nothing is scheduled automatically."}
+            : " Autopilot is off for this site: only the articles you schedule are written."}
         </div>
       </div>
 

@@ -12,6 +12,7 @@ import { startDraft } from "@/lib/placements/runs";
 import { draftPrerequisite } from "@/lib/placements/workflow";
 import { xNoiseRule } from "@/lib/placements/x-conversation";
 import { X_SEARCH_SOURCE, searchXForBusiness } from "@/lib/placements/x-search";
+import { X_CLOSE_SOURCE, closeWindowStart, lastCloseSearchAt, searchXCloseAccounts } from "@/lib/placements/x-close";
 import { excerptWithReferenced, isReadPost, loadReferenced } from "@/lib/placements/referenced";
 import { parseVoiceSettings } from "@/lib/voice/settings";
 import { StepIncomplete, type StepContext, type Workflow, type WorkflowStep } from "@/lib/jobs/types";
@@ -34,9 +35,15 @@ const QUOTE_SHAPE_RULES = new Set(["x_too_short", "x_link_share", "x_broadcast"]
  *              the site's topics, each under the platform's monthly cap
  *              (lib/placements/x-search.ts). Checkpointed: a resumed job
  *              never pays for its searches twice.
+ *   close    — up to two searches of the fresh original posts of the
+ *              accounts the site replies to most (lib/placements/x-close.ts),
+ *              since this step last ran, 12 hours at most, under the same
+ *              cap. Every site since 2026-11-24 (a trial before). A site that
+ *              posted no reply on X in 30 days has no such accounts and makes
+ *              no call. Checkpointed.
  *   rules    — the deterministic rules, then the X pre-filter (adverts,
  *              link shares, list dumps, statements to nobody), on what
- *              this search stored: rules only, before any paid judgement.
+ *              both searches stored: rules only, before any paid judgement.
  *   qualify  — the qualifying agent, on the survivors, the way the weekly
  *              discovery judges its finds, under a small budget.
  *   draft    — drafts for the best qualified finds, at most five a run,
@@ -50,8 +57,8 @@ const QUOTE_SHAPE_RULES = new Set(["x_too_short", "x_link_share", "x_broadcast"]
 
 export const X_DISCOVERY = "x-post-discovery";
 
-/** Rows the rules and the qualifier look at per run: what three searches can store. */
-const MAX_ROWS = 60;
+/** Rows the rules and the qualifier look at per run: what the five searches can store (30 + 50). */
+const MAX_ROWS = 80;
 /** Rows the qualifier judges per run, and per call. */
 const MAX_QUALIFY = 30;
 const BATCH_SIZE = 10;
@@ -68,13 +75,13 @@ function readInput(input: Record<string, unknown>): { businessId: string } {
   return { businessId };
 }
 
-async function openFinds(supabase: SupabaseClient, businessId: string, status: string, now: Date, source: string): Promise<TargetRow[]> {
+async function openFinds(supabase: SupabaseClient, businessId: string, status: string, now: Date, sources: readonly string[]): Promise<TargetRow[]> {
   const { data } = await supabase
     .from("placement_targets")
     .select(TARGET_COLUMNS)
     .eq("business_id", businessId)
     .eq("surface", "x")
-    .eq("found_via", source)
+    .in("found_via", [...sources])
     .eq("status", status)
     .gt("fresh_until", now.toISOString())
     .order("created_at", { ascending: false })
@@ -98,11 +105,12 @@ async function ruleContext(ctx: StepContext, business: { website_url: string | n
 }
 
 /**
- * The steps after a search, shared by every X search that stores rows with
- * its own `found_via` (the daily search, the close-accounts trial): the
- * rules and the X pre-filter, the qualifier, the drafts.
+ * The steps after the searches, over the rows they stored with their own
+ * `found_via` (the topic search, the close accounts): the rules and the X
+ * pre-filter, the qualifier, the drafts. One qualifier budget and one
+ * draft ceiling for both sources together.
  */
-export function xFindSteps(source: string): WorkflowStep[] {
+export function xFindSteps(sources: readonly string[]): WorkflowStep[] {
   return [
     {
       name: "rules",
@@ -111,7 +119,7 @@ export function xFindSteps(source: string): WorkflowStep[] {
         const business = await loadBusiness(ctx.supabase, businessId);
         if (!business) return { skipped: "business not found" };
         const now = new Date();
-        const rows = await openFinds(ctx.supabase, businessId, "discovered", now, source);
+        const rows = await openFinds(ctx.supabase, businessId, "discovered", now, sources);
         if (rows.length === 0) return { considered: 0, rejected: 0 };
         const { rules } = await ruleContext(ctx, business, businessId, now);
         // The shared rules, then the X pre-filter (adverts, link shares, list
@@ -157,7 +165,7 @@ export function xFindSteps(source: string): WorkflowStep[] {
         const now = new Date();
         const progress = await qualifyProgress(ctx.supabase, ctx.job.id);
         const cap = MAX_QUALIFY - progress.judged;
-        const rows = (await openFinds(ctx.supabase, businessId, "discovered", now, source)).slice(0, Math.max(0, cap));
+        const rows = (await openFinds(ctx.supabase, businessId, "discovered", now, sources)).slice(0, Math.max(0, cap));
         if (rows.length === 0) return { judged: 0, qualified: 0, rejected: 0, undecided: 0 };
 
         const brandNames = businessBrandNames(business);
@@ -222,7 +230,7 @@ export function xFindSteps(source: string): WorkflowStep[] {
           .select("id, qualify_score")
           .eq("business_id", businessId)
           .eq("surface", "x")
-          .eq("found_via", source)
+          .in("found_via", [...sources])
           .eq("status", "qualified")
           .gt("fresh_until", now.toISOString())
           .order("qualify_score", { ascending: false, nullsFirst: false })
@@ -285,6 +293,36 @@ export const xDiscoveryWorkflow: Workflow = {
         return { ...outcome, notes: outcome.notes.slice(0, 10) };
       },
     },
-    ...xFindSteps(X_SEARCH_SOURCE),
+    {
+      name: "close",
+      async run(ctx) {
+        const { businessId } = readInput(ctx.input);
+        const business = await loadBusiness(ctx.supabase, businessId);
+        if (!business) return { skipped: "business not found" };
+        const client = xApiClientFromEnv();
+        if (!client) return { skipped: "the X API is not turned on for this deployment" };
+        const now = new Date();
+        const windowStart = closeWindowStart(await lastCloseSearchAt(ctx.supabase, businessId, X_DISCOVERY, ctx.job.id), now);
+        const outcome = await searchXCloseAccounts({ supabase: ctx.supabase, client, business, windowStart, now, signal: ctx.signal });
+        console.log(
+          JSON.stringify({
+            ts: now.toISOString(),
+            level: "info",
+            event: "x_close",
+            business_id: businessId,
+            job_id: ctx.job.id,
+            handles: outcome.handles.length,
+            calls: outcome.calls,
+            returned: outcome.returned,
+            truncated: outcome.truncated,
+            stored: outcome.stored,
+            cost_usd: outcome.costUsd,
+            stopped: outcome.stopped,
+          })
+        );
+        return { ...outcome, notes: outcome.notes.slice(0, 10) };
+      },
+    },
+    ...xFindSteps([X_SEARCH_SOURCE, X_CLOSE_SOURCE]),
   ],
 };

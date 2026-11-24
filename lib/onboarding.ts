@@ -6,10 +6,9 @@
  * someone who uses the product, and with nothing recorded there the drafter
  * refuses to write (lib/placements/workflow.ts, draftPrerequisite). The first
  * post from X is the placements loop's first step, done by a person.
- * Two of those steps spend money and stay off until someone switches them
- * on: Autopilot, and article images. Images come after Autopilot on
- * purpose — turning the calendar on without Images & video leaves a week of
- * text-only posts, which is what the last step exists to prevent.
+ * Autopilot and article images were the last two steps until 2026-11-24;
+ * both are on by default since (docs/AUTOPILOT.md), so there is nothing to
+ * turn on and they are not steps any more.
  */
 
 export type OnboardingStatus = {
@@ -19,8 +18,6 @@ export type OnboardingStatus = {
   hasArticles: boolean;
   hasIntegration: boolean;
   hasManualPost: boolean;
-  hasAutomation: boolean;
-  hasImages: boolean;
 };
 
 export const EMPTY_ONBOARDING_STATUS: OnboardingStatus = {
@@ -30,8 +27,6 @@ export const EMPTY_ONBOARDING_STATUS: OnboardingStatus = {
   hasArticles: false,
   hasIntegration: false,
   hasManualPost: false,
-  hasAutomation: false,
-  hasImages: false,
 };
 
 export function buildOnboardingStatus(input: {
@@ -43,8 +38,6 @@ export function buildOnboardingStatus(input: {
   integrationCount: number;
   /** `placement_targets` rows of the site with `found_via` = MANUAL_SOURCE. */
   manualPostCount: number;
-  autopilotEnabled: boolean;
-  imagesEnabled: boolean;
 }): OnboardingStatus {
   if (!input.hasBusiness) return { ...EMPTY_ONBOARDING_STATUS };
   return {
@@ -54,8 +47,6 @@ export function buildOnboardingStatus(input: {
     hasArticles: input.articleCount > 0,
     hasIntegration: input.integrationCount > 0,
     hasManualPost: input.manualPostCount > 0,
-    hasAutomation: input.autopilotEnabled,
-    hasImages: input.imagesEnabled,
   };
 }
 
@@ -102,19 +93,6 @@ export const ONBOARDING_STEPS = [
     label: "Add your first post from X",
     description: "Paste the link of a post worth answering. A reply is drafted; you post it.",
     href: "/today",
-  },
-  {
-    key: "hasAutomation" as const,
-    label: "Turn on Autopilot",
-    description: "Keeps the calendar filled so publishing does not stop.",
-    href: "/settings/automation",
-  },
-  {
-    key: "hasImages" as const,
-    label: "Turn on article images",
-    description:
-      "Otherwise every article goes out as plain text. Pick a look in Autopilot, under Images and video.",
-    href: "/settings/automation#images",
   },
 ] as const;
 

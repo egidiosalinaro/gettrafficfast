@@ -457,8 +457,13 @@ Cron routes are `CRON_SECRET`-protected and listed in `vercel.json`. A new
 sweep is a new bounded job, not a loop inside an existing route that
 happens to be convenient.
 
-Autopilot spends money and publishes on the customer's site: it stays
-**off by default**, threshold-driven, documented in `docs/AUTOPILOT.md`.
+Autopilot spends money and publishes on the customer's site through the
+destination the customer connected. Since 2026-11-24 it is **on by default
+per site** (the owner's decision: product features are on, the person does
+not have to enable them; `enabled: false` is the person's opt-out),
+threshold-driven, bounded per run, documented in `docs/AUTOPILOT.md`. The
+deployment-level rule below (§12) is unchanged: a provider that spends is
+switched on by the platform's env settings, never by a key existing.
 
 Placement work (`docs/PLACEMENTS.md`) finds and writes; a person publishes.
 Do not auto-post to Reddit or any surface whose terms or ban risk forbid it.
@@ -679,8 +684,11 @@ When a missing value does not make the entity invalid, use a sensible
 default at the domain/application layer:
 
 - content language → the supported default;
-- media → off (it spends money);
-- Autopilot → off;
+- per-site product features → on (Autopilot, images and video, Push page 3,
+  the weekly AI visibility run, the X features; since 2026-11-24): the person
+  turns one off, never on. What stays opt-in per person: anything that uses
+  the customer's own money or credentials, and anything that would publish on
+  their live site without a destination they connected;
 - citation engines → none configured means the sweep reports disabled,
   it does not invent a rate;
 - blog with no deliveries in `blog_posts` → empty, never filled with samples.
