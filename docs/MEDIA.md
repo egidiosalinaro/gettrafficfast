@@ -280,6 +280,7 @@ shipping the full-size renders would be paid for on every settings page view.
 | Where | What |
 | --- | --- |
 | Settings → Autopilot → Images and video | per business: images on/off, **images per article** (featured only, or up to 1–3 in the article, with no price: included in the plan), **style** (four looks or a custom one written by the business), brand colors, videos on/off when the platform can look for videos |
+| `IMAGES_ENABLED` | `1` to let the deployment generate images at all (since 2026-11-24). Unset: every render is skipped as not configured, whatever a site's settings say |
 | `IMAGE_PROVIDER` | platform default provider (`imagen` = Google, via `lib/providers/images/google.ts`) |
 | `OPENAI_API_KEY` | enables the `openai` provider |
 | `YOUTUBE_API_KEY` | enables video enrichment (absent → the settings screen says videos are unavailable, articles record `not_configured`, the operator is alerted once a day while a business has videos on) |

@@ -18,7 +18,7 @@
  * line says when the text changed, not when the page was rendered. Change it
  * with the text, in the same commit.
  */
-export const LEGAL_LAST_UPDATED = "2026-11-17";
+export const LEGAL_LAST_UPDATED = "2026-11-24";
 
 /** "17 November 2026", the way the pages print LEGAL_LAST_UPDATED. */
 export function formatLegalDate(iso: string = LEGAL_LAST_UPDATED): string {

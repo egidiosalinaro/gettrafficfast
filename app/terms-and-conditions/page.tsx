@@ -74,7 +74,8 @@ const sections: LegalSection[] = [
           </li>
           <li>
             <strong>Articles are published only to destinations you connect</strong> (for example WordPress or a
-            webhook on your site), when you publish them or when you switch on automatic publishing.
+            webhook on your site), when you publish them or, with Autopilot on (the default once a destination is
+            connected; you can turn it off in Settings), automatically on their scheduled day.
           </li>
           <li>
             <strong>Measurements are sampled.</strong> Rankings and AI-answer citations are measured by sampling;
@@ -211,8 +212,9 @@ const sections: LegalSection[] = [
         <p>
           You are responsible for reviewing output before you publish or post it, for what you publish or post, and
           for the facts you give GTF to use. Do not publish output you have not checked where accuracy matters (for
-          example health, legal or financial topics). If you switch on automatic publishing, you accept that articles
-          are published without a review each time.
+          example health, legal or financial topics). While Autopilot is on, articles are published on their
+          scheduled day without a review each time; each one is on your calendar, where you can read, change or remove
+          it, before its day.
         </p>
         <p>
           GTF does not promise rankings, traffic, citations by AI answer engines, or any business result.

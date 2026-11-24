@@ -202,12 +202,15 @@ describe("produce-article enrich", () => {
     sentry.messages.length = 0;
     emails.sent.length = 0;
     setVideoProvider(null);
+    // The deployment has opted in to images (lib/providers/images/registry.ts).
+    vi.stubEnv("IMAGES_ENABLED", "1");
   });
 
   afterEach(() => {
     setLlmProvider(null);
     setImageProvider("imagen", null);
     setVideoProvider(undefined);
+    vi.unstubAllEnvs();
   });
 
   it("renders the hero only by default, as WebP with its size in the markup data", async () => {

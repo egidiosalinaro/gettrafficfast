@@ -92,7 +92,7 @@ where the feature is paid: the ones marked "opt-in" also need their switch.
 | Fresh posts on X | `X_API_ENABLED=1` (opt-in), `X_API_BEARER_TOKEN`, `X_API_MONTHLY_CAP_USD` | Users add posts by pasting links; web search still finds some |
 | Reddit API | `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` | Reddit threads come from web search (`SERPER_API_KEY`) |
 | GitHub discovery | `PLACEMENTS_GITHUB=true` (opt-in), `GITHUB_TOKEN` | Off |
-| Images and video | `IMAGE_PROVIDER`, `OPENAI_API_KEY`, `YOUTUBE_API_KEY` | No video without `YOUTUBE_API_KEY`. Images use the image provider's key (`GEMINI_API_KEY` for the default one), so with that key set every site gets a featured image from 2026-11-24: on by default per site, turned off in Settings → Autopilot, Images and video |
+| Images and video | `IMAGES_ENABLED`, `IMAGE_PROVIDER`, `OPENAI_API_KEY`, `YOUTUBE_API_KEY` | No video without `YOUTUBE_API_KEY`. No image without `IMAGES_ENABLED=1`: the default provider uses `GEMINI_API_KEY`, the text models' key, so the key alone never starts spending on images. With it set, every site gets a featured image: on by default per site, turned off in Settings → Autopilot, Images and video |
 | Notification email | `RESEND_API_KEY`, `NOTIFICATIONS_FROM_EMAIL` (a verified domain), `OPERATOR_EMAIL` | Notifications skipped |
 | Billing | `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET` | See "Running without billing" |
 | Error monitoring | Sentry, see below | No error reports |
